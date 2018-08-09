@@ -22,6 +22,7 @@ class kmc_dn():
         self.nu = 1
         self.k = 1
         self.T = 300
+        self.ab = 1
         
         # Initialize variables
         self.N = N
@@ -125,45 +126,57 @@ class kmc_dn():
         for i in range(self.transitions.shape[0]):
             for j in range(self.transitions.shape[0]):
                 
-                if(self.acceptors[i, 2] != 0 
-                   and self.acceptors[j, 2] != 2
-                   and not(i > N and j > N)):
+                # Check if transition is possible
+                possible = True
+                if(i > self.N and j > self.N):
+                    possible = False  # No transition from electrode to electrode
+                elif(i > self.N):
+                    if(self.acceptors[j, 2] == 2):
+                        possible = False  # No transition to occupied acceptor
+                elif(j > self.N):
+                    if(self.acceptors[i, 2] == 0):
+                        possible = False  # No transition from empty acceptor
+                elif(self.acceptors[i, 2] == 0
+                       or self.acceptors[j, 2] == 2):
+                        possible = False
+                        
+                if(possible):
                     # Calculate ei
-                    if(i > N):
+                    if(i > self.N):
                         ei = 0  # Hop from electrode into system
                     else:
                         # Acceptor interaction loop
                         acc_int = 0
                         for k in range(self.acceptors.shape[0]):
                             if(k != i):
-                                acc_int += (1 - self.acceptors[k, 2])
-                                        /self.dist(self.acceptors[i, :2], 
-                                                   self.acceptors[k, :2])           
-                        ei = self.e**2/(4 * np.pi * self.eps) * acc_int 
-                            + self.E_constant[i]
-                        if(acceptors[i, 2] == 2):
-                            ei += U
+                                acc_int += ((1 - self.acceptors[k, 2])
+                                            /self.dist(self.acceptors[i, :2], 
+                                                       self.acceptors[k, :2]))          
+                        ei = (self.e**2/(4 * np.pi * self.eps) * acc_int 
+                            + self.E_constant[i])
+                        if(self.acceptors[i, 2] == 2):
+                            ei += self.U
                     
                     # Calculate ej
-                    if(j > N):
+                    if(j > self.N):
                         ej = 0  # Hop to electrode
                     else:
                         # Acceptor interaction loop
                         acc_int = 0
                         for k in range(self.acceptors.shape[0]):
                             if(k != j):
-                                acc_int += (1 - self.acceptors[k, 2])
+                                acc_int += ((1 - self.acceptors[k, 2])
                                         /self.dist(self.acceptors[j, :2], 
-                                                   self.acceptors[k, :2])         
-                        ej = self.e**2/(4 * np.pi * self.eps) * acc_int
-                            + self.E_constant[j]
-                        if(acceptors[j, 2] == 1):
-                            ej += U
+                                                   self.acceptors[k, :2]))        
+                        ej = (self.e**2/(4 * np.pi * self.eps) * acc_int
+                            + self.E_constant[j])
+                        if(self.acceptors[j, 2] == 1):
+                            ej += self.U
                     
                     # Calculate transition rate
-                    eij = ej - ei + self.e**2/(4 * np.pi * self.eps)
+                    eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
                                     /self.dist(self.acceptors[j, :2], 
-                                               self.acceptors[k, :2])
+                                               self.acceptors[k, :2]))
                     if(eij < 0):
                         self.transitions[i, j] = self.nu*np.exp(-2*self.dist(self.acceptors[j, :2], 
                                                                                 self.acceptors[k, :2])

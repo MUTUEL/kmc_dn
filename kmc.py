@@ -37,9 +37,14 @@ electrodes[0] = [0, ydim/2, 10]  # Left electrode
 electrodes[1] = [xdim, ydim/2, 0] # Right electrode
 
 
-#%% Dopant (1.) and charge (2.) placement 
+#%% Dopant (1.) and charge (2.) placement, and potential (3.) and compensation (4.).
 
 kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, electrodes, res)
+
+
+#%% Update transition matrix (5. and 6.)
+
+kmc.update_transition_matrix()
 
 
 #%% Plotting
