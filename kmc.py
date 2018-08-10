@@ -37,7 +37,6 @@ electrodes[0] = [0, ydim/2, 10]  # Left electrode
 electrodes[1] = [xdim, ydim/2, 0] # Right electrode
 
 
-
 #%% Dopant (1.) and charge (2.) placement, and potential (3.) and compensation (4.).
 
 kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, electrodes, res)
@@ -48,15 +47,25 @@ kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, electrodes, res)
 kmc.update_transition_matrix()
 
 
-#%% Plotting
+#%% Pick hopping event (7.)
 
-print(kmc.E_constant)
+kmc.pick_event()
+
+# Initialize figure
+fig = plt.figure()
+ax = fig.add_subplot(111)
 
 ## Plot potential profile
-plt.imshow(kmc.V.transpose(), interpolation='bicubic', origin='lower')
+ax.imshow(kmc.V.transpose(), interpolation='bicubic', origin='lower')
 
-# Plot impurity configuration
-plt.plot(kmc.acceptors[:, 0], kmc.acceptors[:, 1], 'x')
-plt.plot(kmc.donors[:, 0], kmc.donors[:, 1], 'o')
+# Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
+colors = ['red' if i==2 
+          else 'orange' if i==1 
+          else 'black' for i in kmc.acceptors[:, 2]]
+ax.scatter(kmc.acceptors[:, 0], kmc.acceptors[:, 1], c = colors, marker='o')
+
+ax.scatter(kmc.donors[:, 0], kmc.donors[:, 1], marker='x')
+
+   
 
 

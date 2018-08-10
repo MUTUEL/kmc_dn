@@ -18,11 +18,11 @@ class kmc_dn():
         # Constants
         self.e = 1.602E-19  # Coulomb
         self.eps = 11.68  # Relative permittivity
-        self.U = 1  # J
         self.nu = 1
         self.k = 1
         self.T = 300
         self.ab = 1
+        self.U = 5/8 * 1/self.ab   # J
         
         # Initialize variables
         self.N = N
@@ -206,7 +206,40 @@ class kmc_dn():
                     else:
                         self.transitions[i, j] = self.nu*np.exp(-2*hop_dist/self.ab)
                     
-                    
+    
+    def pick_event(self):
+        '''Based in the transition matrix self.transitions, pick a hopping event'''
+        # Initialization
+        self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
+        
+        # Calculate cumulative transition rate (partial sums)
+        for i in range(self.transitions.shape[0]):
+            for j in range(self.transitions.shape[0]):
+                if(i == 0 and j == 0):
+                    self.P[i*self.transitions.shape[0] + j] = self.transitions[i, j]
+                else:
+                    self.P[i*self.transitions.shape[0] + j] = self.P[i*self.transitions.shape[0] + j - 1] + self.transitions[i, j]
+        
+        # Normalization
+        self.P = self.P/self.P[-1]
+        
+        # Randomly determine event
+        event = np.random.rand()
+        
+        # Find transition index
+        event = min(np.where(self.P >= event)[0])
+        
+        # Convert to acceptor/electrode indices
+        self.transition = [int(np.floor(event/self.transitions.shape[0])),
+                           int(event%self.transitions.shape[0])]
+        
+        # Perform hop
+        if(self.transition[0] < self.N):
+            self.acceptors[self.transition[0], 2] -= 1
+        if(self.transition[1] < self.N):
+            self.acceptors[self.transition[1], 2] += 1
+    
+                
     @staticmethod        
     def dist(ri, rj):
         '''Calculate cartesian distance between 2D vectors ri and rj'''
