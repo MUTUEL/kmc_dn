@@ -25,31 +25,30 @@ import matplotlib.pyplot as plt
 
 #%% Parameters
 
-N = 20  # Number of acceptors
-M = 10  # Number of donors
+N = 1  # Number of acceptors
+M = 0  # Number of donors
 xdim = 20  # Length along x dimension
 ydim = 20  # Lenght along y dimension
 res = 1  # Resolution of laplace grid
 
 # Define electrodes
-electrodes = np.empty((2, 3))  # Electrodes with their voltage
-electrodes[0] = [0, ydim/2, 10]  # Left electrode
-electrodes[1] = [xdim, ydim/2, 0] # Right electrode
+electrodes = np.empty((2, 4))  # Electrodes with their voltage
+electrodes[0] = [0, ydim/2, 1000, 0]  # Left electrode
+electrodes[1] = [xdim, ydim/2, -1000, 0] # Right electrode
 
 
 #%% Dopant (1.) and charge (2.) placement, and potential (3.) and compensation (4.).
 
 kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, electrodes, res)
 
+#%% Create test scenario
 
+kmc.acceptors = np.array([[xdim/2, ydim/2, 1]])
 #%% Update transition matrix (5. and 6.)
-
-kmc.update_transition_matrix()
-
 
 #%% Pick hopping event (7.)
 
-kmc.pick_event()
+kmc.simulate(interval=100)
 
 # Initialize figure
 fig = plt.figure()

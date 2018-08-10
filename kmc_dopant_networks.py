@@ -23,6 +23,7 @@ class kmc_dn():
         self.T = 300
         self.ab = 1
         self.U = 5/8 * 1/self.ab   # J
+        self.time = 0  # s
         
         # Initialize variables
         self.N = N
@@ -234,12 +235,52 @@ class kmc_dn():
                            int(event%self.transitions.shape[0])]
         
         # Perform hop
-        if(self.transition[0] < self.N):
+        if(self.transition[0] < self.N):  # Hop from acceptor
             self.acceptors[self.transition[0], 2] -= 1
-        if(self.transition[1] < self.N):
+        else:  # Hop from electrode
+            self.electrodes[self.transition[0] - self.N, 3] -= 1
+        if(self.transition[1] < self.N):  # Hop to acceptor
             self.acceptors[self.transition[1], 2] += 1
+        else:
+            self.electrodes[self.transition[1] - self.N, 3] += 1
+            
+        # Increment time
+        self.time += 1/self.transitions[self.transition[0], self.transition[1]]
     
+    
+    def simulate(self, interval = 500, tol = 1E-3):
+        '''Performs a kmc simulation and checks current convergence after [interval]
+        hop events.'''
+        # Initialization
+        self.old_current = np.ones((self.electrodes.shape[0]))
+        self.current = np.zeros((self.electrodes.shape[0]))
+        self.time = 0  # Reset simulation time
+        for i in range(self.electrodes.shape[0]):
+            self.electrodes[i, 3] = 0  # Reset current
+            
+        
+        # Simulation loop
+        converged = False
+        self.old_current *= np.inf
+        while(not converged):
+            for i in range(interval):
+                # Hopping event
+                self.update_transition_matrix()
+                self.pick_event()
                 
+            # Calculate currents
+            self.current = self.electrodes[:, 3]/self.time
+                
+            # Check convergence
+            if(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
+                converged = True
+            else:
+                self.old_current = self.current.copy()  # Store current
+            print(self.current)
+            
+        
+
+            
     @staticmethod        
     def dist(ri, rj):
         '''Calculate cartesian distance between 2D vectors ri and rj'''
