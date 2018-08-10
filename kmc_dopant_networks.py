@@ -128,21 +128,28 @@ class kmc_dn():
                 
                 # Check if transition is possible
                 possible = True
-                if(i > self.N and j > self.N):
-                    possible = False  # No transition from electrode to electrode
-                elif(i > self.N):
+                if(i >= self.N and j >= self.N):
+                    possible = False  # No transition electrode -> electrode
+                elif(i >= self.N and j < self.N):
                     if(self.acceptors[j, 2] == 2):
-                        possible = False  # No transition to occupied acceptor
-                elif(j > self.N):
+                        possible = False  # No transition electrode -> occupied
+                elif(i < self.N and j >= self.N):
                     if(self.acceptors[i, 2] == 0):
-                        possible = False  # No transition from empty acceptor
-                elif(self.acceptors[i, 2] == 0
+                        possible = False  # No transition empty -> electrode
+                elif(i == j):
+                    possible = False  # No transition to same acceptor
+                elif(i < self.N and j < self.N):
+                    if(self.acceptors[i, 2] == 0
                        or self.acceptors[j, 2] == 2):
-                        possible = False
+                        possible = False  # No transition empty -> or -> occupied
+
+                
                         
-                if(possible):
+                if(not possible):
+                    self.transitions[i, j] = 0
+                else:
                     # Calculate ei
-                    if(i > self.N):
+                    if(i >= self.N):
                         ei = 0  # Hop from electrode into system
                     else:
                         # Acceptor interaction loop
@@ -158,7 +165,7 @@ class kmc_dn():
                             ei += self.U
                     
                     # Calculate ej
-                    if(j > self.N):
+                    if(j >= self.N):
                         ej = 0  # Hop to electrode
                     else:
                         # Acceptor interaction loop
@@ -173,23 +180,33 @@ class kmc_dn():
                         if(self.acceptors[j, 2] == 1):
                             ej += self.U
                     
-                    # Calculate transition rate
-                    eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
-                                    /self.dist(self.acceptors[j, :2], 
-                                               self.acceptors[k, :2]))
-                    if(eij < 0):
-                        self.transitions[i, j] = self.nu*np.exp(-2*self.dist(self.acceptors[j, :2], 
-                                                                                self.acceptors[k, :2])
-                                                                /self.ab
-                                                                -eij/(self.k*self.T))
+                    # Calculate energy difference
+                    if(i >= self.N or j >= self.N):
+                        eij = ej - ei  # No Coulomb interaction for electrode hops
                     else:
-                        self.transitions[i, j] = self.nu*np.exp(-2*self.dist(self.acceptors[j, :2], 
-                                                                                self.acceptors[k, :2])
-                                                                /self.ab)
-                else:
-                    self.transitions[i, j] = 0
+                        eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
+                                    /self.dist(self.acceptors[i, :2], 
+                                               self.acceptors[j, :2]))
                     
-        
+                    # Calculate hopping distance
+                    if(i >= self.N):  # Hop from electrode
+                        hop_dist = self.dist(self.electrodes[i-self.N, :2], 
+                                             self.acceptors[j, :2])
+                    elif(j >= self.N):  # Hop to electrode
+                        hop_dist = self.dist(self.acceptors[i, :2], 
+                                             self.electrodes[j-self.N, :2])
+                    else:  # Hop acceptor -> acceptor
+                        hop_dist = self.dist(self.acceptors[i, :2],
+                                             self.acceptors[j, :2])
+                        
+                    # Calculate transition rate
+                    if(eij < 0):
+                        self.transitions[i, j] = self.nu*np.exp(-2*hop_dist/self.ab
+                                                                - eij/(self.k*self.T))
+                    else:
+                        self.transitions[i, j] = self.nu*np.exp(-2*hop_dist/self.ab)
+                    
+                    
     @staticmethod        
     def dist(ri, rj):
         '''Calculate cartesian distance between 2D vectors ri and rj'''
