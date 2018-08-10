@@ -110,8 +110,8 @@ class kmc_dn():
         
         for i in range(self.acceptors.shape[0]):
             # Add electrostatic potential
-            x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 2) + 1
-            y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 2) + 1
+            x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
+            y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
             self.E_constant[i] += self.e*self.V[int(round(x)), int(round(y))]
             
             # Add compensation  

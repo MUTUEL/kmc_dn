@@ -37,6 +37,7 @@ electrodes[0] = [0, ydim/2, 10]  # Left electrode
 electrodes[1] = [xdim, ydim/2, 0] # Right electrode
 
 
+
 #%% Dopant (1.) and charge (2.) placement, and potential (3.) and compensation (4.).
 
 kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, electrodes, res)
@@ -52,7 +53,7 @@ kmc.update_transition_matrix()
 print(kmc.E_constant)
 
 ## Plot potential profile
-plt.imshow(kmc.V.transpose(), interpolation='bicubic')
+plt.imshow(kmc.V.transpose(), interpolation='bicubic', origin='lower')
 
 # Plot impurity configuration
 plt.plot(kmc.acceptors[:, 0], kmc.acceptors[:, 1], 'x')
