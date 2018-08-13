@@ -63,6 +63,7 @@ class kmc_dn():
         self.M = M
         self.xdim = xdim
         self.ydim = ydim
+        self.zdim = zdim
         if(res == 'unspecified'):
             self.res = min([xdim, ydim])/100
         else:
@@ -143,12 +144,12 @@ class kmc_dn():
             for i in range(1, self.V.shape[0]-1):
                 for j in range(1, self.V.shape[1]-1):
                     for k in range(1, self.V.shape[2]-1):
-                    self.V[i, j, k] = alpha *1/6 * (self.V[i-1, j, k]
-                                                    + self.V[i+1, j, k]
-                                                    + self.V[i, j-1, k]
-                                                    + self.V[i, j+1, k]
-                                                    + self.V[i, j, k-1]
-                                                    + self.V[i, j, k+1])
+                        self.V[i, j, k] = alpha *1/6 * (self.V[i-1, j, k]
+                                                        + self.V[i+1, j, k]
+                                                        + self.V[i, j-1, k]
+                                                        + self.V[i, j+1, k]
+                                                        + self.V[i, j, k-1]
+                                                        + self.V[i, j, k+1])
 
     def constant_energy(self):
         '''Solve the constant energy terms for each acceptor site. These

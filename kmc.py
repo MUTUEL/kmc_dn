@@ -33,7 +33,7 @@ zdim = 20  # Length along z dimension
 res = 1  # Resolution of laplace grid
 
 # Define electrodes
-electrodes = np.empty((2, 4))  # Electrodes with their voltage
+electrodes = np.empty((2, 5))  # Electrodes with their voltage
 electrodes[0] = [0, ydim/2, 0, 1000, 0]  # Left electrode
 electrodes[1] = [xdim, ydim/2, 0, -1000, 0] # Right electrode
 
@@ -65,3 +65,5 @@ colors = ['red' if i==2
 ax.scatter(kmc.acceptors[:, 0], kmc.acceptors[:, 1], c = colors, marker='o')
 
 ax.scatter(kmc.donors[:, 0], kmc.donors[:, 1], marker='x')
+
+plt.show()
