@@ -29,13 +29,13 @@ N = 1  # Number of acceptors
 M = 0  # Number of donors
 xdim = 20  # Length along x dimension
 ydim = 20  # Length along y dimension
-zdim = 0  # Length along z dimension
+zdim = 20  # Length along z dimension
 res = 1  # Resolution of laplace grid
 
 # Define electrodes
-electrodes = np.empty((2, 5))  # Electrodes with their voltage
-electrodes[0] = [1, 0, 0, 10, 0]  # Left electrode
-electrodes[1] = [xdim - 1, 0, 0, -10, 0] # Right electrode
+electrodes = np.zeros((2, 5))  # Electrodes with their voltage
+electrodes[0] = [0, 0, 0, 10, 0]  # Left electrode
+electrodes[1] = [xdim, 0, 0, -10, 0] # Right electrode
 
 
 #%% Dopant (1.) and charge (2.) placement, and potential (3.) and compensation (4.).
@@ -56,7 +56,7 @@ fig = plt.figure()
 ax = fig.add_subplot(111)
 
 ## Plot potential profile
-ax.imshow(kmc.V[:, :, 0].transpose(), interpolation='bicubic', origin='lower')
+ax.imshow(kmc.V[:, :, 1].transpose(), interpolation='bicubic', origin='lower')
 
 # Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
 colors = ['red' if i==2

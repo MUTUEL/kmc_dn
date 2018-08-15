@@ -156,6 +156,30 @@ class kmc_dn():
                 x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
                 y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
                 self.V[int(round(x)), int(round(y)), 0] = self.electrodes[i, 3]
+            
+            # Boundary relaxation loop (assume corners are fixed)
+            while((np.linalg.norm(self.V - V_old)
+                    /np.linalg.norm(self.V)) > 0.01):
+                V_old = self.V.copy()  # Store previous V
+                for i in range(1, self.V.shape[0]-1):
+                    self.V[i, 0, 0] = alpha * 1/2 * (V_old[i-1, 0, 0]
+                                                     + V_old[i+1, 0, 0])
+                    self.V[i, -1, 0] = alpha * 1/2 * (V_old[i-1, -1, 0]
+                                                     + V_old[i+1, -1, 0])
+                    self.V[0, i, 0] = alpha * 1/2 * (V_old[0, i-1, 0]
+                                                     + V_old[0, i+1, 0])
+                    self.V[-1, i, 0] = alpha * 1/2 * (V_old[-1, i-1, 0]
+                                                     + V_old[-1, i+1, 0])
+                # Overwrite electrodes
+                for i in range(self.electrodes.shape[0]):
+                    x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                    y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
+                    self.V[int(round(x)), int(round(y)), 0] = self.electrodes[i, 3]    
+            
+            # Re-initialize V_old
+            V_old = np.ones((int(self.xdim/self.res) + 2,
+                         int(self.ydim/self.res) + 2,
+                         int(self.zdim/self.res) + 2))
                 
             # Relaxation loop
             while((np.linalg.norm(self.V - V_old)
@@ -178,6 +202,52 @@ class kmc_dn():
                 self.V[int(round(x)),
                         int(round(y)),
                         int(round(z))] = self.electrodes[i, 3]
+            
+            # Boundary relaxation loop (assume corners are fixed)
+            while((np.linalg.norm(self.V - V_old)
+                    /np.linalg.norm(self.V)) > 0.01):
+                V_old = self.V.copy()  # Store previous V
+                for i in range(1, self.V.shape[0]-1):
+                    self.V[i, 0, 0] = alpha * 1/2 * (V_old[i-1, 0, 0]
+                                                     + V_old[i+1, 0, 0])
+                    self.V[i, -1, 0] = alpha * 1/2 * (V_old[i-1, -1, 0]
+                                                     + V_old[i+1, -1, 0])
+                    self.V[i, 0, -1] = alpha * 1/2 * (V_old[i-1, 0, -1]
+                                                     + V_old[i+1, 0, -1])
+                    self.V[i, -1, -1] = alpha * 1/2 * (V_old[i-1, -1, -1]
+                                                     + V_old[i+1, -1, -1])
+                    
+                    self.V[0, i, 0] = alpha * 1/2 * (V_old[0, i-1, 0]
+                                                     + V_old[0, i+1, 0])
+                    self.V[-1, i, 0] = alpha * 1/2 * (V_old[-1, i-1, 0]
+                                                     + V_old[-1, i+1, 0])
+                    self.V[0, i, -1] = alpha * 1/2 * (V_old[0, i-1, -1]
+                                                     + V_old[0, i+1, -1])
+                    self.V[-1, i, -1] = alpha * 1/2 * (V_old[-1, i-1, -1]
+                                                     + V_old[-1, i+1, -1])
+                    
+                    self.V[0, 0, i] = alpha * 1/2 * (V_old[0, 0, i-1]
+                                                     + V_old[0, 0, i+1])
+                    self.V[-1, 0, i] = alpha * 1/2 * (V_old[-1, 0, i-1]
+                                                     + V_old[-1, 0, i+1])
+                    self.V[0, -1, i] = alpha * 1/2 * (V_old[0, -1, i-1]
+                                                     + V_old[0, -1, i+1])
+                    self.V[-1, -1, i] = alpha * 1/2 * (V_old[-1, -1, i-1]
+                                                     + V_old[-1, -1, i+1])
+                    
+                # Overwrite electrodes
+                for i in range(self.electrodes.shape[0]):
+                    x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                    y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
+                    z = self.electrodes[i, 2]/self.zdim * (self.V.shape[1] - 1)
+                    self.V[int(round(x)),
+                            int(round(y)),
+                            int(round(z))] = self.electrodes[i, 3]    
+            
+            # Re-initialize V_old
+            V_old = np.ones((int(self.xdim/self.res) + 2,
+                         int(self.ydim/self.res) + 2,
+                         int(self.zdim/self.res) + 2))
     
             # Relaxation loop
             while((np.linalg.norm(self.V - V_old)
