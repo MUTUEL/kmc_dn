@@ -70,6 +70,14 @@ class kmc_dn():
             self.res = res
         self.transitions = np.zeros((N + electrodes.shape[0],
                                      N + electrodes.shape[0]))
+        
+        # Check dimensionality
+        if(self.ydim == 0 and self.zdim == 0):
+            self.dim = 1
+        elif(self.zdim == 0):
+            self.dim = 2
+        else:
+            self.dim = 3
 
         # Place acceptors and donors
         self.place_dopants_charges()
@@ -119,7 +127,7 @@ class kmc_dn():
         # Parameters
         alpha = 1  # Relaxation parameter (between 1 and 2, 1.2-1.5 works best)
 
-        # Grid initialization
+        # Grid initialization (for now initialized in 3D for method compatibility)
         self.V = np.zeros((int(self.xdim/self.res) + 2,
                            int(self.ydim/self.res) + 2,
                            int(self.zdim/self.res) + 2))  # +2 for boundaries
@@ -127,29 +135,64 @@ class kmc_dn():
                          int(self.ydim/self.res) + 2,
                          int(self.zdim/self.res) + 2))
 
-        # Boundary conditions (i.e. electrodes)
-        for i in range(self.electrodes.shape[0]):
-            x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
-            y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
-            z = self.electrodes[i, 2]/self.zdim * (self.V.shape[1] - 1)
-            self.V[int(round(x)),
-                    int(round(y)),
-                    int(round(y))] = self.electrodes[i, 3]
-
-        # Relaxation loop
-        while((np.linalg.norm(self.V - V_old)
-                /np.linalg.norm(self.V)) > 0.01):
-            V_old = self.V.copy()  # Store previous V
-            # Loop over internal elements
-            for i in range(1, self.V.shape[0]-1):
-                for j in range(1, self.V.shape[1]-1):
-                    for k in range(1, self.V.shape[2]-1):
-                        self.V[i, j, k] = alpha *1/6 * (self.V[i-1, j, k]
-                                                        + self.V[i+1, j, k]
-                                                        + self.V[i, j-1, k]
-                                                        + self.V[i, j+1, k]
-                                                        + self.V[i, j, k-1]
-                                                        + self.V[i, j, k+1])
+        if(self.dim == 1):
+            # Boundary conditions (i.e. electrodes)
+            for i in range(self.electrodes.shape[0]):
+                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                self.V[int(round(x)), 0, 0] = self.electrodes[i, 3]
+                
+            # Relaxation loop
+            while((np.linalg.norm(self.V - V_old)
+                    /np.linalg.norm(self.V)) > 0.01):
+                V_old = self.V.copy()  # Store previous V
+                # Loop over internal elements
+                for i in range(1, self.V.shape[0]-1):
+                    self.V[i, 0, 0] = alpha * 1/2 * (V_old[i-1, 0, 0]
+                                                    + V_old[i+1, 0, 0])
+        
+        if(self.dim == 2):
+            # Boundary conditions (i.e. electrodes)
+            for i in range(self.electrodes.shape[0]):
+                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
+                self.V[int(round(x)), int(round(y)), 0] = self.electrodes[i, 3]
+                
+            # Relaxation loop
+            while((np.linalg.norm(self.V - V_old)
+                    /np.linalg.norm(self.V)) > 0.01):
+                V_old = self.V.copy()  # Store previous V
+                # Loop over internal elements
+                for i in range(1, self.V.shape[0]-1):
+                    for j in range(1, self.V.shape[1]-1):
+                        self.V[i, j, 0] = alpha * 1/4 * (V_old[i-1, j, 0]
+                                                        + V_old[i+1, j, 0]
+                                                        + V_old[i, j-1, 0]
+                                                        + V_old[i, j+1, 0])
+        
+        if(self.dim == 3):
+            # Boundary conditions (i.e. electrodes)
+            for i in range(self.electrodes.shape[0]):
+                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
+                z = self.electrodes[i, 2]/self.zdim * (self.V.shape[1] - 1)
+                self.V[int(round(x)),
+                        int(round(y)),
+                        int(round(z))] = self.electrodes[i, 3]
+    
+            # Relaxation loop
+            while((np.linalg.norm(self.V - V_old)
+                    /np.linalg.norm(self.V)) > 0.01):
+                V_old = self.V.copy()  # Store previous V
+                # Loop over internal elements
+                for i in range(1, self.V.shape[0]-1):
+                    for j in range(1, self.V.shape[1]-1):
+                        for k in range(1, self.V.shape[2]-1):
+                            self.V[i, j, k] = alpha * 1/6 * (V_old[i-1, j, k]
+                                                            + V_old[i+1, j, k]
+                                                            + V_old[i, j-1, k]
+                                                            + V_old[i, j+1, k]
+                                                            + V_old[i, j, k-1]
+                                                            + V_old[i, j, k+1])
 
     def constant_energy(self):
         '''Solve the constant energy terms for each acceptor site. These
@@ -159,12 +202,23 @@ class kmc_dn():
 
         for i in range(self.acceptors.shape[0]):
             # Add electrostatic potential
-            x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
-            y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
-            z = self.acceptors[i, 2]/self.zdim * (self.V.shape[2] - 3) + 1
-            self.E_constant[i] += self.e*self.V[int(round(x)),
-                                                int(round(y)),
-                                                int(round(z))]
+            if(self.dim == 1):
+                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
+                self.E_constant[i] += self.e*self.V[int(round(x)), 0, 0]
+                
+            if(self.dim == 2):
+                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
+                y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
+                self.E_constant[i] += self.e*self.V[int(round(x)),
+                                                    int(round(y)), 0]
+                
+            if(self.dim == 3):
+                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
+                y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
+                z = self.acceptors[i, 2]/self.zdim * (self.V.shape[2] - 3) + 1
+                self.E_constant[i] += self.e*self.V[int(round(x)),
+                                                    int(round(y)),
+                                                    int(round(z))]
 
             # Add compensation
             self.E_constant[i] += -self.e**2/(4 * np.pi * self.eps) * sum(
