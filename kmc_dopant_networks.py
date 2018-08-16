@@ -64,10 +64,6 @@ class kmc_dn():
         self.xdim = xdim
         self.ydim = ydim
         self.zdim = zdim
-        if(res == 'unspecified'):
-            self.res = min([xdim, ydim])/100
-        else:
-            self.res = res
         self.transitions = np.zeros((N + electrodes.shape[0],
                                      N + electrodes.shape[0]))
         
@@ -78,10 +74,21 @@ class kmc_dn():
             self.dim = 2
         else:
             self.dim = 3
+            
+        # Fix voltage grid resolution
+        if(res == 'unspecified'):
+            if(self.dim == 1):
+                self.res = self.xdim/100
+            if(self.dim == 2):
+                self.res =  min([self.xdim, self.ydim])/100
+            if(self.dim == 3):
+                self.res = min([self.xdim, self.ydim, self.zdim])/100
+        else:
+            self.res = res
 
         # Place acceptors and donors
         self.place_dopants_charges()
-
+        
         # Place electrodes
         self.electrodes = electrodes
 
@@ -124,146 +131,165 @@ class kmc_dn():
 
     def electrostatic_landscape(self):
         '''Numerically solve Laplace with relaxation method'''
-        # Parameters
-        alpha = 1  # Relaxation parameter (between 1 and 2, 1.2-1.5 works best)
 
         # Grid initialization (for now initialized in 3D for method compatibility)
         self.V = np.zeros((int(self.xdim/self.res) + 2,
                            int(self.ydim/self.res) + 2,
                            int(self.zdim/self.res) + 2))  # +2 for boundaries
-        V_old = np.ones((int(self.xdim/self.res) + 2,
-                         int(self.ydim/self.res) + 2,
-                         int(self.zdim/self.res) + 2))
-
+        
+        # Convert electrode coordinates to grid coordinates
+        self.electrodes_grid = self.electrodes.astype(int)
+        for i in range(self.electrodes.shape[0]):
+            if(self.dim == 1):
+                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                self.electrodes_grid[i, :3] = [round(x), 0, 0]
+            if(self.dim == 2):
+                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
+                self.electrodes_grid[i, :3] = [round(x), round(y), 0]
+                                            
+            if(self.dim == 3):
+                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
+                y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
+                z = self.electrodes[i, 2]/self.zdim * (self.V.shape[2] - 1)
+                self.electrodes_grid[i, :3] = [round(x),
+                                               round(y),
+                                               round(z)]
+                
         if(self.dim == 1):
             # Boundary conditions (i.e. electrodes)
             for i in range(self.electrodes.shape[0]):
-                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
-                self.V[int(round(x)), 0, 0] = self.electrodes[i, 3]
+                self.V[tuple(self.electrodes_grid[i, :3])] = self.electrodes[i, 3]
                 
-            # Relaxation loop
-            while((np.linalg.norm(self.V - V_old)
-                    /np.linalg.norm(self.V)) > 0.01):
-                V_old = self.V.copy()  # Store previous V
-                # Loop over internal elements
-                for i in range(1, self.V.shape[0]-1):
-                    self.V[i, 0, 0] = alpha * 1/2 * (V_old[i-1, 0, 0]
-                                                    + V_old[i+1, 0, 0])
+            # 1D relaxation
+            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0], 
+                                              fixedpoints = self.electrodes_grid[:, 0])
         
         if(self.dim == 2):
             # Boundary conditions (i.e. electrodes)
             for i in range(self.electrodes.shape[0]):
-                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
-                y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
-                self.V[int(round(x)), int(round(y)), 0] = self.electrodes[i, 3]
+                self.V[tuple(self.electrodes_grid[i, :3])] = self.electrodes[i, 3]
             
-            # Boundary relaxation loop (assume corners are fixed)
-            while((np.linalg.norm(self.V - V_old)
-                    /np.linalg.norm(self.V)) > 0.01):
-                V_old = self.V.copy()  # Store previous V
-                for i in range(1, self.V.shape[0]-1):
-                    self.V[i, 0, 0] = alpha * 1/2 * (V_old[i-1, 0, 0]
-                                                     + V_old[i+1, 0, 0])
-                    self.V[i, -1, 0] = alpha * 1/2 * (V_old[i-1, -1, 0]
-                                                     + V_old[i+1, -1, 0])
-                    self.V[0, i, 0] = alpha * 1/2 * (V_old[0, i-1, 0]
-                                                     + V_old[0, i+1, 0])
-                    self.V[-1, i, 0] = alpha * 1/2 * (V_old[-1, i-1, 0]
-                                                     + V_old[-1, i+1, 0])
-                # Overwrite electrodes
-                for i in range(self.electrodes.shape[0]):
-                    x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
-                    y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
-                    self.V[int(round(x)), int(round(y)), 0] = self.electrodes[i, 3]    
+            # 1D boundary relaxation
+            points = [val == 0 for val in self.electrodes_grid[:, 1]]  # Find electrodes that lie on border [:, 0, 0]
+            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 0])
+            points = [val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]
+            self.V[:, -1, 0] = self.relaxation(self.V[:, -1, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 0])
+            points = [val == 0 for val in self.electrodes_grid[:, 0]]
+            self.V[0, :, 0] = self.relaxation(self.V[0, :, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 1])
+            points = [val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]
+            self.V[-1, :, 0] = self.relaxation(self.V[-1, :, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 1])
             
-            # Re-initialize V_old
-            V_old = np.ones((int(self.xdim/self.res) + 2,
-                         int(self.ydim/self.res) + 2,
-                         int(self.zdim/self.res) + 2))
-                
-            # Relaxation loop
-            while((np.linalg.norm(self.V - V_old)
-                    /np.linalg.norm(self.V)) > 0.01):
-                V_old = self.V.copy()  # Store previous V
-                # Loop over internal elements
-                for i in range(1, self.V.shape[0]-1):
-                    for j in range(1, self.V.shape[1]-1):
-                        self.V[i, j, 0] = alpha * 1/4 * (V_old[i-1, j, 0]
-                                                        + V_old[i+1, j, 0]
-                                                        + V_old[i, j-1, 0]
-                                                        + V_old[i, j+1, 0])
-        
+            # 2D relaxation
+            self.V[:, :, 0] = self.relaxation(self.V[:, :, 0],
+                                              fixedpoints = self.electrodes_grid[:, :2])
+            
         if(self.dim == 3):
             # Boundary conditions (i.e. electrodes)
             for i in range(self.electrodes.shape[0]):
-                x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
-                y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
-                z = self.electrodes[i, 2]/self.zdim * (self.V.shape[1] - 1)
-                self.V[int(round(x)),
-                        int(round(y)),
-                        int(round(z))] = self.electrodes[i, 3]
+                self.V[tuple(self.electrodes_grid[i, :3])] = self.electrodes[i, 3]
             
-            # Boundary relaxation loop (assume corners are fixed)
-            while((np.linalg.norm(self.V - V_old)
-                    /np.linalg.norm(self.V)) > 0.01):
-                V_old = self.V.copy()  # Store previous V
-                for i in range(1, self.V.shape[0]-1):
-                    self.V[i, 0, 0] = alpha * 1/2 * (V_old[i-1, 0, 0]
-                                                     + V_old[i+1, 0, 0])
-                    self.V[i, -1, 0] = alpha * 1/2 * (V_old[i-1, -1, 0]
-                                                     + V_old[i+1, -1, 0])
-                    self.V[i, 0, -1] = alpha * 1/2 * (V_old[i-1, 0, -1]
-                                                     + V_old[i+1, 0, -1])
-                    self.V[i, -1, -1] = alpha * 1/2 * (V_old[i-1, -1, -1]
-                                                     + V_old[i+1, -1, -1])
-                    
-                    self.V[0, i, 0] = alpha * 1/2 * (V_old[0, i-1, 0]
-                                                     + V_old[0, i+1, 0])
-                    self.V[-1, i, 0] = alpha * 1/2 * (V_old[-1, i-1, 0]
-                                                     + V_old[-1, i+1, 0])
-                    self.V[0, i, -1] = alpha * 1/2 * (V_old[0, i-1, -1]
-                                                     + V_old[0, i+1, -1])
-                    self.V[-1, i, -1] = alpha * 1/2 * (V_old[-1, i-1, -1]
-                                                     + V_old[-1, i+1, -1])
-                    
-                    self.V[0, 0, i] = alpha * 1/2 * (V_old[0, 0, i-1]
-                                                     + V_old[0, 0, i+1])
-                    self.V[-1, 0, i] = alpha * 1/2 * (V_old[-1, 0, i-1]
-                                                     + V_old[-1, 0, i+1])
-                    self.V[0, -1, i] = alpha * 1/2 * (V_old[0, -1, i-1]
-                                                     + V_old[0, -1, i+1])
-                    self.V[-1, -1, i] = alpha * 1/2 * (V_old[-1, -1, i-1]
-                                                     + V_old[-1, -1, i+1])
-                    
-                # Overwrite electrodes
-                for i in range(self.electrodes.shape[0]):
-                    x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
-                    y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
-                    z = self.electrodes[i, 2]/self.zdim * (self.V.shape[1] - 1)
-                    self.V[int(round(x)),
-                            int(round(y)),
-                            int(round(z))] = self.electrodes[i, 3]    
-            
-            # Re-initialize V_old
-            V_old = np.ones((int(self.xdim/self.res) + 2,
-                         int(self.ydim/self.res) + 2,
-                         int(self.zdim/self.res) + 2))
-    
-            # Relaxation loop
-            while((np.linalg.norm(self.V - V_old)
-                    /np.linalg.norm(self.V)) > 0.01):
-                V_old = self.V.copy()  # Store previous V
-                # Loop over internal elements
-                for i in range(1, self.V.shape[0]-1):
-                    for j in range(1, self.V.shape[1]-1):
-                        for k in range(1, self.V.shape[2]-1):
-                            self.V[i, j, k] = alpha * 1/6 * (V_old[i-1, j, k]
-                                                            + V_old[i+1, j, k]
-                                                            + V_old[i, j-1, k]
-                                                            + V_old[i, j+1, k]
-                                                            + V_old[i, j, k-1]
-                                                            + V_old[i, j, k+1])
+            # 1D boundary relaxation
+            # x-y plane (z=0)
+            # Border [:, 0, 0]
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]) 
+                   &  np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
+            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 0])
+            # Border [:, -1, 0]
+            points = (np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]) 
+                &     np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
+            self.V[:, -1, 0] = self.relaxation(self.V[:, -1, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 0])
+            # Border [0, :, 0]
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]]) 
+                &     np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
+            self.V[0, :, 0] = self.relaxation(self.V[0, :, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 1])
 
+            # Border [-1, :, 0]
+            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]) 
+                &     np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
+            self.V[-1, :, 0] = self.relaxation(self.V[-1, :, 0], 
+                                              fixedpoints = self.electrodes_grid[points, 1])
+            
+            # x-y plane (z=-1)
+            # Border [:, 0, -1]
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]) 
+                &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
+            self.V[:, 0, -1] = self.relaxation(self.V[:, 0, -1], 
+                                              fixedpoints = self.electrodes_grid[points, 0])
+            # Border [:, -1, -1]
+            points = (np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]) 
+                &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
+            self.V[:, -1, -1] = self.relaxation(self.V[:, -1, -1], 
+                                              fixedpoints = self.electrodes_grid[points, 0])
+            # Border [0, :, -1]
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]] )
+                &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
+            self.V[0, :, -1] = self.relaxation(self.V[0, :, -1], 
+                                              fixedpoints = self.electrodes_grid[points, 1])
+            # Border [-1, :, -1]
+            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]) 
+                &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
+            self.V[-1, :, -1] = self.relaxation(self.V[-1, :, -1], 
+                                              fixedpoints = self.electrodes_grid[points, 1])
+            
+            # Remaining four borders (z != 0 or -1)
+            # Border [0, 0, :]
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]]) 
+                &     np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]))
+            self.V[0, 0, :] = self.relaxation(self.V[0, 0, :], 
+                                              fixedpoints = self.electrodes_grid[points, 2])
+            # Border [0, -1, :]
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]]) 
+                &     np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]))
+            self.V[0, -1, :] = self.relaxation(self.V[0, -1, :], 
+                                              fixedpoints = self.electrodes_grid[points, 2])
+            # Border [-1, 0, :]
+            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]])
+                &     np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]))
+            self.V[-1, 0, :] = self.relaxation(self.V[-1, 0, :], 
+                                              fixedpoints = self.electrodes_grid[points, 2])
+            # Border [-1, -1, :]
+            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]) 
+                &     np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]))
+            self.V[-1, -1, :] = self.relaxation(self.V[-1, -1, :], 
+                                              fixedpoints = self.electrodes_grid[points, 2])
+            
+            #2D boundary relaxation
+            # Plane [:, :, 0]
+            points = [val == 0 for val in self.electrodes_grid[:, 2]]
+            self.V[:, :, 0] = self.relaxation(self.V[:, :, 0], 
+                                              fixedpoints = self.electrodes_grid[points, :2])
+            # Plane [:, :, -1]
+            points = [val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]
+            self.V[:, :, -1] = self.relaxation(self.V[:, :, -1], 
+                                              fixedpoints = self.electrodes_grid[points, :2])
+            # Plane [0, :, :]
+            points = [val == 0 for val in self.electrodes_grid[:, 0]]
+            self.V[0, :, :] = self.relaxation(self.V[0, :, :], 
+                                              fixedpoints = self.electrodes_grid[points, 1:3])
+            # Plane [-1, :, :]
+            points = [val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]
+            self.V[-1, :, :] = self.relaxation(self.V[-1, :, :], 
+                                              fixedpoints = self.electrodes_grid[points, 1:3])
+            # Plane [:, 0, :]
+            points = [val == 0 for val in self.electrodes_grid[:, 1]]
+            fixedpoints = np.delete(self.electrodes_grid[points, :3], 1, 1)
+            self.V[:, 0, :] = self.relaxation(self.V[:, 0, :], fixedpoints = fixedpoints)
+            # Plane [:, -1, :]
+            points = [val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]
+            fixedpoints = np.delete(self.electrodes_grid[points, :3], 1, 1)
+            self.V[:, -1, :] = self.relaxation(self.V[:, -1, :], fixedpoints = fixedpoints)
+            
+            #3D relaxation
+            self.V = self.relaxation(self.V, fixedpoints = self.electrodes_grid[:, :3])
+            
     def constant_energy(self):
         '''Solve the constant energy terms for each acceptor site. These
         are terms due to the electrostatic landscape and the donor atoms.'''
@@ -510,7 +536,6 @@ class kmc_dn():
                     B[tuple(fixedpoints[i])] = B_old[tuple(fixedpoints[i])]
                     
         if(dim == 3):
-            print('was here')
             # Initialization
             B_old = B + 1
             
