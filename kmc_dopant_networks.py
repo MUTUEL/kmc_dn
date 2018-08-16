@@ -459,3 +459,86 @@ class kmc_dn():
     def dist(ri, rj):
         '''Calculate cartesian distance between 3D vectors ri and rj'''
         return np.sqrt((ri[0] - rj[0])**2 + (ri[1] - rj[1])**2 + (ri[2] - rj[2])**2)
+    
+    @staticmethod
+    def relaxation(A, alpha=1, tol=1E-3, fixedpoints = np.asarray([])):
+        '''Perform relaxation method on 1, 2 or 3D vector A. alpha is the 
+        relaxation parameter and tol the tolerance for convergence. 
+        fixedpoints is an N x dim np.ndarray with coordinates that will never be 
+        updated.'''
+        # Check if fixedpoints is a numpy array
+        if(type(fixedpoints) != np.ndarray):
+            print('fixedpoints must be a numpy array!')
+            return 
+        dim = len(A.shape)
+        B = A.copy()  # Otherwise method changes object A
+        
+        if(dim == 1):
+            # Initialization
+            B_old = B + 1
+            
+            # Relaxation loop
+            while((np.linalg.norm(B - B_old)
+                    /np.linalg.norm(B)) > tol):
+                B_old = B.copy()  # Store previous V
+                
+                # Loop over internal elements
+                for i in range(1, A.shape[0]-1):
+                    B[i] = alpha * 1/2 * (B_old[i-1] + B_old[i+1])
+                
+                # Loop over fixed points
+                for i in range(fixedpoints.shape[0]):
+                    B[int(fixedpoints[i])] = B_old[int(fixedpoints[i])]
+        
+        if(dim == 2):
+            # Initialization
+            B_old = B + 1
+            
+            # Relaxation loop
+            while((np.linalg.norm(B - B_old)
+                    /np.linalg.norm(B)) > tol):
+                B_old = B.copy()  # Store previous V
+                
+                # Loop over internal elements
+                for i in range(1, A.shape[0]-1):
+                    for j in range(1, A.shape[1]-1):
+                        B[i, j] = alpha * 1/4 * (B_old[i-1, j] + B_old[i+1, j]
+                                                 + B_old[i, j-1] + B_old[i, j+1])
+                
+                # Loop over fixed points
+                for i in range(fixedpoints.shape[0]):
+                    B[tuple(fixedpoints[i])] = B_old[tuple(fixedpoints[i])]
+                    
+        if(dim == 3):
+            print('was here')
+            # Initialization
+            B_old = B + 1
+            
+            # Relaxation loop
+            while((np.linalg.norm(B - B_old)
+                    /np.linalg.norm(B)) > tol):
+                B_old = B.copy()  # Store previous V
+                
+                # Loop over internal elements
+                for i in range(1, A.shape[0]-1):
+                    for j in range(1, A.shape[1]-1):
+                        for k in range(1, A.shape[2]-1):
+                            B[i, j, k] = alpha * 1/6 * (B_old[i-1, j, k] 
+                                                        + B_old[i+1, j, k]
+                                                        + B_old[i, j-1, k]
+                                                        + B_old[i, j+1, k]
+                                                        + B_old[i, j, k-1]
+                                                        + B_old[i, j, k+1])
+                
+                # Loop over fixed points
+                for i in range(fixedpoints.shape[0]):
+                    B[tuple(fixedpoints[i])] = B_old[tuple(fixedpoints[i])]
+            
+        return B
+            
+
+
+
+
+
+
