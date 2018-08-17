@@ -18,8 +18,11 @@ Pseudo-code (algorithm):
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
-
+#TODO calculate a distance matrix outside sim loop
 import numpy as np
+import matplotlib.pyplot as plt
+
+plt.ioff()
 
 class kmc_dn():
     '''This class is a wrapper for all functions and variables needed to perform
@@ -54,7 +57,7 @@ class kmc_dn():
         self.nu = 1
         self.k = 1
         self.T = 300
-        self.ab = 1
+        self.ab = 1000
         self.U = 5/8 * 1/self.ab   # J
         self.time = 0  # s
 
@@ -66,7 +69,7 @@ class kmc_dn():
         self.zdim = zdim
         self.transitions = np.zeros((N + electrodes.shape[0],
                                      N + electrodes.shape[0]))
-        
+
         # Check dimensionality
         if(self.ydim == 0 and self.zdim == 0):
             self.dim = 1
@@ -74,7 +77,7 @@ class kmc_dn():
             self.dim = 2
         else:
             self.dim = 3
-            
+
         # Fix voltage grid resolution
         if(res == 'unspecified'):
             if(self.dim == 1):
@@ -88,7 +91,7 @@ class kmc_dn():
 
         # Place acceptors and donors
         self.place_dopants_charges()
-        
+
         # Place electrodes
         self.electrodes = electrodes
 
@@ -136,7 +139,7 @@ class kmc_dn():
         self.V = np.zeros((int(self.xdim/self.res) + 2,
                            int(self.ydim/self.res) + 2,
                            int(self.zdim/self.res) + 2))  # +2 for boundaries
-        
+
         # Convert electrode coordinates to grid coordinates
         self.electrodes_grid = self.electrodes.astype(int)
         for i in range(self.electrodes.shape[0]):
@@ -147,7 +150,7 @@ class kmc_dn():
                 x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
                 y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
                 self.electrodes_grid[i, :3] = [round(x), round(y), 0]
-                                            
+
             if(self.dim == 3):
                 x = self.electrodes[i, 0]/self.xdim * (self.V.shape[0] - 1)
                 y = self.electrodes[i, 1]/self.ydim * (self.V.shape[1] - 1)
@@ -155,128 +158,128 @@ class kmc_dn():
                 self.electrodes_grid[i, :3] = [round(x),
                                                round(y),
                                                round(z)]
-                
+
         if(self.dim == 1):
             # Boundary conditions (i.e. electrodes)
             for i in range(self.electrodes.shape[0]):
                 self.V[tuple(self.electrodes_grid[i, :3])] = self.electrodes[i, 3]
-                
+
             # 1D relaxation
-            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0], 
+            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0],
                                               fixedpoints = self.electrodes_grid[:, 0])
-        
+
         if(self.dim == 2):
             # Boundary conditions (i.e. electrodes)
             for i in range(self.electrodes.shape[0]):
                 self.V[tuple(self.electrodes_grid[i, :3])] = self.electrodes[i, 3]
-            
+
             # 1D boundary relaxation
             points = [val == 0 for val in self.electrodes_grid[:, 1]]  # Find electrodes that lie on border [:, 0, 0]
-            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0], 
+            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0],
                                               fixedpoints = self.electrodes_grid[points, 0])
             points = [val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]
-            self.V[:, -1, 0] = self.relaxation(self.V[:, -1, 0], 
+            self.V[:, -1, 0] = self.relaxation(self.V[:, -1, 0],
                                               fixedpoints = self.electrodes_grid[points, 0])
             points = [val == 0 for val in self.electrodes_grid[:, 0]]
-            self.V[0, :, 0] = self.relaxation(self.V[0, :, 0], 
+            self.V[0, :, 0] = self.relaxation(self.V[0, :, 0],
                                               fixedpoints = self.electrodes_grid[points, 1])
             points = [val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]
-            self.V[-1, :, 0] = self.relaxation(self.V[-1, :, 0], 
+            self.V[-1, :, 0] = self.relaxation(self.V[-1, :, 0],
                                               fixedpoints = self.electrodes_grid[points, 1])
-            
+
             # 2D relaxation
             self.V[:, :, 0] = self.relaxation(self.V[:, :, 0],
                                               fixedpoints = self.electrodes_grid[:, :2])
-            
+
         if(self.dim == 3):
             # Boundary conditions (i.e. electrodes)
             for i in range(self.electrodes.shape[0]):
                 self.V[tuple(self.electrodes_grid[i, :3])] = self.electrodes[i, 3]
-            
+
             # 1D boundary relaxation
             # x-y plane (z=0)
             # Border [:, 0, 0]
-            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]) 
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 1]])
                    &  np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
-            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0], 
+            self.V[:, 0, 0] = self.relaxation(self.V[:, 0, 0],
                                               fixedpoints = self.electrodes_grid[points, 0])
             # Border [:, -1, 0]
-            points = (np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]) 
+            points = (np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]])
                 &     np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
-            self.V[:, -1, 0] = self.relaxation(self.V[:, -1, 0], 
+            self.V[:, -1, 0] = self.relaxation(self.V[:, -1, 0],
                                               fixedpoints = self.electrodes_grid[points, 0])
             # Border [0, :, 0]
-            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]]) 
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]])
                 &     np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
-            self.V[0, :, 0] = self.relaxation(self.V[0, :, 0], 
+            self.V[0, :, 0] = self.relaxation(self.V[0, :, 0],
                                               fixedpoints = self.electrodes_grid[points, 1])
 
             # Border [-1, :, 0]
-            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]) 
+            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]])
                 &     np.asarray([val == 0 for val in self.electrodes_grid[:, 2]]))
-            self.V[-1, :, 0] = self.relaxation(self.V[-1, :, 0], 
+            self.V[-1, :, 0] = self.relaxation(self.V[-1, :, 0],
                                               fixedpoints = self.electrodes_grid[points, 1])
-            
+
             # x-y plane (z=-1)
             # Border [:, 0, -1]
-            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]) 
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 1]])
                 &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
-            self.V[:, 0, -1] = self.relaxation(self.V[:, 0, -1], 
+            self.V[:, 0, -1] = self.relaxation(self.V[:, 0, -1],
                                               fixedpoints = self.electrodes_grid[points, 0])
             # Border [:, -1, -1]
-            points = (np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]) 
+            points = (np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]])
                 &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
-            self.V[:, -1, -1] = self.relaxation(self.V[:, -1, -1], 
+            self.V[:, -1, -1] = self.relaxation(self.V[:, -1, -1],
                                               fixedpoints = self.electrodes_grid[points, 0])
             # Border [0, :, -1]
             points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]] )
                 &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
-            self.V[0, :, -1] = self.relaxation(self.V[0, :, -1], 
+            self.V[0, :, -1] = self.relaxation(self.V[0, :, -1],
                                               fixedpoints = self.electrodes_grid[points, 1])
             # Border [-1, :, -1]
-            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]) 
+            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]])
                 &     np.asarray([val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]))
-            self.V[-1, :, -1] = self.relaxation(self.V[-1, :, -1], 
+            self.V[-1, :, -1] = self.relaxation(self.V[-1, :, -1],
                                               fixedpoints = self.electrodes_grid[points, 1])
-            
+
             # Remaining four borders (z != 0 or -1)
             # Border [0, 0, :]
-            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]]) 
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]])
                 &     np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]))
-            self.V[0, 0, :] = self.relaxation(self.V[0, 0, :], 
+            self.V[0, 0, :] = self.relaxation(self.V[0, 0, :],
                                               fixedpoints = self.electrodes_grid[points, 2])
             # Border [0, -1, :]
-            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]]) 
+            points = (np.asarray([val == 0 for val in self.electrodes_grid[:, 0]])
                 &     np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]))
-            self.V[0, -1, :] = self.relaxation(self.V[0, -1, :], 
+            self.V[0, -1, :] = self.relaxation(self.V[0, -1, :],
                                               fixedpoints = self.electrodes_grid[points, 2])
             # Border [-1, 0, :]
             points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]])
                 &     np.asarray([val == 0 for val in self.electrodes_grid[:, 1]]))
-            self.V[-1, 0, :] = self.relaxation(self.V[-1, 0, :], 
+            self.V[-1, 0, :] = self.relaxation(self.V[-1, 0, :],
                                               fixedpoints = self.electrodes_grid[points, 2])
             # Border [-1, -1, :]
-            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]) 
+            points = (np.asarray([val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]])
                 &     np.asarray([val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]))
-            self.V[-1, -1, :] = self.relaxation(self.V[-1, -1, :], 
+            self.V[-1, -1, :] = self.relaxation(self.V[-1, -1, :],
                                               fixedpoints = self.electrodes_grid[points, 2])
-            
+
             #2D boundary relaxation
             # Plane [:, :, 0]
             points = [val == 0 for val in self.electrodes_grid[:, 2]]
-            self.V[:, :, 0] = self.relaxation(self.V[:, :, 0], 
+            self.V[:, :, 0] = self.relaxation(self.V[:, :, 0],
                                               fixedpoints = self.electrodes_grid[points, :2])
             # Plane [:, :, -1]
             points = [val == self.V.shape[2]-1 for val in self.electrodes_grid[:, 2]]
-            self.V[:, :, -1] = self.relaxation(self.V[:, :, -1], 
+            self.V[:, :, -1] = self.relaxation(self.V[:, :, -1],
                                               fixedpoints = self.electrodes_grid[points, :2])
             # Plane [0, :, :]
             points = [val == 0 for val in self.electrodes_grid[:, 0]]
-            self.V[0, :, :] = self.relaxation(self.V[0, :, :], 
+            self.V[0, :, :] = self.relaxation(self.V[0, :, :],
                                               fixedpoints = self.electrodes_grid[points, 1:3])
             # Plane [-1, :, :]
             points = [val == self.V.shape[0]-1 for val in self.electrodes_grid[:, 0]]
-            self.V[-1, :, :] = self.relaxation(self.V[-1, :, :], 
+            self.V[-1, :, :] = self.relaxation(self.V[-1, :, :],
                                               fixedpoints = self.electrodes_grid[points, 1:3])
             # Plane [:, 0, :]
             points = [val == 0 for val in self.electrodes_grid[:, 1]]
@@ -286,10 +289,10 @@ class kmc_dn():
             points = [val == self.V.shape[1]-1 for val in self.electrodes_grid[:, 1]]
             fixedpoints = np.delete(self.electrodes_grid[points, :3], 1, 1)
             self.V[:, -1, :] = self.relaxation(self.V[:, -1, :], fixedpoints = fixedpoints)
-            
+
             #3D relaxation
             self.V = self.relaxation(self.V, fixedpoints = self.electrodes_grid[:, :3])
-            
+
     def constant_energy(self):
         '''Solve the constant energy terms for each acceptor site. These
         are terms due to the electrostatic landscape and the donor atoms.'''
@@ -301,13 +304,13 @@ class kmc_dn():
             if(self.dim == 1):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
                 self.E_constant[i] += self.e*self.V[int(round(x)), 0, 0]
-                
+
             if(self.dim == 2):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
                 y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
                 self.E_constant[i] += self.e*self.V[int(round(x)),
                                                     int(round(y)), 0]
-                
+
             if(self.dim == 3):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
                 y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
@@ -327,88 +330,13 @@ class kmc_dn():
         # Loop over possible hops from site i -> site j
         for i in range(self.transitions.shape[0]):
             for j in range(self.transitions.shape[0]):
-
-                # Check if transition is possible
-                possible = True
-                if(i >= self.N and j >= self.N):
-                    possible = False  # No transition electrode -> electrode
-                elif(i >= self.N and j < self.N):
-                    if(self.acceptors[j, 3] == 2):
-                        possible = False  # No transition electrode -> occupied
-                elif(i < self.N and j >= self.N):
-                    if(self.acceptors[i, 3] == 0):
-                        possible = False  # No transition empty -> electrode
-                elif(i == j):
-                    possible = False  # No transition to same acceptor
-                elif(i < self.N and j < self.N):
-                    if(self.acceptors[i, 3] == 0
-                       or self.acceptors[j, 3] == 2):
-                        possible = False  # No transition empty -> or -> occupied
-
-
-
-                if(not possible):
+                if(not self.transition_possible(i, j)):
                     self.transitions[i, j] = 0
                 else:
-                    # Calculate ei
-                    if(i >= self.N):
-                        ei = 0  # Hop from electrode into system
-                    else:
-                        # Acceptor interaction loop
-                        acc_int = 0
-                        for k in range(self.acceptors.shape[0]):
-                            if(k != i):
-                                acc_int += ((1 - self.acceptors[k, 3])
-                                            /self.dist(self.acceptors[i, :3],
-                                                       self.acceptors[k, :3]))
-                        ei = (self.e**2/(4 * np.pi * self.eps) * acc_int
-                            + self.E_constant[i])
-                        if(self.acceptors[i, 3] == 2):
-                            ei += self.U
-
-                    # Calculate ej
-                    if(j >= self.N):
-                        ej = 0  # Hop to electrode
-                    else:
-                        # Acceptor interaction loop
-                        acc_int = 0
-                        for k in range(self.acceptors.shape[0]):
-                            if(k != j):
-                                acc_int += ((1 - self.acceptors[k, 3])
-                                        /self.dist(self.acceptors[j, :3],
-                                                   self.acceptors[k, :3]))
-                        ej = (self.e**2/(4 * np.pi * self.eps) * acc_int
-                            + self.E_constant[j])
-                        if(self.acceptors[j, 3] == 1):
-                            ej += self.U
-
-                    # Calculate energy difference
-                    if(i >= self.N or j >= self.N):
-                        eij = ej - ei  # No Coulomb interaction for electrode hops
-                    else:
-                        eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
-                                    /self.dist(self.acceptors[i, :3],
-                                               self.acceptors[j, :3]))
-
-                    # Calculate hopping distance
-                    #TODO calculate a distance matrix outside sim loop
-                    if(i >= self.N):  # Hop from electrode
-                        hop_dist = self.dist(self.electrodes[i-self.N, :3],
-                                             self.acceptors[j, :3])
-                    elif(j >= self.N):  # Hop to electrode
-                        hop_dist = self.dist(self.acceptors[i, :3],
-                                             self.electrodes[j-self.N, :3])
-                    else:  # Hop acceptor -> acceptor
-                        hop_dist = self.dist(self.acceptors[i, :3],
-                                             self.acceptors[j, :3])
-
-                    # Calculate transition rate
-                    if(eij < 0):
-                        self.transitions[i, j] = self.nu*np.exp(-2*hop_dist/self.ab
-                                                                - eij/(self.k*self.T))
-                    else:
-                        self.transitions[i, j] = self.nu*np.exp(-2*hop_dist/self.ab)
-
+                    eij = self.energy_difference(i, j)
+                    print('hop from site ' + str(i) + 'to site ' + str(j))
+                    print(eij)
+                    self.transitions[i, j] = self.rate(i, j, eij)
 
     def pick_event(self):
         '''Based in the transition matrix self.transitions, pick a hopping event'''
@@ -478,92 +406,197 @@ class kmc_dn():
                 converged = True
             else:
                 self.old_current = self.current.copy()  # Store current
+            print(self.current)
 
         #TODO Some progress statement print
+
+    def transition_possible(self, i, j):
+        '''Check if a hop from i -> j is possible. Returns True if transition is
+        allowed, otherwise returns False'''
+        possible = True
+        if(i >= self.N and j >= self.N):
+            possible = False  # No transition electrode -> electrode
+        elif(i >= self.N and j < self.N):
+            if(self.acceptors[j, 3] == 2):
+                possible = False  # No transition electrode -> occupied
+        elif(i < self.N and j >= self.N):
+            if(self.acceptors[i, 3] == 0):
+                possible = False  # No transition empty -> electrode
+        elif(i == j):
+            possible = False  # No transition to same acceptor
+        elif(i < self.N and j < self.N):
+            if(self.acceptors[i, 3] == 0
+               or self.acceptors[j, 3] == 2):
+                possible = False  # No transition empty -> or -> occupied
+        return possible
+
+    def energy_difference(self, i, j):
+        '''Calculate the energy difference if a hop were to occur from site i -> j.
+        This particular way of calculating the energy difference is documented
+        in the thesis of Jeroen v. Gelder.'''
+
+        # Calculate ei
+        if(i >= self.N):
+            ei = 0  # Hop from electrode into system
+        else:
+            # Acceptor interaction loop
+            acc_int = 0
+            for k in range(self.acceptors.shape[0]):
+                if(k != i):
+                    acc_int += ((1 - self.acceptors[k, 3])
+                                /self.dist(self.acceptors[i, :3],
+                                           self.acceptors[k, :3]))
+            ei = (self.e**2/(4 * np.pi * self.eps) * acc_int
+                + self.E_constant[i])
+            if(self.acceptors[i, 3] == 2):
+                ei += self.U
+
+        # Calculate ej
+        if(j >= self.N):
+            ej = 0  # Hop to electrode
+        else:
+            # Acceptor interaction loop
+            acc_int = 0
+            for k in range(self.acceptors.shape[0]):
+                if(k != j):
+                    acc_int += ((1 - self.acceptors[k, 3])
+                            /self.dist(self.acceptors[j, :3],
+                                       self.acceptors[k, :3]))
+            ej = (self.e**2/(4 * np.pi * self.eps) * acc_int
+                + self.E_constant[j])
+            if(self.acceptors[j, 3] == 1):
+                ej += self.U
+
+        # Calculate energy difference
+        if(i >= self.N or j >= self.N):
+            eij = ej - ei  # No Coulomb interaction for electrode hops
+        else:
+            eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
+                        /self.dist(self.acceptors[i, :3],
+                                   self.acceptors[j, :3]))
+        return eij
+
+    def rate(self, i, j, eij):
+        '''Calculate the transition rate for hop i->j based on the energy difference
+        eij. The hopping rate used here is the Miller-Abrahams rate.'''
+        # Calculate hopping distance
+        if(i >= self.N):  # Hop from electrode
+            hop_dist = self.dist(self.electrodes[i-self.N, :3],
+                                 self.acceptors[j, :3])
+        elif(j >= self.N):  # Hop to electrode
+            hop_dist = self.dist(self.acceptors[i, :3],
+                                 self.electrodes[j-self.N, :3])
+        else:  # Hop acceptor -> acceptor
+            hop_dist = self.dist(self.acceptors[i, :3],
+                                 self.acceptors[j, :3])
+
+        # Calculate transition rate
+        if(eij < 0):
+            transition_rate = self.nu*np.exp(-2*hop_dist/self.ab
+                                                    - eij/(self.k*self.T))
+        else:
+            transition_rate = self.nu*np.exp(-2*hop_dist/self.ab)
+
+        return transition_rate
+    
+    def visualize(self):
+        '''Returns a figure which shows the domain with potential profile. It 
+        also show all dopants with acceptor occupancy.'''
+        if(self.dim == 2):
+            # Initialize figure
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            
+            ## Plot potential profile
+            ax.imshow(self.V[:, :, 0].transpose(), interpolation='bicubic', origin='lower')
+            
+            # Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
+            colors = ['red' if i==2
+                      else 'orange' if i==1
+                      else 'black' for i in self.acceptors[:, 3]]
+            ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], c = colors, marker='o')
+            
+            ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
+            
+        return fig
+
 
     @staticmethod
     def dist(ri, rj):
         '''Calculate cartesian distance between 3D vectors ri and rj'''
         return np.sqrt((ri[0] - rj[0])**2 + (ri[1] - rj[1])**2 + (ri[2] - rj[2])**2)
-    
+
     @staticmethod
     def relaxation(A, alpha=1, tol=1E-3, fixedpoints = np.asarray([])):
-        '''Perform relaxation method on 1, 2 or 3D vector A. alpha is the 
-        relaxation parameter and tol the tolerance for convergence. 
-        fixedpoints is an N x dim np.ndarray with coordinates that will never be 
+        '''Perform relaxation method on 1, 2 or 3D vector A. alpha is the
+        relaxation parameter and tol the tolerance for convergence.
+        fixedpoints is an N x dim np.ndarray with coordinates that will never be
         updated.'''
         # Check if fixedpoints is a numpy array
         if(type(fixedpoints) != np.ndarray):
             print('fixedpoints must be a numpy array!')
-            return 
+            return
         dim = len(A.shape)
         B = A.copy()  # Otherwise method changes object A
-        
+
         if(dim == 1):
             # Initialization
             B_old = B + 1
-            
+
             # Relaxation loop
             while((np.linalg.norm(B - B_old)
                     /np.linalg.norm(B)) > tol):
                 B_old = B.copy()  # Store previous V
-                
+
                 # Loop over internal elements
                 for i in range(1, A.shape[0]-1):
                     B[i] = alpha * 1/2 * (B_old[i-1] + B_old[i+1])
-                
+
                 # Loop over fixed points
                 for i in range(fixedpoints.shape[0]):
                     B[int(fixedpoints[i])] = B_old[int(fixedpoints[i])]
-        
+
         if(dim == 2):
             # Initialization
             B_old = B + 1
-            
+
             # Relaxation loop
             while((np.linalg.norm(B - B_old)
                     /np.linalg.norm(B)) > tol):
                 B_old = B.copy()  # Store previous V
-                
+
                 # Loop over internal elements
                 for i in range(1, A.shape[0]-1):
                     for j in range(1, A.shape[1]-1):
                         B[i, j] = alpha * 1/4 * (B_old[i-1, j] + B_old[i+1, j]
                                                  + B_old[i, j-1] + B_old[i, j+1])
-                
+
                 # Loop over fixed points
                 for i in range(fixedpoints.shape[0]):
                     B[tuple(fixedpoints[i])] = B_old[tuple(fixedpoints[i])]
-                    
+
         if(dim == 3):
             # Initialization
             B_old = B + 1
-            
+
             # Relaxation loop
             while((np.linalg.norm(B - B_old)
                     /np.linalg.norm(B)) > tol):
                 B_old = B.copy()  # Store previous V
-                
+
                 # Loop over internal elements
                 for i in range(1, A.shape[0]-1):
                     for j in range(1, A.shape[1]-1):
                         for k in range(1, A.shape[2]-1):
-                            B[i, j, k] = alpha * 1/6 * (B_old[i-1, j, k] 
+                            B[i, j, k] = alpha * 1/6 * (B_old[i-1, j, k]
                                                         + B_old[i+1, j, k]
                                                         + B_old[i, j-1, k]
                                                         + B_old[i, j+1, k]
                                                         + B_old[i, j, k-1]
                                                         + B_old[i, j, k+1])
-                
+
                 # Loop over fixed points
                 for i in range(fixedpoints.shape[0]):
                     B[tuple(fixedpoints[i])] = B_old[tuple(fixedpoints[i])]
-            
+
         return B
-            
-
-
-
-
-
-
