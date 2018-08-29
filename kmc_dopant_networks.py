@@ -16,6 +16,18 @@ Pseudo-code (algorithm):
         No: return to 5.
         Yes: simulation done.
 
+(Average) quantities that are tracked:
+    Current through electrodes
+    ?Current through domain?
+    Number of particles in the system
+    Average energy of the system
+    
+Quantities that can be calculated:
+    Mobility?
+    Conductance?
+    
+    
+
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
 #TODO calculate a distance matrix outside sim loop
@@ -52,13 +64,13 @@ class kmc_dn():
         '''
 
         # Constants
-        self.e = 1.602E-19  # Coulomb
-        self.eps = 11.68  # Relative permittivity
+        self.e = 1  #  1.602E-19 Coulomb
+        self.eps = 1  # Relative permittivity (11.68 for boron doped Si)
         self.nu = 1
         self.k = 1
-        self.T = 300
-        self.ab = 1000
-        self.U = 5/8 * 1/self.ab   # J
+        self.T = 1
+        self.ab = 1E-2  # Bohr radius (or localization radius)
+        self.U = 1  # 5/8 * 1/self.ab   # J
         self.time = 0  # s
 
         # Initialize variables
@@ -334,8 +346,6 @@ class kmc_dn():
                     self.transitions[i, j] = 0
                 else:
                     eij = self.energy_difference(i, j)
-                    print('hop from site ' + str(i) + 'to site ' + str(j))
-                    print(eij)
                     self.transitions[i, j] = self.rate(i, j, eij)
 
     def pick_event(self):
@@ -506,9 +516,13 @@ class kmc_dn():
             # Initialize figure
             fig = plt.figure()
             ax = fig.add_subplot(111)
+            ax.set_xlim(right=self.xdim)
+            ax.set_ylim(top=self.ydim)
             
             ## Plot potential profile
-            ax.imshow(self.V[:, :, 0].transpose(), interpolation='bicubic', origin='lower')
+            ax.imshow(self.V[:, :, 0].transpose(), interpolation='bicubic',
+                      origin='lower', extent=(0, self.xdim, 0, self.ydim))
+            
             
             # Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
             colors = ['red' if i==2
