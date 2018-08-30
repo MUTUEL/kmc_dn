@@ -108,6 +108,9 @@ class kmc_dn():
 
         # Place electrodes
         self.electrodes = electrodes.copy()
+        
+        # Calculate distances
+        self.calc_distances()
 
         # Calculate electrostatic potential profile
         self.electrostatic_landscape()
@@ -471,8 +474,7 @@ class kmc_dn():
             for k in range(self.acceptors.shape[0]):
                 if(k != i):
                     acc_int += ((1 - self.acceptors[k, 3])
-                                /self.dist(self.acceptors[i, :3],
-                                           self.acceptors[k, :3]))
+                                /self.distances[i, k])
             ei = (self.e**2/(4 * np.pi * self.eps) * acc_int
                 + self.E_constant[i])
             if(self.acceptors[i, 3] == 2):
@@ -487,8 +489,7 @@ class kmc_dn():
             for k in range(self.acceptors.shape[0]):
                 if(k != j):
                     acc_int += ((1 - self.acceptors[k, 3])
-                            /self.dist(self.acceptors[j, :3],
-                                       self.acceptors[k, :3]))
+                            /self.distances[j, k])
             ej = (self.e**2/(4 * np.pi * self.eps) * acc_int
                 + self.E_constant[j])
             if(self.acceptors[j, 3] == 1):
@@ -499,30 +500,17 @@ class kmc_dn():
             eij = ej - ei  # No Coulomb interaction for electrode hops
         else:
             eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
-                        /self.dist(self.acceptors[i, :3],
-                                   self.acceptors[j, :3]))
+                        /self.distances[i, j])
         return eij
 
     def rate(self, i, j, eij):
         '''Calculate the transition rate for hop i->j based on the energy difference
         eij. The hopping rate used here is the Miller-Abrahams rate.'''
-        # Calculate hopping distance
-        if(i >= self.N):  # Hop from electrode
-            hop_dist = self.dist(self.electrodes[i-self.N, :3],
-                                 self.acceptors[j, :3])
-        elif(j >= self.N):  # Hop to electrode
-            hop_dist = self.dist(self.acceptors[i, :3],
-                                 self.electrodes[j-self.N, :3])
-        else:  # Hop acceptor -> acceptor
-            hop_dist = self.dist(self.acceptors[i, :3],
-                                 self.acceptors[j, :3])
-
-        # Calculate transition rate
         if(eij > 0):
-            transition_rate = self.nu*np.exp(-2*hop_dist/self.ab
+            transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab
                                                     - eij/(self.k*self.T))
         else:
-            transition_rate = self.nu*np.exp(-2*hop_dist/self.ab)
+            transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab)
 
         return transition_rate
     
