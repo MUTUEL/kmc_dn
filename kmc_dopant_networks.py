@@ -81,6 +81,8 @@ class kmc_dn():
         self.zdim = zdim
         self.transitions = np.zeros((N + electrodes.shape[0],
                                      N + electrodes.shape[0]))
+        self.distances = np.zeros((N + electrodes.shape[0],
+                                     N + electrodes.shape[0]))
 
         # Check dimensionality
         if(self.ydim == 0 and self.zdim == 0):
@@ -524,6 +526,25 @@ class kmc_dn():
 
         return transition_rate
     
+    def calc_distances(self):
+        '''Calculates the distances between each hopping sites and stores them
+        in a matrix'''
+        for i in range(self.distances.shape[0]):
+            for j in range(self.distances.shape[0]):
+                if(i >= self.N and j >= self.N):
+                    self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
+                                                      self.electrodes[j - self.N, :3])  # Distance electrode -> electrode
+                elif(i >= self.N and j < self.N):
+                    self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
+                                                      self.acceptors[j, :3])  # Distance electrode -> acceptor
+                elif(i < self.N and j >= self.N):
+                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
+                                                      self.electrodes[j - self.N, :3])  # Distance acceptor -> electrode
+                elif(i < self.N and j < self.N):
+                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
+                                                      self.acceptors[j, :3])  # Distance acceptor -> acceptor
+                
+        
     def visualize(self):
         '''Returns a figure which shows the domain with potential profile. It 
         also show all dopants with acceptor occupancy.'''
