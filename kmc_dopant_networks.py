@@ -69,7 +69,7 @@ class kmc_dn():
         self.nu = 1
         self.k = 1
         self.T = 1
-        self.ab = 100  # Bohr radius (or localization radius)
+        self.ab = 1000  # Bohr radius (or localization radius)
         self.U = 100  # 5/8 * 1/self.ab   # J
         self.time = 0  # s
 
@@ -516,7 +516,7 @@ class kmc_dn():
                                  self.acceptors[j, :3])
 
         # Calculate transition rate
-        if(eij < 0):
+        if(eij > 0):
             transition_rate = self.nu*np.exp(-2*hop_dist/self.ab
                                                     - eij/(self.k*self.T))
         else:
