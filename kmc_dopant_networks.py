@@ -69,8 +69,8 @@ class kmc_dn():
         self.nu = 1
         self.k = 1
         self.T = 1
-        self.ab = 1E-2  # Bohr radius (or localization radius)
-        self.U = 1  # 5/8 * 1/self.ab   # J
+        self.ab = 100  # Bohr radius (or localization radius)
+        self.U = 100  # 5/8 * 1/self.ab   # J
         self.time = 0  # s
 
         # Initialize variables
@@ -105,7 +105,7 @@ class kmc_dn():
         self.place_dopants_charges()
 
         # Place electrodes
-        self.electrodes = electrodes
+        self.electrodes = electrodes.copy()
 
         # Calculate electrostatic potential profile
         self.electrostatic_landscape()
@@ -419,7 +419,22 @@ class kmc_dn():
             print(self.current)
 
         #TODO Some progress statement print
-
+    
+    def simulate_discrete(self, hops):
+        '''Perform a kmc simulation, but with a predetermined amount of hops'''
+        # Initialization
+        self.time = 0  # Reset simulation time
+        for i in range(self.electrodes.shape[0]):
+            self.electrodes[i, 4] = 0  # Reset current
+            
+        # Simulation loop
+        for i in range(hops):
+            # Hopping event
+            self.update_transition_matrix()
+            self.pick_event()
+            
+        return 'Done!'
+    
     def transition_possible(self, i, j):
         '''Check if a hop from i -> j is possible. Returns True if transition is
         allowed, otherwise returns False'''
@@ -427,7 +442,7 @@ class kmc_dn():
         if(i >= self.N and j >= self.N):
             possible = False  # No transition electrode -> electrode
         elif(i >= self.N and j < self.N):
-            if(self.acceptors[j, 3] == 2):
+            if(self.acceptors[j, 3] == 1):
                 possible = False  # No transition electrode -> occupied
         elif(i < self.N and j >= self.N):
             if(self.acceptors[i, 3] == 0):
@@ -436,7 +451,7 @@ class kmc_dn():
             possible = False  # No transition to same acceptor
         elif(i < self.N and j < self.N):
             if(self.acceptors[i, 3] == 0
-               or self.acceptors[j, 3] == 2):
+               or self.acceptors[j, 3] == 1):
                 possible = False  # No transition empty -> or -> occupied
         return possible
 
