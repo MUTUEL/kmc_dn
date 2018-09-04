@@ -27,7 +27,6 @@ Quantities that can be calculated:
     Conductance?
     
 TODO: Implement Tsigankov mixed algorithm and perform validation
-TODO: Implement electrode energy as eV, and see if original algorithm works
     
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
@@ -408,6 +407,7 @@ class kmc_dn():
 
         # Simulation loop
         converged = False
+        counter = 0  # Counts the amount of intervals needed for convergence
         self.old_current *= np.inf
         while(not converged):
             for i in range(interval):
@@ -423,8 +423,17 @@ class kmc_dn():
                 converged = True
             else:
                 self.old_current = self.current.copy()  # Store current
-            print(self.current)
-
+            
+            counter += 1
+        
+        print('Converged in ' 
+              + str(counter) 
+              + ' intervals of ' 
+              + str(interval) 
+              + ' hops ('
+              + str(counter*interval)
+              + ' total hops)'
+              )
         #TODO Some progress statement print
     
     def simulate_discrete(self, hops):
@@ -439,7 +448,9 @@ class kmc_dn():
             # Hopping event
             self.update_transition_matrix()
             self.pick_event()
-            
+        
+        self.current = self.electrodes[:, 4]/self.time
+        
         return 'Done!'
     
     def transition_possible(self, i, j):
