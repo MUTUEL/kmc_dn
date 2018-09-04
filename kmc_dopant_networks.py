@@ -26,6 +26,8 @@ Quantities that can be calculated:
     Mobility?
     Conductance?
     
+TODO: Implement Tsigankov mixed algorithm and perform validation
+TODO: Implement electrode energy as eV, and see if original algorithm works
     
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
@@ -69,7 +71,7 @@ class kmc_dn():
         self.nu = 1
         self.k = 1
         self.T = 1
-        self.ab = 1000  # Bohr radius (or localization radius)
+        self.ab = 1  # Bohr radius (or localization radius)
         self.U = 100  # 5/8 * 1/self.ab   # J
         self.time = 0  # s
 
@@ -467,7 +469,7 @@ class kmc_dn():
 
         # Calculate ei
         if(i >= self.N):
-            ei = 0  # Hop from electrode into system
+            ei = self.e*self.electrodes[i - self.N, 3]  # Hop from electrode into system
         else:
             # Acceptor interaction loop
             acc_int = 0
@@ -482,7 +484,7 @@ class kmc_dn():
 
         # Calculate ej
         if(j >= self.N):
-            ej = 0  # Hop to electrode
+            ej = self.e*self.electrodes[j - self.N, 3]  # Hop to electrode
         else:
             # Acceptor interaction loop
             acc_int = 0
@@ -517,6 +519,7 @@ class kmc_dn():
     def calc_distances(self):
         '''Calculates the distances between each hopping sites and stores them
         in a matrix'''
+        #TODO: Debug this, the output is bullshit
         for i in range(self.distances.shape[0]):
             for j in range(self.distances.shape[0]):
                 if(i >= self.N and j >= self.N):

@@ -22,48 +22,41 @@ Pseudo-code (algorithm):
 import kmc_dopant_networks as kmc_dn
 import numpy as np
 import matplotlib.pyplot as plt
+import cProfile
+
 
 #%% Parameters
 
-N = 1  # Number of acceptors
+N = 5  # Number of acceptors
 M = 0  # Number of donors
-xdim = 20  # Length along x dimension
-ydim = 20  # Length along y dimension
-zdim = 20  # Length along z dimension
-res = 1  # Resolution of laplace grid
+xdim = 1  # Length along x dimension
+ydim = 1  # Length along y dimension
+zdim = 0  # Length along z dimension
+#res = 1  # Resolution of laplace grid
 
 # Define electrodes
 electrodes = np.zeros((2, 5))  # Electrodes with their voltage
-electrodes[0] = [0, 0, 0, 10, 0]  # Left electrode
-electrodes[1] = [xdim, 0, 0, -10, 0] # Right electrode
+electrodes[0] = [0, ydim/2, 0, 10, 0]  # Left electrode
+electrodes[1] = [xdim, ydim/2, 0, 0, 0] # Right electrode
+
+ 
+#%% Initialize simulation object
+
+kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes)
+
+# Place acceptors on a line
+for i in range(N):
+    kmc.acceptors[i] = [(i+1) * xdim/(N+1), ydim/2, 0, 0]
+#kmc.acceptors[0, 3] = 1
+
+# Re initialize
+kmc.calc_distances()
+kmc.constant_energy()
 
 
-#%% Dopant (1.) and charge (2.) placement, and potential (3.) and compensation (4.).
+#%% Simulate
 
-kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes, res)
+kmc.simulate()
 
-#%% Create test scenario
 
-# kmc.acceptors = np.array([[xdim/2, ydim/2, 0, 1]])
-#%% Update transition matrix (5. and 6.)
 
-#%% Pick hopping event (7.)
-
-# kmc.simulate(interval=100)
-
-# Initialize figure
-fig = plt.figure()
-ax = fig.add_subplot(111)
-
-## Plot potential profile
-ax.imshow(kmc.V[:, :, 1].transpose(), interpolation='bicubic', origin='lower')
-
-# Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
-colors = ['red' if i==2
-          else 'orange' if i==1
-          else 'black' for i in kmc.acceptors[:, 3]]
-ax.scatter(kmc.acceptors[:, 0], kmc.acceptors[:, 1], c = colors, marker='o')
-
-ax.scatter(kmc.donors[:, 0], kmc.donors[:, 1], marker='x')
-
-plt.show()
