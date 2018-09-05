@@ -31,7 +31,7 @@ TODO: Implement Tsigankov mixed algorithm and perform validation
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
-#TODO calculate a distance matrix outside sim loop
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -434,7 +434,6 @@ class kmc_dn():
               + str(counter*interval)
               + ' total hops)'
               )
-        #TODO Some progress statement print
     
     def simulate_discrete(self, hops):
         '''Perform a kmc simulation, but with a predetermined amount of hops'''
@@ -530,7 +529,6 @@ class kmc_dn():
     def calc_distances(self):
         '''Calculates the distances between each hopping sites and stores them
         in a matrix'''
-        #TODO: Debug this, the output is bullshit
         for i in range(self.distances.shape[0]):
             for j in range(self.distances.shape[0]):
                 if(i >= self.N and j >= self.N):
