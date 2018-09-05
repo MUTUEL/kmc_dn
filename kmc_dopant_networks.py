@@ -394,6 +394,39 @@ class kmc_dn():
         # Increment time
         self.hop_time = 1/self.transitions[self.transition[0], self.transition[1]] 
         self.time += self.hop_time
+        
+    def pick_event_tsigankov(self):
+        '''Pick a hopping event based on t_dist and accept/reject it based on 
+        the energy dependent rate'''
+        # Randomly determine event
+        event = np.random.rand()
+
+        # Find transition index
+        event = min(np.where(self.P >= event)[0])
+        
+        # Convert to acceptor/electrode indices
+        self.transition = [int(np.floor(event/self.t_dist.shape[0])),
+                           int(event%self.t_dist.shape[0])]
+        
+        if(self.transition_possible(self.transition[0],
+                                    self.transition[1])):
+            # Calculate hopping probability
+            eij = self.energy_difference(self.transition[0], 
+                                         self.transition[1])
+            prob = 1/(1 + np.exp(eij/(self.k*self.T)))
+            if(np.random.rand() < prob):
+                # Perform hop
+                if(self.transition[0] < self.N):  # Hop from acceptor
+                    self.acceptors[self.transition[0], 3] -= 1
+                else:  # Hop from electrode
+                    self.electrodes[self.transition[0] - self.N, 4] -= 1
+                if(self.transition[1] < self.N):  # Hop to acceptor
+                    self.acceptors[self.transition[1], 3] += 1
+                else:  # Hop to electrode
+                    self.electrodes[self.transition[1] - self.N, 4] += 1
+        
+        # Increment time
+        self.time += self.timestep
 
 
     def simulate(self, interval = 500, tol = 1E-3):
@@ -476,6 +509,65 @@ class kmc_dn():
         
         return 'Done!'
     
+    def simulate_tsigankov(self, interval = 500, tol = 1E-3):
+        '''Perform a kmc simulation with the Tsigankov algorithm (from 
+        Tsigankov2003)'''
+        # Initialization
+        self.old_current = np.ones((self.electrodes.shape[0]))
+        self.current = np.zeros((self.electrodes.shape[0]))
+        self.time = 0  # Reset simulation time
+        self.avg_carriers = []  # Tracks average number of carriers per interval
+        self.avg_current = []  # Tracks average current per interval
+        for i in range(self.electrodes.shape[0]):
+            self.electrodes[i, 4] = 0  # Reset current
+        self.calc_t_dist()
+
+
+        # Simulation loop
+        converged = False
+        counter = 0  # Counts the amount of intervals needed for convergence
+        self.old_current *= np.inf
+        self.prev_time = self.time  # Timestamp of previous interval
+        
+        while(not converged):
+            self.avg_carriers.append(0)  # Add entry to average carrier tracker
+            self.avg_current.append(0)  # Add entry to average current tracker
+            for i in range(interval):
+                # Hopping event
+                self.pick_event_tsigankov()
+                
+                # Update number of particles
+                self.avg_carriers[counter] += self.timestep * sum(self.acceptors[:, 3])
+            
+            # Update average trackers
+            self.avg_carriers[counter] /= (self.time - self.prev_time)
+            self.avg_current[counter] /= (self.time - self.prev_time)
+
+            # Calculate currents
+            self.current = self.electrodes[:, 4]/self.time
+            
+            # Check convergence
+            if(np.linalg.norm(self.current, 2) == 0
+               and np.linalg.norm(self.old_current - self.current, 2) == 0):
+                converged = True
+            elif(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
+                converged = True
+            else:
+                self.old_current = self.current.copy()  # Store current
+            
+            counter += 1
+            self.prev_time = self.time
+        
+        print('Converged in ' 
+              + str(counter) 
+              + ' intervals of ' 
+              + str(interval) 
+              + ' hops ('
+              + str(counter*interval)
+              + ' total hops)'
+              )
+    
+    
     def transition_possible(self, i, j):
         '''Check if a hop from i -> j is possible. Returns True if transition is
         allowed, otherwise returns False'''
@@ -536,8 +628,36 @@ class kmc_dn():
             eij = ej - ei  # No Coulomb interaction for electrode hops
         else:
             eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
-                        /self.distances[i, j])
+                            /self.distances[i, j])
         return eij
+    
+    def calc_t_dist(self):
+        '''Calculates the transition rate matrix t_dist, which is based only
+        on the distances between sites (as defined in Tsigankov2003)'''
+        # Initialization
+        self.t_dist = np.zeros((self.N + self.electrodes.shape[0],
+                                self.N + self.electrodes.shape[0]))
+        self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
+        
+        # Loop over possible transitions site i -> site j
+        for i in range(self.t_dist.shape[0]):
+            for j in range(self.t_dist.shape[0]):
+                self.t_dist[i, j] = self.rate(i, j, 0)
+                
+        # Calculate cumulative transition rate (partial sums)
+        for i in range(self.t_dist.shape[0]):
+            for j in range(self.t_dist.shape[0]):
+                if(i == 0 and j == 0):
+                    self.P[i*self.t_dist.shape[0] + j] = self.t_dist[i, j]
+                else:
+                    self.P[i*self.t_dist.shape[0] + j] = self.P[i*self.t_dist.shape[0] + j - 1] + self.t_dist[i, j]
+
+        # Pre-calculate constant timestep
+        self.timestep = 1/self.P[-1]
+        
+        # Normalization
+        self.P = self.P/self.P[-1]
+        
 
     def rate(self, i, j, eij):
         '''Calculate the transition rate for hop i->j based on the energy difference
