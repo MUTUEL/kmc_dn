@@ -21,6 +21,7 @@ Pseudo-code (algorithm):
     ?Current through domain?
     Number of particles in the system
     Average energy of the system
+    ?Average hopping distance?
     
 Quantities that can be calculated:
     Mobility?
@@ -70,7 +71,7 @@ class kmc_dn():
         self.nu = 1
         self.k = 1
         self.T = 1
-        self.ab = 1  # Bohr radius (or localization radius)
+        self.ab = 10E-2 # Bohr radius (or localization radius)
         self.U = 100  # 5/8 * 1/self.ab   # J
         self.time = 0  # s
 
@@ -145,7 +146,7 @@ class kmc_dn():
         charges_placed = 0
         while(charges_placed < self.N-self.M):
             trial = np.random.randint(self.N)  # Try a random acceptor
-            if(self.acceptors[trial, 3] < 2):
+            if(self.acceptors[trial, 3] < 1):
                 self.acceptors[trial, 3] += 1  # Place charge
                 charges_placed += 1
 
@@ -391,7 +392,8 @@ class kmc_dn():
             self.electrodes[self.transition[1] - self.N, 4] += 1
 
         # Increment time
-        self.time += 1/self.transitions[self.transition[0], self.transition[1]]
+        self.hop_time = 1/self.transitions[self.transition[0], self.transition[1]] 
+        self.time += self.hop_time
 
 
     def simulate(self, interval = 500, tol = 1E-3):
@@ -401,6 +403,8 @@ class kmc_dn():
         self.old_current = np.ones((self.electrodes.shape[0]))
         self.current = np.zeros((self.electrodes.shape[0]))
         self.time = 0  # Reset simulation time
+        self.avg_carriers = []  # Tracks average number of carriers per interval
+        self.avg_current = []  # Tracks average current per interval
         for i in range(self.electrodes.shape[0]):
             self.electrodes[i, 4] = 0  # Reset current
 
@@ -409,22 +413,37 @@ class kmc_dn():
         converged = False
         counter = 0  # Counts the amount of intervals needed for convergence
         self.old_current *= np.inf
+        self.prev_time = self.time  # Timestamp of previous interval
+        
         while(not converged):
+            self.avg_carriers.append(0)  # Add entry to average carrier tracker
+            self.avg_current.append(0)  # Add entry to average current tracker
             for i in range(interval):
                 # Hopping event
                 self.update_transition_matrix()
                 self.pick_event()
+                
+                # Update number of particles
+                self.avg_carriers[counter] += self.hop_time * sum(self.acceptors[:, 3])
+            
+            # Update average trackers
+            self.avg_carriers[counter] /= (self.time - self.prev_time)
+            self.avg_current[counter] /= (self.time - self.prev_time)
 
             # Calculate currents
             self.current = self.electrodes[:, 4]/self.time
-
+            
             # Check convergence
-            if(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
+            if(np.linalg.norm(self.current, 2) == 0
+               and np.linalg.norm(self.old_current - self.current, 2) == 0):
+                converged = True
+            elif(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
                 converged = True
             else:
                 self.old_current = self.current.copy()  # Store current
             
             counter += 1
+            self.prev_time = self.time
         
         print('Converged in ' 
               + str(counter) 
@@ -441,14 +460,19 @@ class kmc_dn():
         self.time = 0  # Reset simulation time
         for i in range(self.electrodes.shape[0]):
             self.electrodes[i, 4] = 0  # Reset current
+        self.avg_carriers = 0
             
         # Simulation loop
         for i in range(hops):
             # Hopping event
             self.update_transition_matrix()
             self.pick_event()
+            
+            # Update average tracked quantities
+            self.avg_carriers += self.hop_time * sum(self.acceptors[:, 3])
         
         self.current = self.electrodes[:, 4]/self.time
+        self.avg_carriers /= self.time
         
         return 'Done!'
     
