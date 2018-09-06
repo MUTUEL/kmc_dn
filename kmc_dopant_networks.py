@@ -367,7 +367,10 @@ class kmc_dn():
                     self.P[i*self.transitions.shape[0] + j] = self.transitions[i, j]
                 else:
                     self.P[i*self.transitions.shape[0] + j] = self.P[i*self.transitions.shape[0] + j - 1] + self.transitions[i, j]
-
+                    
+        # Save hopping time
+        self.hop_time = self.P[-1]
+        
         # Normalization
         self.P = self.P/self.P[-1]
 
@@ -392,7 +395,6 @@ class kmc_dn():
             self.electrodes[self.transition[1] - self.N, 4] += 1
 
         # Increment time
-        self.hop_time = 1/self.transitions[self.transition[0], self.transition[1]] 
         self.time += self.hop_time
         
     def pick_event_tsigankov(self):
