@@ -740,6 +740,20 @@ class kmc_dn():
             ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
             
         return fig
+    
+    def visualize_current(self):
+        '''Returns a figure which shows the domain with potential profile and
+        occupancy. Plot vectors which correlate to the outgoing hops.'''
+        fig = self.visualize()
+        
+        x = self.acceptors[:, 0]
+        y = self.acceptors[:, 1]
+        u = self.current_vectors[:self.N, 0]
+        v = self.current_vectors[:self.N, 1]
+        
+        fig.axes[0].quiver(x, y, u, v)
+        
+        return fig
 
 
     @staticmethod
