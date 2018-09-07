@@ -71,7 +71,7 @@ class kmc_dn():
         self.nu = 1
         self.k = 1
         self.T = 1
-        self.ab = 10E-2 # Bohr radius (or localization radius)
+        self.ab = 100 # Bohr radius (or localization radius)
         self.U = 100  # 5/8 * 1/self.ab   # J
         self.time = 0  # s
 
@@ -84,7 +84,9 @@ class kmc_dn():
         self.transitions = np.zeros((N + electrodes.shape[0],
                                      N + electrodes.shape[0]))
         self.distances = np.zeros((N + electrodes.shape[0],
-                                     N + electrodes.shape[0]))
+                                   N + electrodes.shape[0]))
+        self.vectors = np.zeros((N + electrodes.shape[0],
+                                 N + electrodes.shape[0], 3))
 
         # Check dimensionality
         if(self.ydim == 0 and self.zdim == 0):
@@ -440,6 +442,7 @@ class kmc_dn():
         self.time = 0  # Reset simulation time
         self.avg_carriers = []  # Tracks average number of carriers per interval
         self.avg_current = []  # Tracks average current per interval
+        self.current_vectors = np.zeros((self.transitions.shape[0], 3))
         for i in range(self.electrodes.shape[0]):
             self.electrodes[i, 4] = 0  # Reset current
 
@@ -460,6 +463,10 @@ class kmc_dn():
                 
                 # Update number of particles
                 self.avg_carriers[counter] += self.hop_time * sum(self.acceptors[:, 3])
+                
+                # Update current vectors
+                self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
+                                                                         self.transition[1]]
             
             # Update average trackers
             self.avg_carriers[counter] /= (self.time - self.prev_time)
@@ -496,6 +503,7 @@ class kmc_dn():
         for i in range(self.electrodes.shape[0]):
             self.electrodes[i, 4] = 0  # Reset current
         self.avg_carriers = 0
+        self.current_vectors = np.zeros((self.transitions.shape[0], 3))
             
         # Simulation loop
         for i in range(hops):
@@ -505,6 +513,10 @@ class kmc_dn():
             
             # Update average tracked quantities
             self.avg_carriers += self.hop_time * sum(self.acceptors[:, 3])
+            
+            # Update current vectors
+            self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
+                                                                     self.transition[1]]
         
         self.current = self.electrodes[:, 4]/self.time
         self.avg_carriers /= self.time
@@ -674,21 +686,34 @@ class kmc_dn():
     
     def calc_distances(self):
         '''Calculates the distances between each hopping sites and stores them
-        in a matrix'''
+        in a matrix. Also stores the unit vector in the hop direction i->j.'''
         for i in range(self.distances.shape[0]):
             for j in range(self.distances.shape[0]):
                 if(i >= self.N and j >= self.N):
                     self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
                                                       self.electrodes[j - self.N, :3])  # Distance electrode -> electrode
+                    self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
+                                          - self.electrodes[i - self.N, :3])
+                                          /self.distances[i, j])
+                                         
                 elif(i >= self.N and j < self.N):
                     self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
                                                       self.acceptors[j, :3])  # Distance electrode -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j, :3]
+                                          - self.electrodes[i - self.N, :3])
+                                          /self.distances[i, j])
                 elif(i < self.N and j >= self.N):
                     self.distances[i, j] = self.dist(self.acceptors[i, :3],
                                                       self.electrodes[j - self.N, :3])  # Distance acceptor -> electrode
+                    self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
+                                          - self.acceptors[i, :3])
+                                          /self.distances[i, j])
                 elif(i < self.N and j < self.N):
                     self.distances[i, j] = self.dist(self.acceptors[i, :3],
                                                       self.acceptors[j, :3])  # Distance acceptor -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j, :3]
+                                          - self.acceptors[i, :3])
+                                          /self.distances[i, j])
                 
         
     def visualize(self):
