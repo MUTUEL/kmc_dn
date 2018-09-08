@@ -504,6 +504,7 @@ class kmc_dn():
             self.electrodes[i, 4] = 0  # Reset current
         self.avg_carriers = 0
         self.current_vectors = np.zeros((self.transitions.shape[0], 3))
+        self.traffic = np.zeros(self.transitions.shape)
             
         # Simulation loop
         for i in range(hops):
@@ -515,8 +516,14 @@ class kmc_dn():
             self.avg_carriers += self.hop_time * sum(self.acceptors[:, 3])
             
             # Update current vectors
+            self.current_vectors[self.transition[1]] += self.vectors[self.transition[0],
+                                                                     self.transition[1]] # Arrival
             self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
-                                                                     self.transition[1]]
+                                                                     self.transition[1]] # Departure
+            
+            
+            # Update traffic matrix
+            self.traffic[self.transition[0], self.transition[1]] += 1
         
         self.current = self.electrodes[:, 4]/self.time
         self.avg_carriers /= self.time
@@ -716,7 +723,7 @@ class kmc_dn():
                                           /self.distances[i, j])
                 
         
-    def visualize(self):
+    def visualize(self, show_occupancy = True):
         '''Returns a figure which shows the domain with potential profile. It 
         also show all dopants with acceptor occupancy.'''
         if(self.dim == 2):
@@ -731,27 +738,34 @@ class kmc_dn():
                       origin='lower', extent=(0, self.xdim, 0, self.ydim))
             
             
-            # Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
-            colors = ['red' if i==2
-                      else 'orange' if i==1
-                      else 'black' for i in self.acceptors[:, 3]]
-            ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], c = colors, marker='o')
-            
-            ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
+            if(show_occupancy):
+                # Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
+                colors = ['red' if i==2
+                          else 'orange' if i==1
+                          else 'black' for i in self.acceptors[:, 3]]
+                ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], c = colors, marker='o')
+                
+                ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
+            else:
+                ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], color = 'black', marker='o')
+                
+                ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
             
         return fig
     
     def visualize_current(self):
         '''Returns a figure which shows the domain with potential profile and
-        occupancy. Plot vectors which correlate to the outgoing hops.'''
-        fig = self.visualize()
+        occupancy. Plot vectors which correlate to the net hop direction.'''
+        fig = self.visualize(show_occupancy = False)
         
         x = self.acceptors[:, 0]
         y = self.acceptors[:, 1]
-        u = self.current_vectors[:self.N, 0]
-        v = self.current_vectors[:self.N, 1]
+        norm = np.linalg.norm(self.current_vectors[:self.N], axis = 1)
+        u = self.current_vectors[:self.N, 0]/norm
+        v = self.current_vectors[:self.N, 1]/norm
         
-        fig.axes[0].quiver(x, y, u, v)
+        quiv = fig.axes[0].quiver(x, y, u, v, norm, cmap=plt.cm.inferno)
+        fig.colorbar(quiv)
         
         return fig
 
