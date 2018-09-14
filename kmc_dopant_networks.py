@@ -35,6 +35,7 @@ TODO: Implement Tsigankov mixed algorithm and perform validation
 
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
 
 plt.ioff()
 
@@ -318,31 +319,34 @@ class kmc_dn():
         '''Solve the constant energy terms for each acceptor site. These
         are terms due to the electrostatic landscape and the donor atoms.'''
         # Initialization
-        self.E_constant = np.zeros((self.N, 1))
+        self.eV_constant = np.zeros((self.N,))
+        self.comp_constant = np.zeros((self.N,))
 
-        for i in range(self.acceptors.shape[0]):
+        for i in range(self.N):
             # Add electrostatic potential
             if(self.dim == 1):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
-                self.E_constant[i] += self.e*self.V[int(round(x)), 0, 0]
+                self.eV_constant[i] += self.e*self.V[int(round(x)), 0, 0]
 
             if(self.dim == 2):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
                 y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
-                self.E_constant[i] += self.e*self.V[int(round(x)),
+                self.eV_constant[i] += self.e*self.V[int(round(x)),
                                                     int(round(y)), 0]
 
             if(self.dim == 3):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
                 y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
                 z = self.acceptors[i, 2]/self.zdim * (self.V.shape[2] - 3) + 1
-                self.E_constant[i] += self.e*self.V[int(round(x)),
+                self.eV_constant[i] += self.e*self.V[int(round(x)),
                                                     int(round(y)),
                                                     int(round(z))]
 
             # Add compensation
-            self.E_constant[i] += -self.e**2/(4 * np.pi * self.eps) * sum(
+            self.comp_constant[i] += -self.e**2/(4 * np.pi * self.eps) * sum(
                     1/self.dist(self.acceptors[i, :3], self.donors[k, :3]) for k in range(self.donors.shape[0]))
+            
+            self.E_constant = self.eV_constant + self.comp_constant
 
 
     def update_transition_matrix(self):
@@ -371,7 +375,7 @@ class kmc_dn():
                     self.P[i*self.transitions.shape[0] + j] = self.P[i*self.transitions.shape[0] + j - 1] + self.transitions[i, j]
                     
         # Save hopping time
-        self.hop_time = self.P[-1]
+        self.hop_time = 1/self.P[-1]
         
         # Normalization
         self.P = self.P/self.P[-1]
@@ -622,7 +626,7 @@ class kmc_dn():
             acc_int = 0
             for k in range(self.acceptors.shape[0]):
                 if(k != i):
-                    acc_int += ((1 - self.acceptors[k, 3])
+                    acc_int -= ((1 - self.acceptors[k, 3])
                                 /self.distances[i, k])
             ei = (self.e**2/(4 * np.pi * self.eps) * acc_int
                 + self.E_constant[i])
@@ -637,7 +641,7 @@ class kmc_dn():
             acc_int = 0
             for k in range(self.acceptors.shape[0]):
                 if(k != j):
-                    acc_int += ((1 - self.acceptors[k, 3])
+                    acc_int -= ((1 - self.acceptors[k, 3])
                             /self.distances[j, k])
             ej = (self.e**2/(4 * np.pi * self.eps) * acc_int
                 + self.E_constant[j])
@@ -648,7 +652,7 @@ class kmc_dn():
         if(i >= self.N or j >= self.N):
             eij = ej - ei  # No Coulomb interaction for electrode hops
         else:
-            eij = ej - ei + (self.e**2/(4 * np.pi * self.eps)
+            eij = ej - ei - (self.e**2/(4 * np.pi * self.eps)
                             /self.distances[i, j])
         return eij
     
@@ -721,7 +725,84 @@ class kmc_dn():
                     self.vectors[i, j] = ((self.acceptors[j, :3]
                                           - self.acceptors[i, :3])
                                           /self.distances[i, j])
+    
+    def total_energy(self):
+        '''Calculates the hamiltonian for the full system.'''
+        H = 0  # Initialize
+        
+        # Coulomb interaction sum
+        for i in range(self.N-1):
+            for j in range(i+1, self.N):
+                H += ((1 - self.acceptors[i, 3]) * (1 - self.acceptors[j, 3])
+                      /self.distances[i, j])
+        H *= self.e**2/(4*np.pi*self.eps)
+        
+        # Add electrostatic contribution
+        for i in range(self.N):
+            H = H - (1 - self.acceptors[i, 3]) * self.eV_constant[i]
+        
+        return H
                 
+    
+    def validate_boltzmann(self, hops = 1000, n = 2):
+        '''Perform validation of a simulation algorithm by means of checking
+        whether it obeys boltzmann statistics. Hops is the total amount of hops
+        performed and n equals the (constant!) number of carriers in the system.'''
+        # Prepare system
+        self.electrodes = np.zeros((0, 5))  # Remove electrodes from system
+        self.V[:, :, :] = 1  # Set chemical potential
+        self.constant_energy()  # Update electrostatic energy contribution
+        self.transitions = np.zeros((self.N, self.N))
+        
+        # Make microstate array 
+        perm_array = np.zeros((self.N))
+        perm_array[:n] = 1
+        perms = list(itertools.permutations(perm_array))  # All possible permutations
+        self.microstates = np.asarray(list(set(perms)))  # Remove all duplicate microstates
+                
+        # Assign energies to microstates
+        self.E_microstates = np.zeros(self.microstates.shape[0])
+        for i in range(self.E_microstates.shape[0]):
+            self.acceptors[:, 3] = self.microstates[i]  # Create microstate
+            self.E_microstates[i] = self.total_energy()
+            
+        # Calculate theoretical probabilities
+        self.p = np.zeros(self.microstates.shape[0])
+        self.Z = 0  # Partition function
+        for i in range(self.p.shape[0]):
+            self.p[i] = np.exp(-self.E_microstates[i]/(self.k*self.T))
+            self.Z += self.p[i]
+        self.p = self.p/self.Z  # Normalize
+        
+        # Simulate probabilities
+        self.time = 0  # Reset simulation time
+        self.acceptors[:, 3] = self.microstates[0]  # Initialize in microstate[0]
+        previous_microstate = 0  # Index of previous microstate
+        self.p_sim = np.zeros(self.microstates.shape[0])
+            
+        # Simulation loop
+        for i in range(hops):
+            # Hopping event
+            self.update_transition_matrix()
+            self.pick_event()
+            
+            # Save time spent in previous microstate
+            self.p_sim[previous_microstate] += self.hop_time
+            
+            # Find index of current microstate
+            for i in range(self.microstates.shape[0]):
+                if(np.array_equal(self.acceptors[:, 3], self.microstates[i])):
+                    previous_microstate = i
+                    break
+            
+        self.p_sim /= self.time  # Normalize probabilities
+        
+        # Return figure with comparison
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(self.p, 'r-')
+        ax.plot(self.p_sim, 'b.')
+        return fig
         
     def visualize(self, show_occupancy = True):
         '''Returns a figure which shows the domain with potential profile. It 
