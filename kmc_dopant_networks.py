@@ -44,7 +44,7 @@ class kmc_dn():
     a kinetic monte carlo simulation of a variable range hopping system'''
 
     def __init__(self, N, M, xdim, ydim, zdim,
-                 electrodes, res = 'unspecified'):
+                 electrodes=np.zeros((0, 5)), res = 'unspecified'):
         '''Upon initialization of this class, the impurities and charges are placed.
         They are placed inside a rectangle of xdim by ydim. There are N acceptors
         and M donors.
@@ -374,8 +374,8 @@ class kmc_dn():
                 else:
                     self.P[i*self.transitions.shape[0] + j] = self.P[i*self.transitions.shape[0] + j - 1] + self.transitions[i, j]
 
-        # Save hopping time
-        self.hop_time = 1/self.P[-1]
+        # Calculate hopping time
+        self.hop_time = np.random.exponential(scale=1/self.P[-1])
 
         # Normalization
         self.P = self.P/self.P[-1]
@@ -750,6 +750,7 @@ class kmc_dn():
         performed and n equals the (constant!) number of carriers in the system.'''
         # Initialize
         convergence = np.zeros(points)
+        hops_array = np.zeros(points)
         interval = hops/points
 
         # Prepare system
@@ -804,6 +805,7 @@ class kmc_dn():
             if(i >= (interval_counter+1)* interval - 1):
                 p_temp = self.p_sim/self.time
                 convergence[interval_counter] = np.linalg.norm(p_temp - self.p)/np.linalg.norm(self.p)
+                hops_array[interval_counter] = i + 1
                 interval_counter += 1
 
         self.p_sim /= self.time  # Normalize probabilities
@@ -818,9 +820,9 @@ class kmc_dn():
             ax.plot(self.p, 'r-')
             ax.plot(self.p_sim, 'b.')
 
-            return convergence, fig
+            return hops_array, convergence, fig
         else:
-            return convergence
+            return hops_array, convergence
 
     def visualize(self, show_occupancy = True):
         '''Returns a figure which shows the domain with potential profile. It
