@@ -22,13 +22,13 @@ Pseudo-code (algorithm):
     Number of particles in the system
     Average energy of the system
     ?Average hopping distance?
-    
+
 Quantities that can be calculated:
     Mobility?
     Conductance?
-    
+
 TODO: Implement Tsigankov mixed algorithm and perform validation
-    
+
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
@@ -113,7 +113,7 @@ class kmc_dn():
 
         # Place electrodes
         self.electrodes = electrodes.copy()
-        
+
         # Calculate distances
         self.calc_distances()
 
@@ -345,7 +345,7 @@ class kmc_dn():
             # Add compensation
             self.comp_constant[i] += -self.e**2/(4 * np.pi * self.eps) * sum(
                     1/self.dist(self.acceptors[i, :3], self.donors[k, :3]) for k in range(self.donors.shape[0]))
-            
+
             self.E_constant = self.eV_constant + self.comp_constant
 
 
@@ -373,10 +373,10 @@ class kmc_dn():
                     self.P[i*self.transitions.shape[0] + j] = self.transitions[i, j]
                 else:
                     self.P[i*self.transitions.shape[0] + j] = self.P[i*self.transitions.shape[0] + j - 1] + self.transitions[i, j]
-                    
+
         # Save hopping time
         self.hop_time = 1/self.P[-1]
-        
+
         # Normalization
         self.P = self.P/self.P[-1]
 
@@ -402,24 +402,24 @@ class kmc_dn():
 
         # Increment time
         self.time += self.hop_time
-        
+
     def pick_event_tsigankov(self):
-        '''Pick a hopping event based on t_dist and accept/reject it based on 
+        '''Pick a hopping event based on t_dist and accept/reject it based on
         the energy dependent rate'''
         # Randomly determine event
         event = np.random.rand()
 
         # Find transition index
         event = min(np.where(self.P >= event)[0])
-        
+
         # Convert to acceptor/electrode indices
         self.transition = [int(np.floor(event/self.t_dist.shape[0])),
                            int(event%self.t_dist.shape[0])]
-        
+
         if(self.transition_possible(self.transition[0],
                                     self.transition[1])):
             # Calculate hopping probability
-            eij = self.energy_difference(self.transition[0], 
+            eij = self.energy_difference(self.transition[0],
                                          self.transition[1])
             prob = 1/(1 + np.exp(eij/(self.k*self.T)))
             if(np.random.rand() < prob):
@@ -432,7 +432,7 @@ class kmc_dn():
                     self.acceptors[self.transition[1], 3] += 1
                 else:  # Hop to electrode
                     self.electrodes[self.transition[1] - self.N, 4] += 1
-        
+
         # Increment time
         self.time += self.timestep
 
@@ -456,7 +456,7 @@ class kmc_dn():
         counter = 0  # Counts the amount of intervals needed for convergence
         self.old_current *= np.inf
         self.prev_time = self.time  # Timestamp of previous interval
-        
+
         while(not converged):
             self.avg_carriers.append(0)  # Add entry to average carrier tracker
             self.avg_current.append(0)  # Add entry to average current tracker
@@ -464,21 +464,21 @@ class kmc_dn():
                 # Hopping event
                 self.update_transition_matrix()
                 self.pick_event()
-                
+
                 # Update number of particles
                 self.avg_carriers[counter] += self.hop_time * sum(self.acceptors[:, 3])
-                
+
                 # Update current vectors
                 self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
                                                                          self.transition[1]]
-            
+
             # Update average trackers
             self.avg_carriers[counter] /= (self.time - self.prev_time)
             self.avg_current[counter] /= (self.time - self.prev_time)
 
             # Calculate currents
             self.current = self.electrodes[:, 4]/self.time
-            
+
             # Check convergence
             if(np.linalg.norm(self.current, 2) == 0
                and np.linalg.norm(self.old_current - self.current, 2) == 0):
@@ -487,19 +487,19 @@ class kmc_dn():
                 converged = True
             else:
                 self.old_current = self.current.copy()  # Store current
-            
+
             counter += 1
             self.prev_time = self.time
-        
-        print('Converged in ' 
-              + str(counter) 
-              + ' intervals of ' 
-              + str(interval) 
+
+        print('Converged in '
+              + str(counter)
+              + ' intervals of '
+              + str(interval)
               + ' hops ('
               + str(counter*interval)
               + ' total hops)'
               )
-    
+
     def simulate_discrete(self, hops):
         '''Perform a kmc simulation, but with a predetermined amount of hops'''
         # Initialization
@@ -509,33 +509,33 @@ class kmc_dn():
         self.avg_carriers = 0
         self.current_vectors = np.zeros((self.transitions.shape[0], 3))
         self.traffic = np.zeros(self.transitions.shape)
-            
+
         # Simulation loop
         for i in range(hops):
             # Hopping event
             self.update_transition_matrix()
             self.pick_event()
-            
+
             # Update average tracked quantities
             self.avg_carriers += self.hop_time * sum(self.acceptors[:, 3])
-            
+
             # Update current vectors
             self.current_vectors[self.transition[1]] += self.vectors[self.transition[0],
                                                                      self.transition[1]] # Arrival
             self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
                                                                      self.transition[1]] # Departure
-            
-            
+
+
             # Update traffic matrix
             self.traffic[self.transition[0], self.transition[1]] += 1
-        
+
         self.current = self.electrodes[:, 4]/self.time
         self.avg_carriers /= self.time
-        
+
         return 'Done!'
-    
+
     def simulate_tsigankov(self, interval = 500, tol = 1E-3):
-        '''Perform a kmc simulation with the Tsigankov algorithm (from 
+        '''Perform a kmc simulation with the Tsigankov algorithm (from
         Tsigankov2003)'''
         # Initialization
         self.old_current = np.ones((self.electrodes.shape[0]))
@@ -553,24 +553,24 @@ class kmc_dn():
         counter = 0  # Counts the amount of intervals needed for convergence
         self.old_current *= np.inf
         self.prev_time = self.time  # Timestamp of previous interval
-        
+
         while(not converged):
             self.avg_carriers.append(0)  # Add entry to average carrier tracker
             self.avg_current.append(0)  # Add entry to average current tracker
             for i in range(interval):
                 # Hopping event
                 self.pick_event_tsigankov()
-                
+
                 # Update number of particles
                 self.avg_carriers[counter] += self.timestep * sum(self.acceptors[:, 3])
-            
+
             # Update average trackers
             self.avg_carriers[counter] /= (self.time - self.prev_time)
             self.avg_current[counter] /= (self.time - self.prev_time)
 
             # Calculate currents
             self.current = self.electrodes[:, 4]/self.time
-            
+
             # Check convergence
             if(np.linalg.norm(self.current, 2) == 0
                and np.linalg.norm(self.old_current - self.current, 2) == 0):
@@ -579,20 +579,20 @@ class kmc_dn():
                 converged = True
             else:
                 self.old_current = self.current.copy()  # Store current
-            
+
             counter += 1
             self.prev_time = self.time
-        
-        print('Converged in ' 
-              + str(counter) 
-              + ' intervals of ' 
-              + str(interval) 
+
+        print('Converged in '
+              + str(counter)
+              + ' intervals of '
+              + str(interval)
               + ' hops ('
               + str(counter*interval)
               + ' total hops)'
               )
-    
-    
+
+
     def transition_possible(self, i, j):
         '''Check if a hop from i -> j is possible. Returns True if transition is
         allowed, otherwise returns False'''
@@ -655,7 +655,7 @@ class kmc_dn():
             eij = ej - ei - (self.e**2/(4 * np.pi * self.eps)
                             /self.distances[i, j])
         return eij
-    
+
     def calc_t_dist(self):
         '''Calculates the transition rate matrix t_dist, which is based only
         on the distances between sites (as defined in Tsigankov2003)'''
@@ -663,12 +663,12 @@ class kmc_dn():
         self.t_dist = np.zeros((self.N + self.electrodes.shape[0],
                                 self.N + self.electrodes.shape[0]))
         self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
-        
+
         # Loop over possible transitions site i -> site j
         for i in range(self.t_dist.shape[0]):
             for j in range(self.t_dist.shape[0]):
                 self.t_dist[i, j] = self.rate(i, j, 0)
-                
+
         # Calculate cumulative transition rate (partial sums)
         for i in range(self.t_dist.shape[0]):
             for j in range(self.t_dist.shape[0]):
@@ -679,10 +679,10 @@ class kmc_dn():
 
         # Pre-calculate constant timestep
         self.timestep = 1/self.P[-1]
-        
+
         # Normalization
         self.P = self.P/self.P[-1]
-        
+
 
     def rate(self, i, j, eij):
         '''Calculate the transition rate for hop i->j based on the energy difference
@@ -694,7 +694,7 @@ class kmc_dn():
             transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab)
 
         return transition_rate
-    
+
     def calc_distances(self):
         '''Calculates the distances between each hopping sites and stores them
         in a matrix. Also stores the unit vector in the hop direction i->j.'''
@@ -706,7 +706,7 @@ class kmc_dn():
                     self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
                                           - self.electrodes[i - self.N, :3])
                                           /self.distances[i, j])
-                                         
+
                 elif(i >= self.N and j < self.N):
                     self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
                                                       self.acceptors[j, :3])  # Distance electrode -> acceptor
@@ -725,47 +725,51 @@ class kmc_dn():
                     self.vectors[i, j] = ((self.acceptors[j, :3]
                                           - self.acceptors[i, :3])
                                           /self.distances[i, j])
-    
+
     def total_energy(self):
         '''Calculates the hamiltonian for the full system.'''
         H = 0  # Initialize
-        
+
         # Coulomb interaction sum
         for i in range(self.N-1):
             for j in range(i+1, self.N):
                 H += ((1 - self.acceptors[i, 3]) * (1 - self.acceptors[j, 3])
                       /self.distances[i, j])
         H *= self.e**2/(4*np.pi*self.eps)
-        
+
         # Add electrostatic contribution
         for i in range(self.N):
             H = H - (1 - self.acceptors[i, 3]) * self.eV_constant[i]
-        
+
         return H
-                
-    
-    def validate_boltzmann(self, hops = 1000, n = 2):
+
+
+    def validate_boltzmann(self, hops = 1000, n = 2, vis = True, points = 100):
         '''Perform validation of a simulation algorithm by means of checking
         whether it obeys boltzmann statistics. Hops is the total amount of hops
         performed and n equals the (constant!) number of carriers in the system.'''
+        # Initialize
+        convergence = np.zeros(points)
+        interval = hops/points
+
         # Prepare system
         self.electrodes = np.zeros((0, 5))  # Remove electrodes from system
         self.V[:, :, :] = 1  # Set chemical potential
         self.constant_energy()  # Update electrostatic energy contribution
         self.transitions = np.zeros((self.N, self.N))
-        
-        # Make microstate array 
+
+        # Make microstate array
         perm_array = np.zeros((self.N))
         perm_array[:n] = 1
         perms = list(itertools.permutations(perm_array))  # All possible permutations
         self.microstates = np.asarray(list(set(perms)))  # Remove all duplicate microstates
-                
+
         # Assign energies to microstates
         self.E_microstates = np.zeros(self.microstates.shape[0])
         for i in range(self.E_microstates.shape[0]):
             self.acceptors[:, 3] = self.microstates[i]  # Create microstate
             self.E_microstates[i] = self.total_energy()
-            
+
         # Calculate theoretical probabilities
         self.p = np.zeros(self.microstates.shape[0])
         self.Z = 0  # Partition function
@@ -773,39 +777,53 @@ class kmc_dn():
             self.p[i] = np.exp(-self.E_microstates[i]/(self.k*self.T))
             self.Z += self.p[i]
         self.p = self.p/self.Z  # Normalize
-        
+
         # Simulate probabilities
         self.time = 0  # Reset simulation time
         self.acceptors[:, 3] = self.microstates[0]  # Initialize in microstate[0]
         previous_microstate = 0  # Index of previous microstate
         self.p_sim = np.zeros(self.microstates.shape[0])
-            
+
         # Simulation loop
+        interval_counter = 0
         for i in range(hops):
             # Hopping event
             self.update_transition_matrix()
             self.pick_event()
-            
+
             # Save time spent in previous microstate
             self.p_sim[previous_microstate] += self.hop_time
-            
+
             # Find index of current microstate
-            for i in range(self.microstates.shape[0]):
-                if(np.array_equal(self.acceptors[:, 3], self.microstates[i])):
-                    previous_microstate = i
+            for j in range(self.microstates.shape[0]):
+                if(np.array_equal(self.acceptors[:, 3], self.microstates[j])):
+                    previous_microstate = j
                     break
-            
+
+            # Save convergence per interval
+            if(i >= (interval_counter+1)* interval - 1):
+                p_temp = self.p_sim/self.time
+                convergence[interval_counter] = np.linalg.norm(p_temp - self.p)/np.linalg.norm(self.p)
+                interval_counter += 1
+
         self.p_sim /= self.time  # Normalize probabilities
-        
-        # Return figure with comparison
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(self.p, 'r-')
-        ax.plot(self.p_sim, 'b.')
-        return fig
-        
+
+        # Calculate norm
+        #convergence = np.linalg.norm(self.p_sim - self.p)/np.linalg.norm(self.p)
+
+        if(vis):
+            # Figure with comparison
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.plot(self.p, 'r-')
+            ax.plot(self.p_sim, 'b.')
+
+            return convergence, fig
+        else:
+            return convergence
+
     def visualize(self, show_occupancy = True):
-        '''Returns a figure which shows the domain with potential profile. It 
+        '''Returns a figure which shows the domain with potential profile. It
         also show all dopants with acceptor occupancy.'''
         if(self.dim == 2):
             # Initialize figure
@@ -813,41 +831,41 @@ class kmc_dn():
             ax = fig.add_subplot(111)
             ax.set_xlim(right=self.xdim)
             ax.set_ylim(top=self.ydim)
-            
+
             ## Plot potential profile
             ax.imshow(self.V[:, :, 0].transpose(), interpolation='bicubic',
                       origin='lower', extent=(0, self.xdim, 0, self.ydim))
-            
-            
+
+
             if(show_occupancy):
                 # Plot impurity configuration (red = 2, orange = 1, black = 0 holes)
                 colors = ['red' if i==2
                           else 'orange' if i==1
                           else 'black' for i in self.acceptors[:, 3]]
                 ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], c = colors, marker='o')
-                
+
                 ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
             else:
                 ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], color = 'black', marker='o')
-                
+
                 ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
-            
+
         return fig
-    
+
     def visualize_current(self):
         '''Returns a figure which shows the domain with potential profile and
         occupancy. Plot vectors which correlate to the net hop direction.'''
         fig = self.visualize(show_occupancy = False)
-        
+
         x = self.acceptors[:, 0]
         y = self.acceptors[:, 1]
         norm = np.linalg.norm(self.current_vectors[:self.N], axis = 1)
         u = self.current_vectors[:self.N, 0]/norm
         v = self.current_vectors[:self.N, 1]/norm
-        
+
         quiv = fig.axes[0].quiver(x, y, u, v, norm, cmap=plt.cm.inferno)
         fig.colorbar(quiv)
-        
+
         return fig
 
 
