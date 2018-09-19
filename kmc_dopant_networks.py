@@ -108,11 +108,18 @@ class kmc_dn():
         else:
             self.res = res
 
-        # Place acceptors and donors
-        self.place_dopants_charges()
-
         # Place electrodes
         self.electrodes = electrodes.copy()
+
+        # Initialize sim object
+        self.initialize()
+
+    def initialize(self):
+        '''Proxy function to place acceptors/donors, calculate distances,
+        electrostatic potential profile and constant energy terms. Run
+        this each time when manually changing some parameters.'''
+        # Place acceptors and donors
+        self.place_dopants_charges()
 
         # Calculate distances
         self.calc_distances()
@@ -744,7 +751,7 @@ class kmc_dn():
         return H
 
 
-    def validate_boltzmann(self, hops = 1000, n = 2, vis = True, points = 100):
+    def validate_boltzmann(self, hops = 1000, n = 2, points = 100, V_0 = 1):
         '''Perform validation of a simulation algorithm by means of checking
         whether it obeys boltzmann statistics. Hops is the total amount of hops
         performed and n equals the (constant!) number of carriers in the system.'''
@@ -755,7 +762,7 @@ class kmc_dn():
 
         # Prepare system
         self.electrodes = np.zeros((0, 5))  # Remove electrodes from system
-        self.V[:, :, :] = 1  # Set chemical potential
+        self.V[:, :, :] = V_0 # Set chemical potential
         self.constant_energy()  # Update electrostatic energy contribution
         self.transitions = np.zeros((self.N, self.N))
 
@@ -784,6 +791,7 @@ class kmc_dn():
         self.acceptors[:, 3] = self.microstates[0]  # Initialize in microstate[0]
         previous_microstate = 0  # Index of previous microstate
         self.p_sim = np.zeros(self.microstates.shape[0])
+        p_sim_interval = np.zeros((self.microstates.shape[0], points))
 
         # Simulation loop
         interval_counter = 0
@@ -801,42 +809,38 @@ class kmc_dn():
                     previous_microstate = j
                     break
 
-            # Save convergence per interval
+            # Save probabilities each interval
             if(i >= (interval_counter+1)* interval - 1):
-                p_temp = self.p_sim/self.time
-                convergence[interval_counter] = np.linalg.norm(p_temp - self.p)/np.linalg.norm(self.p)
+                p_sim_interval[:, interval_counter] = self.p_sim/self.time
                 hops_array[interval_counter] = i + 1
                 interval_counter += 1
 
-        self.p_sim /= self.time  # Normalize probabilities
+        self.p_sim /= self.time  # Normalize end probability
 
         # Calculate norm
-        #convergence = np.linalg.norm(self.p_sim - self.p)/np.linalg.norm(self.p)
+        convergence = np.linalg.norm(self.p_sim - self.p)/np.linalg.norm(self.p)
+        print('Norm of difference: ' + str(convergence))
+        
+        return hops_array, p_sim_interval
 
-        if(vis):
-            # Figure with comparison
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            ax.plot(self.p, 'r-')
-            ax.plot(self.p_sim, 'b.')
-
-            return hops_array, convergence, fig
-        else:
-            return hops_array, convergence
-
-    def visualize(self, show_occupancy = True):
+    def visualize(self, show_occupancy = True, show_V = True):
         '''Returns a figure which shows the domain with potential profile. It
         also show all dopants with acceptor occupancy.'''
         if(self.dim == 2):
             # Initialize figure
             fig = plt.figure()
+            plt.axis('scaled')
             ax = fig.add_subplot(111)
             ax.set_xlim(right=self.xdim)
             ax.set_ylim(top=self.ydim)
-
-            ## Plot potential profile
-            ax.imshow(self.V[:, :, 0].transpose(), interpolation='bicubic',
-                      origin='lower', extent=(0, self.xdim, 0, self.ydim))
+            
+            # Plot potential profile
+            if(show_V):
+                V_profile = ax.imshow(self.V[:, :, 0].transpose(), 
+                                      interpolation='bicubic',
+                                      origin='lower', 
+                                      extent=(0, self.xdim, 0, self.ydim))
+                fig.colorbar(V_profile)
 
 
             if(show_occupancy):
@@ -851,7 +855,11 @@ class kmc_dn():
                 ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], color = 'black', marker='o')
 
                 ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
-
+            
+            ax.set_xlabel('x (a.u.)')
+            ax.set_ylabel('y (a.u.)')
+            
+            
         return fig
 
     def visualize_current(self):
