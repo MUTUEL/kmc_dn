@@ -367,6 +367,12 @@ class kmc_dn():
                 else:
                     eij = self.energy_difference(i, j)
                     self.transitions[i, j] = self.rate(i, j, eij)
+        
+        # Raise flag if a fixed point (i.e. transitions = 0) is reached
+        if(not np.any(self.transitions)):
+            return 1
+        else:
+            return 0
 
     def pick_event(self):
         '''Based in the transition matrix self.transitions, pick a hopping event'''
@@ -519,8 +525,11 @@ class kmc_dn():
 
         # Simulation loop
         for i in range(hops):
-            # Hopping event
-            self.update_transition_matrix()
+            # Hopping event with check for fixed point
+            if(self.update_transition_matrix() == 1):
+                self.current[:] = 0  # Set current to zero for fixed point
+                return 'Reached fixed point'
+
             self.pick_event()
 
             # Update average tracked quantities
