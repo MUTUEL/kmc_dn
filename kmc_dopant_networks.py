@@ -49,7 +49,9 @@ class kmc_dn():
         They are placed inside a rectangle of xdim by ydim. There are N acceptors
         and M donors.
 
-        ---Input arguments---
+        ------------------------------------------------------------------------
+        Input arguments
+        ------------------------------------------------------------------------
         N; number of acceptors
         M; number of donors
         xdim; x dimension size of domain
@@ -62,7 +64,54 @@ class kmc_dn():
             tracks the amount of carriers sourced/sinked in the electrode.
         res; resolution used for potential landscape calculation
 
-        ---Class attributes---
+        ------------------------------------------------------------------------
+        Class attributes
+        ------------------------------------------------------------------------
+        Constants:
+        e; elementary charge
+        eps; relative permittivity
+        nu; attempt frequency for transitions
+        k; boltzmann constant
+        T; temperature
+        ab; bohr radius/localization radius
+        U; interaction energy for double occupancy (EXPERIMENTAL/UNIMPLEMENTED)
+
+        Other attributes:
+        time; simulation time
+        acceptors; Nx4 array, where first three columns are x, y, z position and
+            the last column is the hole occupancy
+        donors; Mx3 array, where the columns represent x, y, z position of donors.
+            Donors are assumed to be always occupied.
+        electrodes; electrode configuration, an Px5 np.array, where
+            P is the number of electrodes, the first three columns correspond
+            to the x, y and coordinates of the electrode, respectively,
+            the fourth column holds the electrode voltage and the last column
+            tracks the amount of carriers sourced/sinked in the electrode.
+        distances; (N+P)x(N+P) array, with the distance for each transition
+        transitions; (N+P)x(N+P) array, with the transition rate for each transition
+        vectors; (N+P)x(N+P)x3 array, where vectors[i, j] is the unit vector
+        point from site i to site j
+        current_vectors; (N+P)x3 array, where vectors[i] is the vector which
+        points in the average direction of transport through the acceptor i.
+        V; 3D array, the chemical potential profile
+        E_constant; Nx1 array, energy contributions that are constant throughout one simulation
+            run, is equal to the sum of:
+            eV_constant; Nx1 array, contribution of chemical potential to site energy
+            comp_constant; Nx1 array, contribution of compensation charges to site energy
+        P; cumulative probability list for possible transitions
+        hop_time; time spent for the last hop
+        transition; [i, j] for the last hop from site i -> site j
+        current; Px1 array, holds the current, i.e. electrodes[5]/time, for
+            each electrode
+        old_current; Px1 array, holds the current for the previous interval, used
+            to check for convergence.
+        avg_current; tracks the current each interval
+        avg_carriers; tracks the average number of carriers in the system.
+
+        ------------------------------------------------------------------------
+        Class methods
+        ------------------------------------------------------------------------
+        TODO
 
         '''
 
@@ -359,6 +408,9 @@ class kmc_dn():
     def update_transition_matrix(self):
         '''Updates the transition matrix based on the current occupancy of
         acceptors'''
+        # Calculate site potential energy
+
+
         # Loop over possible hops from site i -> site j
         for i in range(self.transitions.shape[0]):
             for j in range(self.transitions.shape[0]):
@@ -367,7 +419,7 @@ class kmc_dn():
                 else:
                     eij = self.energy_difference(i, j)
                     self.transitions[i, j] = self.rate(i, j, eij)
-        
+
         # Raise flag if a fixed point (i.e. transitions = 0) is reached
         if(not np.any(self.transitions)):
             return 1
@@ -829,7 +881,7 @@ class kmc_dn():
         # Calculate norm
         convergence = np.linalg.norm(self.p_sim - self.p)/np.linalg.norm(self.p)
         print('Norm of difference: ' + str(convergence))
-        
+
         return hops_array, p_sim_interval
 
     def visualize(self, show_occupancy = True, show_V = True):
@@ -842,12 +894,12 @@ class kmc_dn():
             ax = fig.add_subplot(111)
             ax.set_xlim(right=self.xdim)
             ax.set_ylim(top=self.ydim)
-            
+
             # Plot potential profile
             if(show_V):
-                V_profile = ax.imshow(self.V[:, :, 0].transpose(), 
+                V_profile = ax.imshow(self.V[:, :, 0].transpose(),
                                       interpolation='bicubic',
-                                      origin='lower', 
+                                      origin='lower',
                                       extent=(0, self.xdim, 0, self.ydim))
                 fig.colorbar(V_profile)
 
@@ -864,11 +916,11 @@ class kmc_dn():
                 ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], color = 'black', marker='o')
 
                 ax.scatter(self.donors[:, 0], self.donors[:, 1], marker='x')
-            
+
             ax.set_xlabel('x (a.u.)')
             ax.set_ylabel('y (a.u.)')
-            
-            
+
+
         return fig
 
     def visualize_current(self):
