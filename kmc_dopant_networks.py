@@ -43,8 +43,7 @@ class kmc_dn():
     '''This class is a wrapper for all functions and variables needed to perform
     a kinetic monte carlo simulation of a variable range hopping system'''
 
-    def __init__(self, N, M, xdim, ydim, zdim,
-                 electrodes=np.zeros((0, 5)), res = 'unspecified'):
+    def __init__(self, N, M, xdim, ydim, zdim, **kwargs):
         '''Upon initialization of this class, the impurities and charges are placed.
         They are placed inside a rectangle of xdim by ydim. There are N acceptors
         and M donors.
@@ -57,12 +56,30 @@ class kmc_dn():
         xdim; x dimension size of domain
         ydim; y dimension size of domain
         zdim; z dimension size of domain
+
+        possible kwargs:
         electrodes; electrode configuration, an Px5 np.array, where
             P is the number of electrodes, the first three columns correspond
             to the x, y and coordinates of the electrode, respectively,
             the fourth column holds the electrode voltage and the last column
             tracks the amount of carriers sourced/sinked in the electrode.
+            default: np.zeros((0, 5))
         res; resolution used for potential landscape calculation
+            default: min[xdim, ydim, zdim]/100
+        place_dopants_charges; choice of the place_dopants_charges method.
+            Possible options are:
+            'place_dopants_charges_random'; random dopant and charge placement
+            Default: place_dopants_charges_random
+        calc_E_constant; choice of the calc_E_constant method.
+            Possible options are:
+            'calc_E_constant_V'; include only local chemical potential
+            'calc_E_constant_V_comp'; include local chemical potential and
+                compensation sites.
+            Default: calc_E_constant_V_comp
+        calc_rate; choice of the calc_rate method
+            Possible options are:
+            'calc_rate_MA'; Miller-Abrahams rate
+            Default: calc_rate_MA
 
         ------------------------------------------------------------------------
         Class attributes
@@ -87,10 +104,13 @@ class kmc_dn():
             to the x, y and coordinates of the electrode, respectively,
             the fourth column holds the electrode voltage and the last column
             tracks the amount of carriers sourced/sinked in the electrode.
+        electrodes_grid; same array as electrodes, but here x, y, z are integers
+            matched to the V matrix. So x, y, z are the indices such that
+            V[x, y, z] is the local chemical potential at that electrode.
         distances; (N+P)x(N+P) array, with the distance for each transition
         transitions; (N+P)x(N+P) array, with the transition rate for each transition
         vectors; (N+P)x(N+P)x3 array, where vectors[i, j] is the unit vector
-        point from site i to site j
+            point from site i to site j
         current_vectors; (N+P)x3 array, where vectors[i] is the vector which
         points in the average direction of transport through the acceptor i.
         V; 3D array, the chemical potential profile
@@ -111,10 +131,42 @@ class kmc_dn():
         ------------------------------------------------------------------------
         Class methods
         ------------------------------------------------------------------------
-        TODO
+        Individual methods:
+        place_dopants_charges; places dopants and charges on the domain
+        calc_distances; calculates matrices distances and vectors
+        calc_V; calculates matrix V
+        calc_E_constant; calculates potential energy terms that are constant
+            through a single simulation.
+        calc_site_energies; calculate the vector site_energies
+        calc_transitions; calculate the matrix transitions
+            depends on
+            - calc_rate; hopping rate equation
+        callback; arbitrary function that is executed each kmc iteration. Used to
+            track various quantities, visualization etc.
+        pick_event; pick event based on transitions
+        perform_event; perform event picked by pick_event and increment time.
+        stopping_criterion; function that checks if stopping criterion is met.
 
+        Wrapper methods:
+        The above methods are all specifically performing one step of a
+        simulation routine. However, each method can be replaced by a different
+        one. E.g. calc_site_energies will depend on the type of Hamiltonian you
+        wish to simulate, but its output will always be of the same type.
+        There are two main wrapper methods that allow you to easily run a
+        simulation in an external script.
+        initialize; performs everything that is constant for kmc simulation
+            - place_dopants_charges
+            - calc_distances
+            - calc_V
+            - calc_E_constant
+        simulate; runs a kmc simulation based on the initialized situation
+            while(not stopping_criterion)
+            - calc_site_energies
+            - calc_transitions
+            - pick_event
+            - perform_event
+            - callback
         '''
-
         # Constants
         self.e = 1  #  1.602E-19 Coulomb
         self.eps = 1  # Relative permittivity (11.68 for boron doped Si)
@@ -131,12 +183,7 @@ class kmc_dn():
         self.xdim = xdim
         self.ydim = ydim
         self.zdim = zdim
-        self.transitions = np.zeros((N + electrodes.shape[0],
-                                     N + electrodes.shape[0]))
-        self.distances = np.zeros((N + electrodes.shape[0],
-                                   N + electrodes.shape[0]))
-        self.vectors = np.zeros((N + electrodes.shape[0],
-                                 N + electrodes.shape[0], 3))
+
 
         # Check dimensionality
         if(self.ydim == 0 and self.zdim == 0):
@@ -146,40 +193,102 @@ class kmc_dn():
         else:
             self.dim = 3
 
-        # Fix voltage grid resolution
-        if(res == 'unspecified'):
+        # Initialize parameter kwargs
+        if('electrodes' in kwargs):
+            self.electrodes = kwargs['electrodes'].copy()
+        else:
+            self.electrodes = np.zeros((0, 5))
+
+        if('res' in kwargs):
+            self.res = kwargs['res']
+        else:
             if(self.dim == 1):
                 self.res = self.xdim/100
             if(self.dim == 2):
                 self.res =  min([self.xdim, self.ydim])/100
             if(self.dim == 3):
                 self.res = min([self.xdim, self.ydim, self.zdim])/100
-        else:
-            self.res = res
 
-        # Place electrodes
-        self.electrodes = electrodes.copy()
+        # Initialize method kwargs
+        if('place_dopants_charges' in kwargs):
+            if(kwargs['place_dopants_charges'] == 'place_dopants_charges_random'):
+                self.place_dopants_charges = self.place_dopants_charges_random
+        else:
+            self.place_dopants_charges = self.place_dopants_charges_random
+
+        if('calc_E_constant' in kwargs):
+            if(kwargs['calc_E_constant'] == 'calc_E_constant_V'):
+                self.calc_E_constant = self.calc_E_constant_V
+            if(kwargs['calc_E_constant'] == 'calc_E_constant_V_comp'):
+                self.calc_E_constant = self.calc_E_constant_V_comp
+        else:
+            self.calc_E_constant = self.calc_E_constant_V_comp
+
+        #TODO: calc_site_energies
+
+        if('calc_rate' in kwargs):
+            if(kwargs['calc_rate'] == 'calc_rate_MA'):
+                self.calc_rate = self.calc_rate_MA
+        else:
+            self.calc_rate = self.calc_rate_MA
+
+        # Initialize other attributes
+        self.transitions = np.zeros((N + self.electrodes.shape[0],
+                                     N + self.electrodes.shape[0]))
+        self.distances = np.zeros((N + self.electrodes.shape[0],
+                                   N + self.electrodes.shape[0]))
+        self.vectors = np.zeros((N + self.electrodes.shape[0],
+                                 N + self.electrodes.shape[0], 3))
+
+        #TODO: callback
 
         # Initialize sim object
         self.initialize()
 
     def initialize(self):
-        '''Proxy function to place acceptors/donors, calculate distances,
-        electrostatic potential profile and constant energy terms. Run
-        this each time when manually changing some parameters.'''
-        # Place acceptors and donors
+        '''
+        Wrapper function which:
+        - places acceptors/donors
+        - calculates distances
+        - calculates V (electrostatic potential profile)
+        - calculates E_constant
+        These are all methods that determine the starting position of a kmc
+        simulation.'''
         self.place_dopants_charges()
 
-        # Calculate distances
         self.calc_distances()
 
-        # Calculate electrostatic potential profile
-        self.electrostatic_landscape()
+        self.calc_V()
 
-        # Calculate constant energy terms (potential and compensation)
-        self.constant_energy()
+        self.calc_E_constant()
 
-    def place_dopants_charges(self):
+    def simulate(self, **kwargs):
+        '''
+        Wrapper function which performs the following simulation loop:
+        while(not stopping_criterion)
+        - calc_site_energies
+        - calc_transitions
+        - callback
+        - pick_event
+        - perform_event
+        Any simulation you perform follows this basic loop. Choose a different
+        type of simulation by specifying the specific method
+        TODO: e.g.
+        '''
+        while(not self.stopping_criterion()):
+            self.calc_site_energies()
+
+            self.calc_transitions()
+
+            self.pick_event()
+
+            self.perform_event()
+
+            self.callback()
+
+
+
+    def place_dopants_charges_random(self):
         '''
         Place dopants and charges on a 3D hyperrectangular domain (xdim, ydim, zdim).
         Place N acceptors and M donors. Place N-M charges.
@@ -209,8 +318,41 @@ class kmc_dn():
                 self.acceptors[trial, 3] += 1  # Place charge
                 charges_placed += 1
 
+    def calc_distances(self):
+        '''
+        Calculates the distances between each hopping sites and stores them
+        in the matrix distances.
+        Also stores the unit vector in the hop direction i->j in the matrix vectors.
+        '''
+        for i in range(self.distances.shape[0]):
+            for j in range(self.distances.shape[0]):
+                if(i >= self.N and j >= self.N):
+                    self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
+                                                      self.electrodes[j - self.N, :3])  # Distance electrode -> electrode
+                    self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
+                                          - self.electrodes[i - self.N, :3])
+                                          /self.distances[i, j])
 
-    def electrostatic_landscape(self):
+                elif(i >= self.N and j < self.N):
+                    self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
+                                                      self.acceptors[j, :3])  # Distance electrode -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j, :3]
+                                          - self.electrodes[i - self.N, :3])
+                                          /self.distances[i, j])
+                elif(i < self.N and j >= self.N):
+                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
+                                                      self.electrodes[j - self.N, :3])  # Distance acceptor -> electrode
+                    self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
+                                          - self.acceptors[i, :3])
+                                          /self.distances[i, j])
+                elif(i < self.N and j < self.N):
+                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
+                                                      self.acceptors[j, :3])  # Distance acceptor -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j, :3]
+                                          - self.acceptors[i, :3])
+                                          /self.distances[i, j])
+
+    def calc_V(self):
         '''Numerically solve Laplace with relaxation method'''
 
         # Grid initialization (for now initialized in 3D for method compatibility)
@@ -371,9 +513,44 @@ class kmc_dn():
             #3D relaxation
             self.V = self.relaxation(self.V, fixedpoints = self.electrodes_grid[:, :3])
 
-    def constant_energy(self):
-        '''Solve the constant energy terms for each acceptor site. These
-        are terms due to the electrostatic landscape and the donor atoms.'''
+    def calc_E_constant_V(self):
+        '''
+        Solve the constant energy terms for each acceptor site.
+        This method includes only energy contributions of the local chemical
+        potential V.
+        '''
+        # Initialization
+        self.eV_constant = np.zeros((self.N,))
+        self.comp_constant = np.zeros((self.N,))
+
+        for i in range(self.N):
+            # Add electrostatic potential
+            if(self.dim == 1):
+                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
+                self.eV_constant[i] += self.e*self.V[int(round(x)), 0, 0]
+
+            if(self.dim == 2):
+                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
+                y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
+                self.eV_constant[i] += self.e*self.V[int(round(x)),
+                                                    int(round(y)), 0]
+
+            if(self.dim == 3):
+                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
+                y = self.acceptors[i, 1]/self.ydim * (self.V.shape[1] - 3) + 1
+                z = self.acceptors[i, 2]/self.zdim * (self.V.shape[2] - 3) + 1
+                self.eV_constant[i] += self.e*self.V[int(round(x)),
+                                                    int(round(y)),
+                                                    int(round(z))]
+
+        self.E_constant = self.eV_constant
+
+    def calc_E_constant_V_comp(self):
+        '''
+        Solve the constant energy terms for each acceptor site.
+        This method includes energy contributions of the local chemical potential
+        V and of Coulomb interaction between the site and compensation charges.
+        '''
         # Initialization
         self.eV_constant = np.zeros((self.N,))
         self.comp_constant = np.zeros((self.N,))
@@ -402,10 +579,15 @@ class kmc_dn():
             self.comp_constant[i] += -self.e**2/(4 * np.pi * self.eps) * sum(
                     1/self.dist(self.acceptors[i, :3], self.donors[k, :3]) for k in range(self.donors.shape[0]))
 
-            self.E_constant = self.eV_constant + self.comp_constant
+        self.E_constant = self.eV_constant + self.comp_constant
 
+    def calc_site_energies(self):
+        '''
+        TODO
+        '''
+        pass
 
-    def update_transition_matrix(self):
+    def calc_transitions(self):
         '''Updates the transition matrix based on the current occupancy of
         acceptors'''
         # Calculate site potential energy
@@ -425,6 +607,9 @@ class kmc_dn():
             return 1
         else:
             return 0
+
+    def callback(self):
+        pass
 
     def pick_event(self):
         '''Based in the transition matrix self.transitions, pick a hopping event'''
@@ -501,8 +686,13 @@ class kmc_dn():
         # Increment time
         self.time += self.timestep
 
+    def perform_event(self):
+        pass
 
-    def simulate(self, interval = 500, tol = 1E-3):
+    def stopping_criterion(self):
+        pass
+
+    def simulate_conv(self, interval = 500, tol = 1E-3):
         '''Performs a kmc simulation and checks current convergence after [interval]
         hop events.'''
         # Initialization
@@ -660,6 +850,7 @@ class kmc_dn():
               + ' total hops)'
               )
 
+    #%% Miscellaneous methods
 
     def transition_possible(self, i, j):
         '''Check if a hop from i -> j is possible. Returns True if transition is
@@ -752,47 +943,18 @@ class kmc_dn():
         self.P = self.P/self.P[-1]
 
 
-    def rate(self, i, j, eij):
-        '''Calculate the transition rate for hop i->j based on the energy difference
-        eij. The hopping rate used here is the Miller-Abrahams rate.'''
-        if(eij > 0):
+    def calc_rate_MA(self, i, j, dE):
+        '''Calculate the transition rate for hop i->j with the Miller-Abrahams
+        rate, using the energy difference dE.'''
+        if(dE > 0):
             transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab
-                                                    - eij/(self.k*self.T))
+                                                    - dE/(self.k*self.T))
         else:
             transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab)
 
         return transition_rate
 
-    def calc_distances(self):
-        '''Calculates the distances between each hopping sites and stores them
-        in a matrix. Also stores the unit vector in the hop direction i->j.'''
-        for i in range(self.distances.shape[0]):
-            for j in range(self.distances.shape[0]):
-                if(i >= self.N and j >= self.N):
-                    self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                      self.electrodes[j - self.N, :3])  # Distance electrode -> electrode
-                    self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
-                                          - self.electrodes[i - self.N, :3])
-                                          /self.distances[i, j])
 
-                elif(i >= self.N and j < self.N):
-                    self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                      self.acceptors[j, :3])  # Distance electrode -> acceptor
-                    self.vectors[i, j] = ((self.acceptors[j, :3]
-                                          - self.electrodes[i - self.N, :3])
-                                          /self.distances[i, j])
-                elif(i < self.N and j >= self.N):
-                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
-                                                      self.electrodes[j - self.N, :3])  # Distance acceptor -> electrode
-                    self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
-                                          - self.acceptors[i, :3])
-                                          /self.distances[i, j])
-                elif(i < self.N and j < self.N):
-                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
-                                                      self.acceptors[j, :3])  # Distance acceptor -> acceptor
-                    self.vectors[i, j] = ((self.acceptors[j, :3]
-                                          - self.acceptors[i, :3])
-                                          /self.distances[i, j])
 
     def total_energy(self):
         '''Calculates the hamiltonian for the full system.'''
