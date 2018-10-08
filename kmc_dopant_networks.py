@@ -76,10 +76,36 @@ class kmc_dn():
             'calc_E_constant_V_comp'; include local chemical potential and
                 compensation sites.
             Default: calc_E_constant_V_comp
+        calc_site_energies; choice of the calc_site_energies method
+            Possible options are:
+            'calc_site_energies_acc'; Site energy depends on acc-acc interaction
+                and E_constant
+            Default: calc_site_energies_acc
         calc_rate; choice of the calc_rate method
             Possible options are:
             'calc_rate_MA'; Miller-Abrahams rate
             Default: calc_rate_MA
+        pick_event; choice of the pick_event method
+            Possible options are:
+            'pick_event_standard'; pick event following standard algorithm, i.e.
+                purely based on the transitions matrix.
+            Default: pick_event_standard
+        perform_event; choice of the perform_event method
+            Possible options are:
+            'perform_event_standard'; perfom event following standard algorithm,
+                i.e. change relevant occupation numbers and increment time.
+            Default: perform_event_standard
+        stopping_criterion; choice of the stopping_criterion method
+            Possible options are:
+            'stopping_criterion_discrete'; stop when a predetermined amount of
+                hops is reached.
+            Default: stopping_criterion_discrete
+        callback; choice of the callback method
+            Possible options are:
+            'callback_standard'; track avg_carriers and current vectors
+            'callback_avg_carriers'; track avg_carriers
+            'callback_current_vectors'; track current vectors
+            Default: callback_standard
 
         ------------------------------------------------------------------------
         Class attributes
@@ -118,6 +144,7 @@ class kmc_dn():
             run, is equal to the sum of:
             eV_constant; Nx1 array, contribution of chemical potential to site energy
             comp_constant; Nx1 array, contribution of compensation charges to site energy
+        site_energies; Nx1 array, contains potential energy of each acceptor site.
         P; cumulative probability list for possible transitions
         hop_time; time spent for the last hop
         transition; [i, j] for the last hop from site i -> site j
@@ -224,13 +251,47 @@ class kmc_dn():
         else:
             self.calc_E_constant = self.calc_E_constant_V_comp
 
-        #TODO: calc_site_energies
+        if('calc_site_energies' in kwargs):
+            if(kwargs['calc_site_energies'] == 'calc_site_energies_acc'):
+                self.calc_site_energies = self.calc_site_energies_acc
+                self.coulomb_interactions = True
+        else:
+            self.calc_site_energies = self.calc_site_energies_acc
+            self.coulomb_interactions = True
 
         if('calc_rate' in kwargs):
             if(kwargs['calc_rate'] == 'calc_rate_MA'):
                 self.calc_rate = self.calc_rate_MA
         else:
             self.calc_rate = self.calc_rate_MA
+
+        if('pick_event' in kwargs):
+            if(kwargs['pick_event'] == 'pick_event_standard'):
+                self.pick_event = self.pick_event_standard
+        else:
+            self.pick_event = self.pick_event_standard
+
+        if('perform_event' in kwargs):
+            if(kwargs['perform_event'] == 'perform_event_standard'):
+                self.perform_event = self.perform_event_standard
+        else:
+            self.perform_event = self.perform_event_standard
+
+        if('stopping_criterion' in kwargs):
+            if(kwargs['stopping_criterion'] == 'stopping_criterion_discrete'):
+                self.stopping_criterion = self.stopping_criterion_discrete
+        else:
+            self.stopping_criterion = self.stopping_criterion_discrete
+
+        if('callback' in kwargs):
+            if(kwargs['callback'] == 'callback_standard'):
+                self.callback = self.callback_standard
+            if(kwargs['callback'] == 'callback_avg_carriers'):
+                self.callback = self.callback_avg_carriers
+            if(kwargs['callback'] == 'callback_current_vectors'):
+                self.callback = self.callback_current_vectors
+        else:
+            self.callback = self.callback_standard
 
         # Initialize other attributes
         self.transitions = np.zeros((N + self.electrodes.shape[0],
@@ -239,6 +300,8 @@ class kmc_dn():
                                    N + self.electrodes.shape[0]))
         self.vectors = np.zeros((N + self.electrodes.shape[0],
                                  N + self.electrodes.shape[0], 3))
+        self.site_energies = np.zeros((N + self.electrodes.shape[0],))
+
 
         #TODO: callback
 
@@ -275,7 +338,9 @@ class kmc_dn():
         type of simulation by specifying the specific method
         TODO: e.g.
         '''
-        while(not self.stopping_criterion()):
+        self.reset()  # Reset all relevant trackers before running a simulation
+
+        while(not self.stopping_criterion(**kwargs)):
             self.calc_site_energies()
 
             self.calc_transitions()
@@ -286,7 +351,19 @@ class kmc_dn():
 
             self.callback()
 
+            self.counter += 1
 
+    def reset(self):
+        '''
+        Resets all relevant trackers before running a simulation
+        '''
+        self.counter = 0
+        for i in range(self.electrodes.shape[0]):
+            self.electrodes[i, 4] = 0  # Reset current
+        self.avg_carriers_prenorm = 0
+        self.avg_carriers = 0
+        self.current_vectors = np.zeros((self.transitions.shape[0], 3))
+        self.traffic = np.zeros(self.transitions.shape)
 
     def place_dopants_charges_random(self):
         '''
@@ -518,6 +595,7 @@ class kmc_dn():
         Solve the constant energy terms for each acceptor site.
         This method includes only energy contributions of the local chemical
         potential V.
+        Also fixes the electrode energies in site_energies.
         '''
         # Initialization
         self.eV_constant = np.zeros((self.N,))
@@ -545,11 +623,15 @@ class kmc_dn():
 
         self.E_constant = self.eV_constant
 
+        # Calculate electrode energies
+        self.site_energies[self.N:] = self.e*self.electrodes[:, 3]
+
     def calc_E_constant_V_comp(self):
         '''
         Solve the constant energy terms for each acceptor site.
         This method includes energy contributions of the local chemical potential
         V and of Coulomb interaction between the site and compensation charges.
+        Also fixes the electrode energies in site_energies.
         '''
         # Initialization
         self.eV_constant = np.zeros((self.N,))
@@ -581,26 +663,43 @@ class kmc_dn():
 
         self.E_constant = self.eV_constant + self.comp_constant
 
-    def calc_site_energies(self):
+        # Calculate electrode energies
+        self.site_energies[self.N:] = self.e*self.electrodes[:, 3]
+
+    def calc_site_energies_acc(self):
         '''
-        TODO
+        Calculates the potential energy of each acceptor site by evaluating
+        the Coulomb interactions between all other acceptors and by adding
+        the constant energy terms.
+        The energies are stored in the (N+P)x1 array site_energies
         '''
-        pass
+        for i in range(self.N):
+            # Acceptor interaction loop
+            acc_int = 0
+            for k in range(self.acceptors.shape[0]):
+                if(k != i):
+                    acc_int -= ((1 - self.acceptors[k, 3])
+                                /self.distances[i, k])
+            ei = (self.e**2/(4 * np.pi * self.eps) * acc_int
+                + self.E_constant[i])  # Add constant energy
+            if(self.acceptors[i, 3] == 2):
+                ei += self.U  # Add dual occupancy penalty
+            self.site_energies[i] = ei
 
     def calc_transitions(self):
-        '''Updates the transition matrix based on the current occupancy of
-        acceptors'''
-        # Calculate site potential energy
-
-
+        '''
+        Calculates the matrix transitions by calling the calc_rate method.
+        Caution: run calc_site_energies before this method, otherwise it will
+        calculate the transition based on old site energies.
+        '''
         # Loop over possible hops from site i -> site j
         for i in range(self.transitions.shape[0]):
             for j in range(self.transitions.shape[0]):
                 if(not self.transition_possible(i, j)):
                     self.transitions[i, j] = 0
                 else:
-                    eij = self.energy_difference(i, j)
-                    self.transitions[i, j] = self.rate(i, j, eij)
+                    dE = self.energy_difference(i, j)
+                    self.transitions[i, j] = self.calc_rate(i, j, dE)
 
         # Raise flag if a fixed point (i.e. transitions = 0) is reached
         if(not np.any(self.transitions)):
@@ -608,11 +707,37 @@ class kmc_dn():
         else:
             return 0
 
-    def callback(self):
-        pass
+    def callback_standard(self):
+        '''
+        This is the standard callback function, tracking average carriers
+        and current vectors.
+        '''
+        self.callback_avg_carriers()
+        self.callback_current_vectors()
 
-    def pick_event(self):
-        '''Based in the transition matrix self.transitions, pick a hopping event'''
+    def callback_avg_carriers(self):
+        '''
+        Tracks the average number of carriers in the system
+        '''
+        self.avg_carriers_prenorm += self.hop_time * sum(self.acceptors[:, 3])
+        self.avg_carriers = self.avg_carriers_prenorm/self.time
+
+
+    def callback_current_vectors(self):
+        '''
+        Adds the appropriate unit vectors of the last transition to the matrix
+        current_vectors.
+        '''
+        self.current_vectors[self.transition[1]] += self.vectors[self.transition[0],
+                                                                 self.transition[1]] # Arrival
+        self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
+                                                                 self.transition[1]] # Departure
+
+
+    def pick_event_standard(self):
+        '''
+        Based on the transition matrix self.transitions, pick a hopping event.
+        '''
         # Initialization
         self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
 
@@ -640,18 +765,7 @@ class kmc_dn():
         self.transition = [int(np.floor(event/self.transitions.shape[0])),
                            int(event%self.transitions.shape[0])]
 
-        # Perform hop
-        if(self.transition[0] < self.N):  # Hop from acceptor
-            self.acceptors[self.transition[0], 3] -= 1
-        else:  # Hop from electrode
-            self.electrodes[self.transition[0] - self.N, 4] -= 1
-        if(self.transition[1] < self.N):  # Hop to acceptor
-            self.acceptors[self.transition[1], 3] += 1
-        else:  # Hop to electrode
-            self.electrodes[self.transition[1] - self.N, 4] += 1
 
-        # Increment time
-        self.time += self.hop_time
 
     def pick_event_tsigankov(self):
         '''Pick a hopping event based on t_dist and accept/reject it based on
@@ -686,11 +800,36 @@ class kmc_dn():
         # Increment time
         self.time += self.timestep
 
-    def perform_event(self):
-        pass
+    def perform_event_standard(self):
+        '''
+        Performs the event transition (with the standard algorithm).
+        '''
+        # Perform hop
+        if(self.transition[0] < self.N):  # Hop from acceptor
+            self.acceptors[self.transition[0], 3] -= 1
+        else:  # Hop from electrode
+            self.electrodes[self.transition[0] - self.N, 4] -= 1
+        if(self.transition[1] < self.N):  # Hop to acceptor
+            self.acceptors[self.transition[1], 3] += 1
+        else:  # Hop to electrode
+            self.electrodes[self.transition[1] - self.N, 4] += 1
 
-    def stopping_criterion(self):
-        pass
+        # Increment time
+        self.time += self.hop_time
+
+    def stopping_criterion_discrete(self, **kwargs):
+        '''
+        Stop when reaching the amount of hops specified
+        '''
+        if('hops' in kwargs):
+            hops = kwargs['hops']
+        else:
+            hops = 1000
+
+        if(self.counter < hops):
+            return False
+        else:
+            return True
 
     def simulate_conv(self, interval = 500, tol = 1E-3):
         '''Performs a kmc simulation and checks current convergence after [interval]
@@ -873,47 +1012,18 @@ class kmc_dn():
         return possible
 
     def energy_difference(self, i, j):
-        '''Calculate the energy difference if a hop were to occur from site i -> j.
-        This particular way of calculating the energy difference is documented
-        in the thesis of Jeroen v. Gelder.'''
-
-        # Calculate ei
-        if(i >= self.N):
-            ei = self.e*self.electrodes[i - self.N, 3]  # Hop from electrode into system
-        else:
-            # Acceptor interaction loop
-            acc_int = 0
-            for k in range(self.acceptors.shape[0]):
-                if(k != i):
-                    acc_int -= ((1 - self.acceptors[k, 3])
-                                /self.distances[i, k])
-            ei = (self.e**2/(4 * np.pi * self.eps) * acc_int
-                + self.E_constant[i])
-            if(self.acceptors[i, 3] == 2):
-                ei += self.U
-
-        # Calculate ej
-        if(j >= self.N):
-            ej = self.e*self.electrodes[j - self.N, 3]  # Hop to electrode
-        else:
-            # Acceptor interaction loop
-            acc_int = 0
-            for k in range(self.acceptors.shape[0]):
-                if(k != j):
-                    acc_int -= ((1 - self.acceptors[k, 3])
-                            /self.distances[j, k])
-            ej = (self.e**2/(4 * np.pi * self.eps) * acc_int
-                + self.E_constant[j])
-            if(self.acceptors[j, 3] == 1):
-                ej += self.U
-
-        # Calculate energy difference
+        '''Calculate the energy difference for a hop i -> j based on the matrix
+        site_energies. The class attribute coulomb_interactions indicates whether
+        the method for calculating the site energies incorporates acceptor-acceptor
+        interaction.'''
         if(i >= self.N or j >= self.N):
-            eij = ej - ei  # No Coulomb interaction for electrode hops
+            dE = self.site_energies[j] - self.site_energies[i]  # No Coulomb interaction for electrode hops
+        elif(self.coulomb_interactions):
+            dE = (self.site_energies[j] - self.site_energies[i]
+                  - self.e**2/(4 * np.pi * self.eps*self.distances[i, j]))
         else:
-            eij = ej - ei - (self.e**2/(4 * np.pi * self.eps)
-                            /self.distances[i, j])
-        return eij
+            dE = ej - ei
+        return dE
 
     def calc_t_dist(self):
         '''Calculates the transition rate matrix t_dist, which is based only
