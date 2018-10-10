@@ -301,11 +301,16 @@ class kmc_dn():
         # Initialize other attributes
         self.transitions = np.zeros((N + self.electrodes.shape[0],
                                      N + self.electrodes.shape[0]))
+        self.transitions_constant = np.zeros((N + self.electrodes.shape[0],
+                                     N + self.electrodes.shape[0]))
         self.distances = np.zeros((N + self.electrodes.shape[0],
                                    N + self.electrodes.shape[0]))
         self.vectors = np.zeros((N + self.electrodes.shape[0],
                                  N + self.electrodes.shape[0], 3))
         self.site_energies = np.zeros((N + self.electrodes.shape[0],))
+        self.energy_differences = np.zeros((N + self.electrodes.shape[0],
+                                            N + self.electrodes.shape[0]))
+
 
 
         #TODO: callback
@@ -325,6 +330,8 @@ class kmc_dn():
         self.place_dopants_charges()
 
         self.calc_distances()
+
+        self.calc_transitions_constant()
 
         self.calc_V()
 
@@ -435,6 +442,7 @@ class kmc_dn():
                     self.vectors[i, j] = ((self.acceptors[j, :3]
                                           - self.acceptors[i, :3])
                                           /self.distances[i, j])
+        self.dist_plus_inf = self.distances + np.diag(np.ones(self.distances.shape[0])*np.inf)  # For vectorization later
 
     def calc_V(self):
         '''Numerically solve Laplace with relaxation method'''
@@ -597,6 +605,14 @@ class kmc_dn():
             #3D relaxation
             self.V = self.relaxation(self.V, fixedpoints = self.electrodes_grid[:, :3])
 
+    def calc_transitions_constant(self):
+        '''
+        Calculates the constant (position dependent part) of the MA rate.
+        '''
+        self.transitions_constant = self.nu*np.exp(-2 * self.distances/self.ab)
+        self.transitions_constant -= np.eye(self.transitions.shape[0])
+
+
     def calc_E_constant_V(self):
         '''
         Solve the constant energy terms for each acceptor site.
@@ -680,18 +696,13 @@ class kmc_dn():
         the constant energy terms.
         The energies are stored in the (N+P)x1 array site_energies
         '''
-        for i in range(self.N):
-            # Acceptor interaction loop
-            acc_int = 0
-            for k in range(self.acceptors.shape[0]):
-                if(k != i):
-                    acc_int -= ((1 - self.acceptors[k, 3])
-                                /self.distances[i, k])
-            ei = (self.e**2/(4 * np.pi * self.eps) * acc_int
-                + self.E_constant[i])  # Add constant energy
-            if(self.acceptors[i, 3] == 2):
-                ei += self.U  # Add dual occupancy penalty
-            self.site_energies[i] = ei
+        self.occupation_repeat = np.tile(self.acceptors[:, 3].reshape((1, self.N)), (self.N, 1))
+
+        # Vectorized calculation of acceptor site energies
+        presum = (1 - self.occupation_repeat)/self.dist_plus_inf[:self.N, :self.N]
+        self.site_energies[:self.N] = (-self.e**2/(4 * np.pi * self.eps) *np.sum(presum, axis = 1)
+                                    + self.E_constant[:self.N])
+
 
     def calc_transitions(self):
         '''
@@ -699,6 +710,11 @@ class kmc_dn():
         Caution: run calc_site_energies before this method, otherwise it will
         calculate the transition based on old site energies.
         '''
+        # Obtain transition boolean map
+
+        # Obtain energy difference matrix
+
+
         # Loop over possible hops from site i -> site j
         for i in range(self.transitions.shape[0]):
             for j in range(self.transitions.shape[0]):
@@ -713,6 +729,27 @@ class kmc_dn():
             return 1
         else:
             return 0
+
+    def calc_transitions_MA(self):
+        '''
+        Calculates the matrix transitions, following the MA hopping rate.
+        It uses the method calc_energy_differences().
+        transitions_constant = nu*exp(-2r_ij/a)
+        transitions_constant also makes sure any transition rate to the same
+        element is zero
+        '''
+        # First calculate all rates
+        rates = np.exp(-self.energy_differences/self.k*self.T)
+
+        # Get a treshold mask for all values >= 1
+        treshold_mask = rates >= 1
+        treshold_mask = treshold_mask.astype(int)
+
+        # Calculate masked rates
+        rates = (np.ones(rates.shape) - treshold_mask)*rates + treshold_mask
+
+        #TODO: mask by occupancy/allowed transitions
+        self.transitions = self.transitions_constant*rates
 
     def callback_standard(self):
         '''
@@ -965,19 +1002,18 @@ class kmc_dn():
                 possible = False  # No transition empty -> or -> occupied
         return possible
 
-    def energy_difference(self, i, j):
-        '''Calculate the energy difference for a hop i -> j based on the matrix
+    def calc_energy_differences(self):
+        '''Calculate the energy difference for a hop i -> j based on the array
         site_energies. The class attribute coulomb_interactions indicates whether
         the method for calculating the site energies incorporates acceptor-acceptor
-        interaction.'''
-        if(i >= self.N or j >= self.N):
-            dE = self.site_energies[j] - self.site_energies[i]  # No Coulomb interaction for electrode hops
-        elif(self.coulomb_interactions):
-            dE = (self.site_energies[j] - self.site_energies[i]
-                  - self.e**2/(4 * np.pi * self.eps*self.distances[i, j]))
-        else:
-            dE = ej - ei
-        return dE
+        interaction.
+        Stores the energy differences in the array energy_differences'''
+        se = np.tile(self.site_energies.reshape((1, self.N + self.electrodes.shape[0])),
+                     (self.N + self.electrodes.shape[0], 1))
+        self.energy_differences = se - se.transpose()
+
+        if(self.coulomb_interactions):
+            self.energy_differences[:self.N, :self.N] -= self.e**2/(4 * np.pi * self.eps*self.dist_plus_inf[:self.N, :self.N])
 
     def calc_t_dist(self):
         '''Calculates the transition rate matrix t_dist, which is based only
@@ -1017,8 +1053,6 @@ class kmc_dn():
             transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab)
 
         return transition_rate
-
-
 
     def total_energy(self):
         '''Calculates the hamiltonian for the full system.'''
@@ -1168,6 +1202,21 @@ class kmc_dn():
         fig.colorbar(quiv)
 
         return fig
+
+    def energy_difference(self, i, j):
+        '''Calculate the energy difference for a hop i -> j based on the matrix
+        site_energies. The class attribute coulomb_interactions indicates whether
+        the method for calculating the site energies incorporates acceptor-acceptor
+        interaction.'''
+        if(i >= self.N or j >= self.N):
+            dE = self.site_energies[j] - self.site_energies[i]  # No Coulomb interaction for electrode hops
+        elif(self.coulomb_interactions):
+            dE = (self.site_energies[j] - self.site_energies[i]
+                  - self.e**2/(4 * np.pi * self.eps*self.distances[i, j]))
+        else:
+            dE = ej - ei
+        return dE
+
 
 
     @staticmethod
