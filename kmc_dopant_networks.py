@@ -99,6 +99,8 @@ class kmc_dn():
             Possible options are:
             'stopping_criterion_discrete'; stop when a predetermined amount of
                 hops is reached.
+            'stopping_criterion_convergence'; stop when the current converged
+                the predefined tolerance tol.
             Default: stopping_criterion_discrete
         callback; choice of the callback method
             Possible options are:
@@ -121,6 +123,7 @@ class kmc_dn():
 
         Other attributes:
         time; simulation time
+        counter; simulation event counter
         acceptors; Nx4 array, where first three columns are x, y, z position and
             the last column is the hole occupancy
         donors; Mx3 array, where the columns represent x, y, z position of donors.
@@ -148,7 +151,7 @@ class kmc_dn():
         P; cumulative probability list for possible transitions
         hop_time; time spent for the last hop
         transition; [i, j] for the last hop from site i -> site j
-        current; Px1 array, holds the current, i.e. electrodes[5]/time, for
+        current; Px1 array, holds the current, i.e. electrodes[:, 4]/time, for
             each electrode
         old_current; Px1 array, holds the current for the previous interval, used
             to check for convergence.
@@ -280,6 +283,8 @@ class kmc_dn():
         if('stopping_criterion' in kwargs):
             if(kwargs['stopping_criterion'] == 'stopping_criterion_discrete'):
                 self.stopping_criterion = self.stopping_criterion_discrete
+            if(kwargs['stopping_criterion'] == 'stopping_criterion_convergence'):
+                self.stopping_criterion = self.stopping_criterion_convergence
         else:
             self.stopping_criterion = self.stopping_criterion_discrete
 
@@ -357,6 +362,8 @@ class kmc_dn():
         '''
         Resets all relevant trackers before running a simulation
         '''
+        self.time = 0
+        self.old_current = 0
         self.counter = 0
         for i in range(self.electrodes.shape[0]):
             self.electrodes[i, 4] = 0  # Reset current
@@ -733,6 +740,12 @@ class kmc_dn():
         self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
                                                                  self.transition[1]] # Departure
 
+    def callback_traffic(self):
+        '''
+        Tracks the amount of hops i -> j in the matrix traffic.
+        '''
+        self.traffic[self.transition[0], self.transition[1]] += 1
+
 
     def pick_event_standard(self):
         '''
@@ -820,7 +833,11 @@ class kmc_dn():
     def stopping_criterion_discrete(self, **kwargs):
         '''
         Stop when reaching the amount of hops specified
+        Possible kwargs:
+        hops; the amount of hops to perform
+            default: 1000
         '''
+        #TODO: maybe put this somewhere else, now it is run every time
         if('hops' in kwargs):
             hops = kwargs['hops']
         else:
@@ -830,6 +847,43 @@ class kmc_dn():
             return False
         else:
             return True
+
+    def stopping_criterion_convergence(self, **kwargs):
+        '''
+        Stop when the current through all electrodes has converged to some
+        tolerance
+        Possible kwargs:
+        tol; tolerance for convergence
+        interval; the amount of hopping events before rechecking the current
+        '''
+        #TODO: maybe put this somewhere else, now it is run every time
+        if('tol' in kwargs):
+            tol = kwargs['tol']
+        else:
+            tol = 1E-2
+        if('interval' in kwargs):
+            interval = kwargs['interval']
+        else:
+            interval = 1000
+
+        # Calculate currents
+        if(self.time != 0 and self.counter%interval == 0):
+            self.current = self.electrodes[:, 4]/self.time
+
+            # Check convergence
+            if(np.linalg.norm(self.current, 2) == 0):
+                if(np.linalg.norm(self.old_current - self.current, 2) == 0):
+                    return True
+                else:
+                    return False
+            elif(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
+                return True
+            else:
+                self.old_current = self.current.copy()  # Store current
+                return False
+        else:
+            return False
+
 
     def simulate_conv(self, interval = 500, tol = 1E-3):
         '''Performs a kmc simulation and checks current convergence after [interval]
