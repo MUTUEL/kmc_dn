@@ -1141,16 +1141,18 @@ class kmc_dn():
     def validate_boltzmann(self, hops = 1000, n = 2, points = 100, V_0 = 1):
         '''Perform validation of a simulation algorithm by means of checking
         whether it obeys boltzmann statistics. Hops is the total amount of hops
-        performed and n equals the (constant!) number of carriers in the system.'''
+        performed and n equals the (constant!) number of carriers in the system.
+        points; the amount of points in convergence array
+        V_0; chemical potential'''
         # Initialize
-        convergence = np.zeros(points)
         hops_array = np.zeros(points)
         interval = hops/points
 
         # Prepare system
         self.electrodes = np.zeros((0, 5))  # Remove electrodes from system
+        self.site_energies = np.zeros((self.N + self.electrodes.shape[0],))  # Reset site energies parameter
         self.V[:, :, :] = V_0 # Set chemical potential
-        self.constant_energy()  # Update electrostatic energy contribution
+        self.calc_E_constant()  # Update electrostatic energy contribution
         self.transitions = np.zeros((self.N, self.N))
 
         # Make microstate array
@@ -1166,17 +1168,17 @@ class kmc_dn():
             self.E_microstates[i] = self.total_energy()
 
         # Calculate theoretical probabilities
-        self.p = np.zeros(self.microstates.shape[0])
+        self.p_theory = np.zeros(self.microstates.shape[0])
         self.Z = 0  # Partition function
-        for i in range(self.p.shape[0]):
-            self.p[i] = np.exp(-self.E_microstates[i]/(self.k*self.T))
-            self.Z += self.p[i]
-        self.p = self.p/self.Z  # Normalize
+        for i in range(self.p_theory.shape[0]):
+            self.p_theory[i] = np.exp(-self.E_microstates[i]/(self.k*self.T))
+            self.Z += self.p_theory[i]
+        self.p_theory = self.p_theory/self.Z  # Normalize
 
         # Simulate probabilities
         self.time = 0  # Reset simulation time
-        self.acceptors[:, 3] = self.microstates[0]  # Initialize in microstate[0]
-        previous_microstate = 0  # Index of previous microstate
+        previous_microstate = np.random.randint(self.microstates.shape[0])  # Random first microstate
+        self.acceptors[:, 3] = self.microstates[previous_microstate]
         self.p_sim = np.zeros(self.microstates.shape[0])
         p_sim_interval = np.zeros((self.microstates.shape[0], points))
 
@@ -1184,8 +1186,10 @@ class kmc_dn():
         interval_counter = 0
         for i in range(hops):
             # Hopping event
-            self.update_transition_matrix()
+            self.calc_site_energies()
+            self.calc_transitions()
             self.pick_event()
+            self.perform_event()
 
             # Save time spent in previous microstate
             self.p_sim[previous_microstate] += self.hop_time
@@ -1205,7 +1209,7 @@ class kmc_dn():
         self.p_sim /= self.time  # Normalize end probability
 
         # Calculate norm
-        convergence = np.linalg.norm(self.p_sim - self.p)/np.linalg.norm(self.p)
+        convergence = np.linalg.norm(self.p_sim - self.p_theory)/np.linalg.norm(self.p_theory)
         print('Norm of difference: ' + str(convergence))
 
         return hops_array, p_sim_interval
