@@ -28,6 +28,8 @@ Quantities that can be calculated:
     Conductance?
 
 TODO: Implement Tsigankov mixed algorithm and perform validation
+TODO: Replace electrodes.shape[0] with self.P and replace self.P by smth like
+    problist.
 
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
@@ -138,6 +140,10 @@ class kmc_dn():
             V[x, y, z] is the local chemical potential at that electrode.
         distances; (N+P)x(N+P) array, with the distance for each transition
         transitions; (N+P)x(N+P) array, with the transition rate for each transition
+        transitions_constant; (N+P)x(N+P) array, with the constant part
+            (i.e. position dependent) of the transitions array
+        transitions_possible; (N+P)x(N+P) boolean array, indicating for each
+            hop i -> j if it is possible.
         vectors; (N+P)x(N+P)x3 array, where vectors[i, j] is the unit vector
             point from site i to site j
         current_vectors; (N+P)x3 array, where vectors[i] is the vector which
@@ -303,6 +309,9 @@ class kmc_dn():
                                      N + self.electrodes.shape[0]))
         self.transitions_constant = np.zeros((N + self.electrodes.shape[0],
                                      N + self.electrodes.shape[0]))
+        self.transitions_possible = np.zeros((N + self.electrodes.shape[0],
+                                     N + self.electrodes.shape[0]))
+        self.transitions_possible = self.transitions_possible.astype(bool)
         self.distances = np.zeros((N + self.electrodes.shape[0],
                                    N + self.electrodes.shape[0]))
         self.vectors = np.zeros((N + self.electrodes.shape[0],
@@ -608,6 +617,7 @@ class kmc_dn():
     def calc_transitions_constant(self):
         '''
         Calculates the constant (position dependent part) of the MA rate.
+        This function puts the constant rate to 0 for transitions i -> j
         '''
         self.transitions_constant = self.nu*np.exp(-2 * self.distances/self.ab)
         self.transitions_constant -= np.eye(self.transitions.shape[0])
@@ -981,6 +991,27 @@ class kmc_dn():
               )
 
     #%% Miscellaneous methods
+    def calc_transitions_possible(self):
+        '''
+        Calculates the boolean matrix transitions_possible.
+        if transitions_possible[i, j] is True a transition is possible.
+        '''
+        #TODO: make self.P self.electrodes.shape[0]
+        P = self.electrodes.shape[0]
+        # Re-initialize transitions_possible as False
+        self.transitions_possible[:, :] = False
+
+        # Repeat occupation (now duplicate with calc_site_energies_acc)
+        self.occupation_repeat = np.tile(self.acceptors[:, 3].reshape((self.N, 1)), (1, self.N))
+
+        # Calculate acceptor_acceptor[i, j] = n_i (1-n_j)
+        self.transitions_possible[:self.N, :self.N] = self.occupation_repeat * (1 - self.occupation_repeat.transpose())
+
+        # Hops from electrode = (1 - n_j)
+        self.transitions_possible[self.N:, :self.N] = 1 - np.tile(self.acceptors[:, 3].reshape((1, self.N)), (P, 1))
+
+        # Hops to electrode = n_i
+        self.transitions_possible[:self.N, self.N:] = np.tile(self.acceptors[:, 3].reshape((self.N, 1)), (1, P))
 
     def transition_possible(self, i, j):
         '''Check if a hop from i -> j is possible. Returns True if transition is
