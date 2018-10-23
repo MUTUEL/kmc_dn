@@ -87,6 +87,10 @@ class kmc_dn():
             Possible options are:
             'calc_rate_MA'; Miller-Abrahams rate
             Default: calc_rate_MA
+        calc_transitions; choice of the calc_transitions method
+            Possible options are:
+            'calc_transitions_MA'; use the Miller-Abrahams rate.
+            Default: calc_transitions_MA
         pick_event; choice of the pick_event method
             Possible options are:
             'pick_event_standard'; pick event following standard algorithm, i.e.
@@ -274,6 +278,13 @@ class kmc_dn():
         else:
             self.calc_rate = self.calc_rate_MA
 
+        if('calc_transitions' in kwargs):
+            if(kwargs['calc_transitions'] == 'calc_transitions_MA'):
+                self.calc_transitions = self.calc_transitions_MA
+        else:
+            self.calc_transitions = self.calc_transitions_MA
+
+
         if('pick_event' in kwargs):
             if(kwargs['pick_event'] == 'pick_event_standard'):
                 self.pick_event = self.pick_event_standard
@@ -352,12 +363,15 @@ class kmc_dn():
         while(not stopping_criterion)
         - calc_site_energies
         - calc_transitions
-        - callback
         - pick_event
         - perform_event
+        - callback
         Any simulation you perform follows this basic loop. Choose a different
         type of simulation by specifying the specific method
         TODO: e.g.
+
+        Possible kwargs:
+
         '''
         self.reset()  # Reset all relevant trackers before running a simulation
 
@@ -720,11 +734,6 @@ class kmc_dn():
         Caution: run calc_site_energies before this method, otherwise it will
         calculate the transition based on old site energies.
         '''
-        # Obtain transition boolean map
-
-        # Obtain energy difference matrix
-
-
         # Loop over possible hops from site i -> site j
         for i in range(self.transitions.shape[0]):
             for j in range(self.transitions.shape[0]):
@@ -748,18 +757,24 @@ class kmc_dn():
         transitions_constant also makes sure any transition rate to the same
         element is zero
         '''
-        # First calculate all rates
+        # Calculate energy differences
+        self.calc_energy_differences()
+
+        # Calculate MA rates
         rates = np.exp(-self.energy_differences/self.k*self.T)
 
         # Get a treshold mask for all values >= 1
         treshold_mask = rates >= 1
-        treshold_mask = treshold_mask.astype(int)
 
         # Calculate masked rates
-        rates = (np.ones(rates.shape) - treshold_mask)*rates + treshold_mask
+        rates = (1 - treshold_mask)*rates + treshold_mask
 
-        #TODO: mask by occupancy/allowed transitions
-        self.transitions = self.transitions_constant*rates
+        # Calculate possible transitions
+        self.calc_transitions_possible()
+
+        # Calculate final transitions by adding constant and MA rate, masked by
+        # transitions possible
+        self.transitions = self.transitions_possible*self.transitions_constant*rates
 
     def callback_standard(self):
         '''
@@ -997,6 +1012,8 @@ class kmc_dn():
         if transitions_possible[i, j] is True a transition is possible.
         '''
         #TODO: make self.P self.electrodes.shape[0]
+        #TODO: perhaps make this more efficient by simle crossing off rows
+        # and columns in a true array
         P = self.electrodes.shape[0]
         # Re-initialize transitions_possible as False
         self.transitions_possible[:, :] = False
