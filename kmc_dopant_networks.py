@@ -720,7 +720,7 @@ class kmc_dn():
         the constant energy terms.
         The energies are stored in the (N+P)x1 array site_energies
         '''
-        self.occupation_repeat = np.tile(self.acceptors[:, 3].reshape((1, self.N)), (self.N, 1))
+        self.occupation_repeat = np.repeat(self.acceptors[:, 3].reshape((1, self.N)), self.N, 0)
 
         # Vectorized calculation of acceptor site energies
         presum = (1 - self.occupation_repeat)/self.dist_plus_inf[:self.N, :self.N]
