@@ -1038,8 +1038,8 @@ class kmc_dn():
         the method for calculating the site energies incorporates acceptor-acceptor
         interaction.
         Stores the energy differences in the array energy_differences'''
-        se = np.tile(self.site_energies.reshape((1, self.N + self.electrodes.shape[0])),
-                     (self.N + self.electrodes.shape[0], 1))
+        se = np.repeat(self.site_energies.reshape((1, self.N + self.electrodes.shape[0])),
+                     self.N + self.electrodes.shape[0], 0)
         self.energy_differences = se - se.transpose()
 
         if(self.coulomb_interactions):
