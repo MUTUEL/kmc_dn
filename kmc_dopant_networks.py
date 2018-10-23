@@ -1011,24 +1011,19 @@ class kmc_dn():
         Calculates the boolean matrix transitions_possible.
         if transitions_possible[i, j] is True a transition is possible.
         '''
-        #TODO: make self.P self.electrodes.shape[0]
-        #TODO: perhaps make this more efficient by simle crossing off rows
-        # and columns in a true array
-        P = self.electrodes.shape[0]
-        # Re-initialize transitions_possible as False
-        self.transitions_possible[:, :] = False
+        # Re-initialize transitions_possible as True
+        self.transitions_possible[:, :] = True
 
-        # Repeat occupation (now duplicate with calc_site_energies_acc)
-        self.occupation_repeat = np.tile(self.acceptors[:, 3].reshape((self.N, 1)), (1, self.N))
+        # Set electrode -> electrode hops to False
+        self.transitions_possible[self.N:, self.N:] = False
 
-        # Calculate acceptor_acceptor[i, j] = n_i (1-n_j)
-        self.transitions_possible[:self.N, :self.N] = self.occupation_repeat * (1 - self.occupation_repeat.transpose())
-
-        # Hops from electrode = (1 - n_j)
-        self.transitions_possible[self.N:, :self.N] = 1 - np.tile(self.acceptors[:, 3].reshape((1, self.N)), (P, 1))
-
-        # Hops to electrode = n_i
-        self.transitions_possible[:self.N, self.N:] = np.tile(self.acceptors[:, 3].reshape((self.N, 1)), (1, P))
+        for i in range(self.N):
+            # Set unoccied -> anything False
+            if(self.acceptors[i, 3] == 0):
+                self.transitions_possible[i, :] = False
+            # Set anything -> occupied False
+            if(self.acceptors[i, 3] == 1):
+                self.transitions_possible[:, i] = False
 
     def transition_possible(self, i, j):
         '''Check if a hop from i -> j is possible. Returns True if transition is
