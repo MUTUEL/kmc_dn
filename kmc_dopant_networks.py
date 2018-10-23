@@ -813,34 +813,21 @@ class kmc_dn():
         '''
         Based on the transition matrix self.transitions, pick a hopping event.
         '''
-        # Initialization
-        self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
-
-        # Calculate cumulative transition rate (partial sums)
-        for i in range(self.transitions.shape[0]):
-            for j in range(self.transitions.shape[0]):
-                if(i == 0 and j == 0):
-                    self.P[i*self.transitions.shape[0] + j] = self.transitions[i, j]
-                else:
-                    self.P[i*self.transitions.shape[0] + j] = self.P[i*self.transitions.shape[0] + j - 1] + self.transitions[i, j]
+        # Get the cumulative sum of flattened array transitions
+        self.problist = np.cumsum(self.transitions.flatten())
 
         # Calculate hopping time
-        self.hop_time = np.random.exponential(scale=1/self.P[-1])
+        self.hop_time = np.random.exponential(scale=1/self.problist[-1])
 
         # Normalization
-        self.P = self.P/self.P[-1]
+        self.problist = self.problist/self.problist[-1]
 
-        # Randomly determine event
-        event = np.random.rand()
-
-        # Find transition index
-        event = min(np.where(self.P >= event)[0])
+        # Find transition index of random event
+        event = min(np.where(self.problist >= np.random.rand())[0])
 
         # Convert to acceptor/electrode indices
-        self.transition = [int(np.floor(event/self.transitions.shape[0])),
-                           int(event%self.transitions.shape[0])]
-
-
+        self.transition = [int(event/self.transitions.shape[0]),
+                           event%self.transitions.shape[0]]
 
     def pick_event_tsigankov(self):
         '''Pick a hopping event based on t_dist and accept/reject it based on
