@@ -113,6 +113,7 @@ class kmc_dn():
             'callback_standard'; track avg_carriers and current vectors
             'callback_avg_carriers'; track avg_carriers
             'callback_current_vectors'; track current vectors
+            'callback_traffic'; tracks traffic in array
             Default: callback_standard
 
         ------------------------------------------------------------------------
@@ -312,6 +313,8 @@ class kmc_dn():
                 self.callback = self.callback_avg_carriers
             if(kwargs['callback'] == 'callback_current_vectors'):
                 self.callback = self.callback_current_vectors
+            if(kwargs['callback'] == 'callback_traffic'):
+                self.callback = self.callback_traffic
         else:
             self.callback = self.callback_standard
 
@@ -330,10 +333,6 @@ class kmc_dn():
         self.site_energies = np.zeros((N + self.electrodes.shape[0],))
         self.energy_differences = np.zeros((N + self.electrodes.shape[0],
                                             N + self.electrodes.shape[0]))
-
-
-
-        #TODO: callback
 
         # Initialize sim object
         self.initialize()
@@ -1114,10 +1113,26 @@ class kmc_dn():
 
         # Prepare system
         self.electrodes = np.zeros((0, 5))  # Remove electrodes from system
-        self.site_energies = np.zeros((self.N + self.electrodes.shape[0],))  # Reset site energies parameter
+        # Initialize other attributes
+        self.transitions = np.zeros((self.N + self.electrodes.shape[0],
+                                     self.N + self.electrodes.shape[0]))
+        self.transitions_constant = np.zeros((self.N + self.electrodes.shape[0],
+                                     self.N + self.electrodes.shape[0]))
+        self.transitions_possible = np.zeros((self.N + self.electrodes.shape[0],
+                                     self.N + self.electrodes.shape[0]))
+        self.transitions_possible = self.transitions_possible.astype(bool)
+        self.distances = np.zeros((self.N + self.electrodes.shape[0],
+                                   self.N + self.electrodes.shape[0]))
+        self.vectors = np.zeros((self.N + self.electrodes.shape[0],
+                                 self.N + self.electrodes.shape[0], 3))
+        self.site_energies = np.zeros((self.N + self.electrodes.shape[0],))
+        self.energy_differences = np.zeros((self.N + self.electrodes.shape[0],
+                                            self.N + self.electrodes.shape[0]))
+        self.initialize()
+
         self.V[:, :, :] = V_0 # Set chemical potential
         self.calc_E_constant()  # Update electrostatic energy contribution
-        self.transitions = np.zeros((self.N, self.N))
+
 
         # Make microstate array
         perm_array = np.zeros((self.N))
