@@ -45,6 +45,89 @@ plt.ioff()
 # Method definitions outside class (for numba support)
 
 @jit
+def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_constant, site_energies,
+                      transitions_constant, transitions, problist, electrodes):
+    '''
+    This functions does everything to perform one event, which means:
+    - Calculate site energies; it does this including chemical potential and
+        acceptor interaction.
+    - Calculate transition matrix; uses site_energies and transitions_constant
+        and implement the MA rate.
+    - Pick and perform event; uses the transition matrix (a standard step)
+    '''
+    # calc_site_energies_acc
+    for i in range(N):
+        acceptor_interaction = 0
+        site_energies[i] = E_constant[i]
+        for j in range(N):
+            if j is not i:
+                acceptor_interaction += (1 - occupation[j])/distances[i, j]
+
+        site_energies[i] += I_0*R*acceptor_interaction
+
+    # calc_transitions
+    for i in range(N+P):
+        for j in range(N+P):
+            if(not _transition_possible(i, j, N, occupation)):
+                transitions[i, j] = 0
+            else:
+                if(i < N and j < N):
+                    dE = (site_energies[j] - site_energies[i]
+                          - I_0*R*distances[i, j])
+                else:
+                    dE = site_energies[j] - site_energies[i]
+
+                t = nu*np.exp(-dE/kT)  # Calculate MA rate
+                # Threshold value if larger than 1
+                if(t > 1):
+                    t = 1
+
+                transitions[i, j] = t
+    transitions = transitions_constant*transitions
+    
+    # pick_event
+    # Transform transitions matrix into cumulative sum
+    for i in range(N+P):
+        for j in range(N+P):
+            if(i == 0 and j == 0):
+                problist[0] = transitions[i, j]
+            else:
+                problist[(N+P)*i + j] = transitions[i, j] + problist[(N+P)*i + j-1]
+
+    # Calculate hopping time
+    hop_time = np.random.exponential(scale=1/problist[-1])
+
+    # Normalization
+    problist = problist/problist[-1]
+
+    # Find transition index of random event
+    event = np.random.rand()
+    for i in range((N+P)**2):
+        if(problist[i] >= event):
+            event = i
+            break
+    #TODO: implement binary tree search algorithm
+
+    # Convert to acceptor/electrode indices
+    transition = [int(event/(N+P)), int(event%(N+P))]
+
+    # Perform hop
+    if(transition[0] < N):  # Hop from acceptor
+        occupation[transition[0]] = False
+    else:  # Hop from electrode
+        electrodes[transition[0] - N, 4] -= 1
+    if(transition[1] < N):  # Hop to acceptor
+        occupation[transition[1]] = True
+    else:  # Hop to electrode
+        electrodes[transition[1] - N, 4] += 1
+
+    # Increment time
+    time += hop_time
+
+    return hop_time, time, transition, occupation, electrodes
+
+
+@jit
 def _calc_site_energies_acc(N, I_0, R, occupation, distances, E_constant, site_energies):
     '''
     Calculates the potential energy of each acceptor site by evaluating
@@ -507,11 +590,12 @@ class kmc_dn():
         self.reset()  # Reset all relevant trackers before running a simulation
 
         while(not self.stopping_criterion(**kwargs)):
-            self.calc_site_energies()
-
-            self.calc_transitions()
-
-            self.pick_event()
+            # self.calc_site_energies()
+            #
+            # self.calc_transitions()
+            #
+            # self.pick_event()
+            self.full_event_loop()
 
             self.callback()
 
@@ -910,6 +994,26 @@ class kmc_dn():
         self.traffic[self.transition[0], self.transition[1]] += 1
 
 
+    def full_event_loop(self):
+        (self.hop_time,
+         self.time,
+         self.transition,
+         self.occupation,
+         self.electrodes) = _full_event_loop(self.N,
+                                             self.P,
+                                             self.nu,
+                                             self.kT,
+                                             self.I_0,
+                                             self.R,
+                                             self.time,
+                                             self.occupation,
+                                             self.distances,
+                                             self.E_constant,
+                                             self.site_energies,
+                                             self.transitions_constant,
+                                             self.transitions,
+                                             self.problist,
+                                             self.electrodes)
     def pick_event_standard(self):
         '''
         Based on the transition matrix self.transitions, pick a hopping event.
