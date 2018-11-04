@@ -44,7 +44,7 @@ plt.ioff()
 
 # Method definitions outside class (for numba support)
 
-@jit()
+@jit
 def _calc_site_energies_acc(N, I_0, R, occupation, distances, E_constant, site_energies):
     '''
     Calculates the potential energy of each acceptor site by evaluating
@@ -63,7 +63,7 @@ def _calc_site_energies_acc(N, I_0, R, occupation, distances, E_constant, site_e
 
     return site_energies
 
-@jit(debug=True)
+@jit
 def _transition_possible(i, j, N, occupation):
     '''
     Returns false if:
@@ -91,7 +91,7 @@ def _transition_possible(i, j, N, occupation):
         else:
             return True
 
-@jit(debug=True)
+@jit
 def _calc_transitions_MA(N, P, nu, kT, I_0, R, occupation, transitions_constant, transitions,
                          distances, site_energies):
     '''
@@ -116,6 +116,51 @@ def _calc_transitions_MA(N, P, nu, kT, I_0, R, occupation, transitions_constant,
                 transitions[i, j] = t
 
     return transitions_constant*transitions
+
+@jit
+def _pick_event(N, P, time, problist, transitions, occupation, electrodes):
+    '''
+    Picks event and performs the transition
+    '''
+    # Transform transitions matrix into cumulative sum
+    for i in range(N+P):
+        for j in range(N+P):
+            if(i == 0 and j == 0):
+                problist[0] = transitions[i, j]
+            else:
+                problist[(N+P)*i + j] = transitions[i, j] + problist[(N+P)*i + j-1]
+
+    # Calculate hopping time
+    hop_time = np.random.exponential(scale=1/problist[-1])
+
+    # Normalization
+    problist = problist/problist[-1]
+
+    # Find transition index of random event
+    event = np.random.rand()
+    for i in range((N+P)**2):
+        if(problist[i] >= event):
+            event = i
+            break
+    #TODO: implement binary tree search algorithm
+
+    # Convert to acceptor/electrode indices
+    transition = [int(event/(N+P)), int(event%(N+P))]
+
+    # Perform hop
+    if(transition[0] < N):  # Hop from acceptor
+        occupation[transition[0]] = False
+    else:  # Hop from electrode
+        electrodes[transition[0] - N, 4] -= 1
+    if(transition[1] < N):  # Hop to acceptor
+        occupation[transition[1]] = True
+    else:  # Hop to electrode
+        electrodes[transition[1] - N, 4] += 1
+
+    # Increment time
+    time += hop_time
+
+    return hop_time, time, transition, occupation, electrodes
 
 class kmc_dn():
     '''This class is a wrapper for all functions and variables needed to perform
@@ -419,6 +464,7 @@ class kmc_dn():
         self.site_energies = np.zeros((N + self.electrodes.shape[0],))
         self.energy_differences = np.zeros((N + self.electrodes.shape[0],
                                             N + self.electrodes.shape[0]))
+        self.problist = np.zeros((self.N+self.P)**2)
 
         # Initialize sim object
         self.initialize()
@@ -466,8 +512,6 @@ class kmc_dn():
             self.calc_transitions()
 
             self.pick_event()
-
-            self.perform_event()
 
             self.callback()
 
@@ -813,27 +857,6 @@ class kmc_dn():
                                                      self.E_constant,
                                                      self.site_energies)
 
-    def calc_transitions(self):
-        '''
-        Calculates the matrix transitions by calling the calc_rate method.
-        Caution: run calc_site_energies before this method, otherwise it will
-        calculate the transition based on old site energies.
-        '''
-        # Loop over possible hops from site i -> site j
-        for i in range(self.transitions.shape[0]):
-            for j in range(self.transitions.shape[0]):
-                if(not self.transition_possible(i, j)):
-                    self.transitions[i, j] = 0
-                else:
-                    dE = self.energy_difference(i, j)
-                    self.transitions[i, j] = self.calc_rate(i, j, dE)
-
-        # Raise flag if a fixed point (i.e. transitions = 0) is reached
-        if(not np.any(self.transitions)):
-            return 1
-        else:
-            return 0
-
     def calc_transitions_MA(self):
         '''
         Calculates the matrix transitions, following the MA hopping rate.
@@ -854,13 +877,13 @@ class kmc_dn():
                                                 self.distances,
                                                 self.site_energies)
 
+        #TODO: check for fixed points
+
     def callback_standard(self):
         '''
-        This is the standard callback function, tracking average carriers
-        and current vectors.
+        This is the standard callback function, tracking only traffic
         '''
-        self.callback_avg_carriers()
-        self.callback_current_vectors()
+        self.callback_traffic()
 
     def callback_avg_carriers(self):
         '''
@@ -891,21 +914,18 @@ class kmc_dn():
         '''
         Based on the transition matrix self.transitions, pick a hopping event.
         '''
-        # Get the cumulative sum of flattened array transitions
-        self.problist = np.cumsum(self.transitions.flatten())
+        (self.hop_time,
+         self.time,
+         self.transition,
+         self.occupation,
+         self.electrodes) = _pick_event(self.N,
+                                        self.P,
+                                        self.time,
+                                        self.problist,
+                                        self.transitions,
+                                        self.occupation,
+                                        self.electrodes)
 
-        # Calculate hopping time
-        self.hop_time = np.random.exponential(scale=1/self.problist[-1])
-
-        # Normalization
-        self.problist = self.problist/self.problist[-1]
-
-        # Find transition index of random event
-        event = min(np.where(self.problist >= np.random.rand())[0])
-
-        # Convert to acceptor/electrode indices
-        self.transition = [int(event/self.transitions.shape[0]),
-                           event%self.transitions.shape[0]]
 
     def pick_event_tsigankov(self):
         '''Pick a hopping event based on t_dist and accept/reject it based on
