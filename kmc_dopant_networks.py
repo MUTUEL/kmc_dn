@@ -84,7 +84,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
 
                 transitions[i, j] = t
     transitions = transitions_constant*transitions
-    
+
     # pick_event
     # Transform transitions matrix into cumulative sum
     for i in range(N+P):
@@ -267,7 +267,7 @@ class kmc_dn():
         electrodes; electrode configuration, an Px4 np.array, where
             P is the number of electrodes, the first three columns correspond
             to the x, y and coordinates of the electrode, respectively,
-            the fourth column holds the electrode voltage. 
+            the fourth column holds the electrode voltage.
             default: np.zeros((0, 4))
         res; resolution used for potential landscape calculation
             default: min[xdim, ydim, zdim]/100
@@ -578,12 +578,26 @@ class kmc_dn():
         self.reset()  # Reset all relevant trackers before running a simulation
 
         while(not self.stopping_criterion(**kwargs)):
-            # self.calc_site_energies()
-            #
-            # self.calc_transitions()
-            #
-            # self.pick_event()
-            self.full_event_loop()
+            # Perform a single event
+            (self.hop_time,
+             self.time,
+             self.transition,
+             self.occupation,
+             self.electrode_occupation) = _full_event_loop(self.N,
+                                                           self.P,
+                                                           self.nu,
+                                                           self.kT,
+                                                           self.I_0,
+                                                           self.R,
+                                                           self.time,
+                                                           self.occupation,
+                                                           self.distances,
+                                                           self.E_constant,
+                                                           self.site_energies,
+                                                           self.transitions_constant,
+                                                           self.transitions,
+                                                           self.problist,
+                                                           self.electrode_occupation)
 
             self.callback()
 
@@ -980,26 +994,6 @@ class kmc_dn():
         self.traffic[self.transition[0], self.transition[1]] += 1
 
 
-    def full_event_loop(self):
-        (self.hop_time,
-         self.time,
-         self.transition,
-         self.occupation,
-         self.electrode_occupation) = _full_event_loop(self.N,
-                                                       self.P,
-                                                       self.nu,
-                                                       self.kT,
-                                                       self.I_0,
-                                                       self.R,
-                                                       self.time,
-                                                       self.occupation,
-                                                       self.distances,
-                                                       self.E_constant,
-                                                       self.site_energies,
-                                                       self.transitions_constant,
-                                                       self.transitions,
-                                                       self.problist,
-                                                       self.electrode_occupation)
     def pick_event_standard(self):
         '''
         Based on the transition matrix self.transitions, pick a hopping event.
