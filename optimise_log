@@ -343,3 +343,19 @@ ncalls  tottime  percall  cumtime  percall filename:lineno(function)
         2    0.000    0.000    0.000    0.000 {built-in method numpy.core.multiarray.zeros}
         1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
 
+50008 function calls in 0.145 seconds
+
+   Ordered by: standard name
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.145    0.145 <string>:1(<module>)
+    10001    0.003    0.000    0.003    0.000 kmc_dopant_networks.py:1053(stopping_criterion_discrete)
+    10000    0.059    0.000    0.059    0.000 kmc_dopant_networks.py:47(_full_event_loop)
+        1    0.017    0.017    0.145    0.145 kmc_dopant_networks.py:562(simulate)
+        1    0.000    0.000    0.000    0.000 kmc_dopant_networks.py:592(reset)
+    10000    0.004    0.000    0.020    0.000 kmc_dopant_networks.py:952(callback_standard)
+    10000    0.017    0.000    0.017    0.000 kmc_dopant_networks.py:976(callback_traffic)
+    10000    0.045    0.000    0.104    0.000 kmc_dopant_networks.py:983(full_event_loop)
+        1    0.000    0.000    0.145    0.145 {built-in method builtins.exec}
+        2    0.000    0.000    0.000    0.000 {built-in method numpy.core.multiarray.zeros}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}

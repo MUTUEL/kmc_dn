@@ -486,12 +486,6 @@ class kmc_dn():
             self.calc_site_energies = self.calc_site_energies_acc
             self.coulomb_interactions = True
 
-        if('calc_rate' in kwargs):
-            if(kwargs['calc_rate'] == 'calc_rate_MA'):
-                self.calc_rate = self.calc_rate_MA
-        else:
-            self.calc_rate = self.calc_rate_MA
-
         if('calc_transitions' in kwargs):
             if(kwargs['calc_transitions'] == 'calc_transitions_MA'):
                 self.calc_transitions = self.calc_transitions_MA
@@ -504,12 +498,6 @@ class kmc_dn():
                 self.pick_event = self.pick_event_standard
         else:
             self.pick_event = self.pick_event_standard
-
-        if('perform_event' in kwargs):
-            if(kwargs['perform_event'] == 'perform_event_standard'):
-                self.perform_event = self.perform_event_standard
-        else:
-            self.perform_event = self.perform_event_standard
 
         if('stopping_criterion' in kwargs):
             if(kwargs['stopping_criterion'] == 'stopping_criterion_discrete'):
