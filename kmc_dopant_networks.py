@@ -650,8 +650,8 @@ class kmc_dn():
         in the matrix distances.
         Also stores the unit vector in the hop direction i->j in the matrix vectors.
         '''
-        for i in range(self.distances.shape[0]):
-            for j in range(self.distances.shape[0]):
+        for i in range(self.N+self.P):
+            for j in range(self.N+self.P):
                 if(i >= self.N and j >= self.N):
                     self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
                                                       self.electrodes[j - self.N, :3])  # Distance electrode -> electrode
@@ -661,23 +661,22 @@ class kmc_dn():
 
                 elif(i >= self.N and j < self.N):
                     self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                      self.acceptors[j, :3])  # Distance electrode -> acceptor
-                    self.vectors[i, j] = ((self.acceptors[j, :3]
+                                                      self.acceptors[j])  # Distance electrode -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j]
                                           - self.electrodes[i - self.N, :3])
                                           /self.distances[i, j])
                 elif(i < self.N and j >= self.N):
-                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
+                    self.distances[i, j] = self.dist(self.acceptors[i],
                                                       self.electrodes[j - self.N, :3])  # Distance acceptor -> electrode
                     self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
-                                          - self.acceptors[i, :3])
+                                          - self.acceptors[i])
                                           /self.distances[i, j])
                 elif(i < self.N and j < self.N):
-                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
-                                                      self.acceptors[j, :3])  # Distance acceptor -> acceptor
-                    self.vectors[i, j] = ((self.acceptors[j, :3]
-                                          - self.acceptors[i, :3])
+                    self.distances[i, j] = self.dist(self.acceptors[i],
+                                                      self.acceptors[j])  # Distance acceptor -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j]
+                                          - self.acceptors[i])
                                           /self.distances[i, j])
-        self.dist_plus_inf = self.distances + np.diag(np.ones(self.distances.shape[0])*np.inf)  # For vectorization later
 
     def calc_V(self):
         '''Numerically solve Laplace with relaxation method'''
@@ -1063,23 +1062,6 @@ class kmc_dn():
         # Increment time
         self.time += self.timestep
 
-    def perform_event_standard(self):
-        '''
-        Performs the event transition (with the standard algorithm).
-        '''
-        # Perform hop
-        if(self.transition[0] < self.N):  # Hop from acceptor
-            self.occupation[self.transition[0]] = False
-        else:  # Hop from electrode
-            self.electrodes[self.transition[0] - self.N, 4] -= 1
-        if(self.transition[1] < self.N):  # Hop to acceptor
-            self.occupation[self.transition[1]] = True
-        else:  # Hop to electrode
-            self.electrodes[self.transition[1] - self.N, 4] += 1
-
-        # Increment time
-        self.time += self.hop_time
-
     def stopping_criterion_discrete(self, **kwargs):
         '''
         Stop when reaching the amount of hops specified
@@ -1135,117 +1117,7 @@ class kmc_dn():
             return False
 
 
-    def simulate_tsigankov(self, interval = 500, tol = 1E-3):
-        '''Perform a kmc simulation with the Tsigankov algorithm (from
-        Tsigankov2003)'''
-        # Initialization
-        self.old_current = np.ones((self.electrodes.shape[0]))
-        self.current = np.zeros((self.electrodes.shape[0]))
-        self.time = 0  # Reset simulation time
-        self.avg_carriers = []  # Tracks average number of carriers per interval
-        self.avg_current = []  # Tracks average current per interval
-        for i in range(self.electrodes.shape[0]):
-            self.electrodes[i, 4] = 0  # Reset current
-        self.calc_t_dist()
-
-
-        # Simulation loop
-        converged = False
-        counter = 0  # Counts the amount of intervals needed for convergence
-        self.old_current *= np.inf
-        self.prev_time = self.time  # Timestamp of previous interval
-
-        while(not converged):
-            self.avg_carriers.append(0)  # Add entry to average carrier tracker
-            self.avg_current.append(0)  # Add entry to average current tracker
-            for i in range(interval):
-                # Hopping event
-                self.pick_event_tsigankov()
-
-                # Update number of particles
-                self.avg_carriers[counter] += self.timestep * sum(self.acceptors[:, 3])
-
-            # Update average trackers
-            self.avg_carriers[counter] /= (self.time - self.prev_time)
-            self.avg_current[counter] /= (self.time - self.prev_time)
-
-            # Calculate currents
-            self.current = self.electrodes[:, 4]/self.time
-
-            # Check convergence
-            if(np.linalg.norm(self.current, 2) == 0
-               and np.linalg.norm(self.old_current - self.current, 2) == 0):
-                converged = True
-            elif(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
-                converged = True
-            else:
-                self.old_current = self.current.copy()  # Store current
-
-            counter += 1
-            self.prev_time = self.time
-
-        print('Converged in '
-              + str(counter)
-              + ' intervals of '
-              + str(interval)
-              + ' hops ('
-              + str(counter*interval)
-              + ' total hops)'
-              )
-
     #%% Miscellaneous methods
-    def calc_transitions_possible(self):
-        '''
-        Calculates the boolean matrix transitions_possible.
-        if transitions_possible[i, j] is True a transition is possible.
-        '''
-        # Re-initialize transitions_possible as True
-        self.transitions_possible[:, :] = True
-
-        # Set electrode -> electrode hops to False
-        self.transitions_possible[self.N:, self.N:] = False
-
-        for i in range(self.N):
-            # Set unoccied -> anything False
-            if(self.acceptors[i, 3] == 0):
-                self.transitions_possible[i, :] = False
-            # Set anything -> occupied False
-            if(self.acceptors[i, 3] == 1):
-                self.transitions_possible[:, i] = False
-
-    def transition_possible(self, i, j):
-        '''Check if a hop from i -> j is possible. Returns True if transition is
-        allowed, otherwise returns False'''
-        possible = True
-        if(i >= self.N and j >= self.N):
-            possible = False  # No transition electrode -> electrode
-        elif(i >= self.N and j < self.N):
-            if(self.acceptors[j, 3] == 1):
-                possible = False  # No transition electrode -> occupied
-        elif(i < self.N and j >= self.N):
-            if(self.acceptors[i, 3] == 0):
-                possible = False  # No transition empty -> electrode
-        elif(i == j):
-            possible = False  # No transition to same acceptor
-        elif(i < self.N and j < self.N):
-            if(self.acceptors[i, 3] == 0
-               or self.acceptors[j, 3] == 1):
-                possible = False  # No transition empty -> or -> occupied
-        return possible
-
-    def calc_energy_differences(self):
-        '''Calculate the energy difference for a hop i -> j based on the array
-        site_energies. The class attribute coulomb_interactions indicates whether
-        the method for calculating the site energies incorporates acceptor-acceptor
-        interaction.
-        Stores the energy differences in the array energy_differences'''
-        se = np.repeat(self.site_energies.reshape((1, self.N + self.electrodes.shape[0])),
-                     self.N + self.electrodes.shape[0], 0)
-        self.energy_differences = se - se.transpose()
-
-        if(self.coulomb_interactions):
-            self.energy_differences[:self.N, :self.N] -= self.e**2/(4 * np.pi * self.eps*self.dist_plus_inf[:self.N, :self.N])
-
     def calc_t_dist(self):
         '''Calculates the transition rate matrix t_dist, which is based only
         on the distances between sites (as defined in Tsigankov2003)'''
@@ -1273,17 +1145,6 @@ class kmc_dn():
         # Normalization
         self.P = self.P/self.P[-1]
 
-
-    def calc_rate_MA(self, i, j, dE):
-        '''Calculate the transition rate for hop i->j with the Miller-Abrahams
-        rate, using the energy difference dE.'''
-        if(dE > 0):
-            transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab
-                                                    - dE/(self.k*self.T))
-        else:
-            transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab)
-
-        return transition_rate
 
     def total_energy(self):
         '''Calculates the hamiltonian for the full system.'''
@@ -1449,22 +1310,6 @@ class kmc_dn():
         fig.colorbar(quiv)
 
         return fig
-
-    def energy_difference(self, i, j):
-        '''Calculate the energy difference for a hop i -> j based on the matrix
-        site_energies. The class attribute coulomb_interactions indicates whether
-        the method for calculating the site energies incorporates acceptor-acceptor
-        interaction.'''
-        if(i >= self.N or j >= self.N):
-            dE = self.site_energies[j] - self.site_energies[i]  # No Coulomb interaction for electrode hops
-        elif(self.coulomb_interactions):
-            dE = (self.site_energies[j] - self.site_energies[i]
-                  - self.e**2/(4 * np.pi * self.eps*self.distances[i, j]))
-        else:
-            dE = ej - ei
-        return dE
-
-
 
     @staticmethod
     def dist(ri, rj):
