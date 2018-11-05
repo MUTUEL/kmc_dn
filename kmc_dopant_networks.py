@@ -46,7 +46,7 @@ plt.ioff()
 
 @jit
 def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_constant, site_energies,
-                      transitions_constant, transitions, problist, electrodes):
+                      transitions_constant, transitions, problist, electrode_occupation):
     '''
     This functions does everything to perform one event, which means:
     - Calculate site energies; it does this including chemical potential and
@@ -115,16 +115,16 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
     if(transition[0] < N):  # Hop from acceptor
         occupation[transition[0]] = False
     else:  # Hop from electrode
-        electrodes[transition[0] - N, 4] -= 1
+        electrode_occupation[transition[0] - N] -= 1
     if(transition[1] < N):  # Hop to acceptor
         occupation[transition[1]] = True
     else:  # Hop to electrode
-        electrodes[transition[1] - N, 4] += 1
+        electrode_occupation[transition[1] - N] += 1
 
     # Increment time
     time += hop_time
 
-    return hop_time, time, transition, occupation, electrodes
+    return hop_time, time, transition, occupation, electrode_occupation
 
 
 @jit
@@ -264,12 +264,11 @@ class kmc_dn():
         zdim; z dimension size of domain
 
         possible kwargs:
-        electrodes; electrode configuration, an Px5 np.array, where
+        electrodes; electrode configuration, an Px4 np.array, where
             P is the number of electrodes, the first three columns correspond
             to the x, y and coordinates of the electrode, respectively,
-            the fourth column holds the electrode voltage and the last column
-            tracks the amount of carriers sourced/sinked in the electrode.
-            default: np.zeros((0, 5))
+            the fourth column holds the electrode voltage. 
+            default: np.zeros((0, 4))
         res; resolution used for potential landscape calculation
             default: min[xdim, ydim, zdim]/100
         place_dopants_charges; choice of the place_dopants_charges method.
@@ -451,7 +450,7 @@ class kmc_dn():
             self.electrodes = kwargs['electrodes'].copy()
             self.P = self.electrodes.shape[0]
         else:
-            self.electrodes = np.zeros((0, 5))
+            self.electrodes = np.zeros((0, 4))
             self.P = 0
 
         if('res' in kwargs):
@@ -548,6 +547,7 @@ class kmc_dn():
         self.energy_differences = np.zeros((N + self.electrodes.shape[0],
                                             N + self.electrodes.shape[0]))
         self.problist = np.zeros((self.N+self.P)**2)
+        self.electrode_occupation = np.zeros(self.P)
 
         # Initialize sim object
         self.initialize()
@@ -608,8 +608,7 @@ class kmc_dn():
         self.time = 0
         self.old_current = 0
         self.counter = 0
-        for i in range(self.electrodes.shape[0]):
-            self.electrodes[i, 4] = 0  # Reset current
+        self.electrode_occupation = np.zeros(self.P)  # Reset current
         self.avg_carriers_prenorm = 0
         self.avg_carriers = 0
         self.current_vectors = np.zeros((self.transitions.shape[0], 3))
@@ -999,21 +998,21 @@ class kmc_dn():
          self.time,
          self.transition,
          self.occupation,
-         self.electrodes) = _full_event_loop(self.N,
-                                             self.P,
-                                             self.nu,
-                                             self.kT,
-                                             self.I_0,
-                                             self.R,
-                                             self.time,
-                                             self.occupation,
-                                             self.distances,
-                                             self.E_constant,
-                                             self.site_energies,
-                                             self.transitions_constant,
-                                             self.transitions,
-                                             self.problist,
-                                             self.electrodes)
+         self.electrode_occupation) = _full_event_loop(self.N,
+                                                       self.P,
+                                                       self.nu,
+                                                       self.kT,
+                                                       self.I_0,
+                                                       self.R,
+                                                       self.time,
+                                                       self.occupation,
+                                                       self.distances,
+                                                       self.E_constant,
+                                                       self.site_energies,
+                                                       self.transitions_constant,
+                                                       self.transitions,
+                                                       self.problist,
+                                                       self.electrode_occupation)
     def pick_event_standard(self):
         '''
         Based on the transition matrix self.transitions, pick a hopping event.

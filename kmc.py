@@ -37,26 +37,19 @@ zdim = 0  # Length along z dimension
 # Define electrodes
 electrodes = np.zeros((2, 5))  # Electrodes with their voltage
 electrodes[0] = [0, ydim/2, 0, 10, 0]  # Left electrode
-electrodes[1] = [xdim, ydim/2, 0, 0, 0] # Right electrode
+electrodes[1] = [xdim, ydim/2, 0, -10, 0] # Right electrode
+# electrodes[2] = [xdim/2, ydim, 0, -10, 0] # Top electrode
+# electrodes[3] = [xdim/2, 0, 0, -10, 0] # Bottom electrode
 
+# Define methods
+placement_method = 'place_dopants_charges_random'
  
 #%% Initialize simulation object
 
-kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes)
-
-# Place acceptors on a line
-for i in range(N):
-    kmc.acceptors[i] = [(i+1) * xdim/(N+1), ydim/2, 0, 0]
-#kmc.acceptors[0, 3] = 1
-
-# Re initialize
-kmc.calc_distances()
-kmc.constant_energy()
-
+kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes, reso = 1,
+                    place_dopants_charges = placement_method)
 
 #%% Simulate
 
-kmc.simulate()
 
-
-
+#%% Visualize()
