@@ -302,3 +302,60 @@ ncalls  tottime  percall  cumtime  percall filename:lineno(function)
     10000    0.004    0.000    0.004    0.000 {method 'transpose' of 'numpy.ndarray' objects}
 
 # Let's stop here for now and build a nice profiler script, which also checks scaling etc.
+
+# discovered numba, jitted calc_site_energies, calc_transitions and pick_event+perform event.
+90008 function calls in 0.205 seconds
+
+   Ordered by: standard name
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.205    0.205 <string>:1(<module>)
+    10000    0.026    0.000    0.026    0.000 kmc_dopant_networks.py:120(_pick_event)
+    10000    0.012    0.000    0.012    0.000 kmc_dopant_networks.py:47(_calc_site_energies_acc)
+        1    0.023    0.023    0.205    0.205 kmc_dopant_networks.py:491(simulate)
+        1    0.000    0.000    0.000    0.000 kmc_dopant_networks.py:520(reset)
+    10000    0.027    0.000    0.039    0.000 kmc_dopant_networks.py:845(calc_site_energies_acc)
+    10000    0.029    0.000    0.065    0.000 kmc_dopant_networks.py:860(calc_transitions_MA)
+    10000    0.004    0.000    0.021    0.000 kmc_dopant_networks.py:882(callback_standard)
+    10000    0.017    0.000    0.017    0.000 kmc_dopant_networks.py:906(callback_traffic)
+    10000    0.028    0.000    0.055    0.000 kmc_dopant_networks.py:913(pick_event_standard)
+    10000    0.035    0.000    0.035    0.000 kmc_dopant_networks.py:94(_calc_transitions_MA)
+    10001    0.004    0.000    0.004    0.000 kmc_dopant_networks.py:980(stopping_criterion_discrete)
+        1    0.000    0.000    0.205    0.205 {built-in method builtins.exec}
+        2    0.000    0.000    0.000    0.000 {built-in method numpy.core.multiarray.zeros}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+
+# tried unifying these three functions under one _full_event_loop, even more speed
+50008 function calls in 0.127 seconds
+
+   Ordered by: standard name
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.127    0.127 <string>:1(<module>)
+    10001    0.004    0.000    0.004    0.000 kmc_dopant_networks.py:1076(stopping_criterion_discrete)
+    10000    0.051    0.000    0.051    0.000 kmc_dopant_networks.py:47(_full_event_loop)
+        1    0.015    0.015    0.127    0.127 kmc_dopant_networks.py:566(simulate)
+        1    0.000    0.000    0.000    0.000 kmc_dopant_networks.py:596(reset)
+    10000    0.003    0.000    0.018    0.000 kmc_dopant_networks.py:958(callback_standard)
+    10000    0.015    0.000    0.015    0.000 kmc_dopant_networks.py:982(callback_traffic)
+    10000    0.039    0.000    0.090    0.000 kmc_dopant_networks.py:989(full_event_loop)
+        1    0.000    0.000    0.127    0.127 {built-in method builtins.exec}
+        2    0.000    0.000    0.000    0.000 {built-in method numpy.core.multiarray.zeros}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+
+50008 function calls in 0.145 seconds
+
+   Ordered by: standard name
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.145    0.145 <string>:1(<module>)
+    10001    0.003    0.000    0.003    0.000 kmc_dopant_networks.py:1053(stopping_criterion_discrete)
+    10000    0.059    0.000    0.059    0.000 kmc_dopant_networks.py:47(_full_event_loop)
+        1    0.017    0.017    0.145    0.145 kmc_dopant_networks.py:562(simulate)
+        1    0.000    0.000    0.000    0.000 kmc_dopant_networks.py:592(reset)
+    10000    0.004    0.000    0.020    0.000 kmc_dopant_networks.py:952(callback_standard)
+    10000    0.017    0.000    0.017    0.000 kmc_dopant_networks.py:976(callback_traffic)
+    10000    0.045    0.000    0.104    0.000 kmc_dopant_networks.py:983(full_event_loop)
+        1    0.000    0.000    0.145    0.145 {built-in method builtins.exec}
+        2    0.000    0.000    0.000    0.000 {built-in method numpy.core.multiarray.zeros}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}

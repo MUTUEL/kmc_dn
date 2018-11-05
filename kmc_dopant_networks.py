@@ -38,8 +38,212 @@ TODO: Replace electrodes.shape[0] with self.P and replace self.P by smth like
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
+from numba import jit
 
 plt.ioff()
+
+# Method definitions outside class (for numba support)
+
+@jit
+def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_constant, site_energies,
+                      transitions_constant, transitions, problist, electrode_occupation):
+    '''
+    This functions does everything to perform one event, which means:
+    - Calculate site energies; it does this including chemical potential and
+        acceptor interaction.
+    - Calculate transition matrix; uses site_energies and transitions_constant
+        and implement the MA rate.
+    - Pick and perform event; uses the transition matrix (a standard step)
+    '''
+    # calc_site_energies_acc
+    for i in range(N):
+        acceptor_interaction = 0
+        site_energies[i] = E_constant[i]
+        for j in range(N):
+            if j is not i:
+                acceptor_interaction += (1 - occupation[j])/distances[i, j]
+
+        site_energies[i] += I_0*R*acceptor_interaction
+
+    # calc_transitions
+    for i in range(N+P):
+        for j in range(N+P):
+            if(not _transition_possible(i, j, N, occupation)):
+                transitions[i, j] = 0
+            else:
+                if(i < N and j < N):
+                    dE = (site_energies[j] - site_energies[i]
+                          - I_0*R*distances[i, j])
+                else:
+                    dE = site_energies[j] - site_energies[i]
+
+                t = nu*np.exp(-dE/kT)  # Calculate MA rate
+                # Threshold value if larger than 1
+                if(t > 1):
+                    t = 1
+
+                transitions[i, j] = t
+    transitions = transitions_constant*transitions
+
+    # pick_event
+    # Transform transitions matrix into cumulative sum
+    for i in range(N+P):
+        for j in range(N+P):
+            if(i == 0 and j == 0):
+                problist[0] = transitions[i, j]
+            else:
+                problist[(N+P)*i + j] = transitions[i, j] + problist[(N+P)*i + j-1]
+
+    # Calculate hopping time
+    hop_time = np.random.exponential(scale=1/problist[-1])
+
+    # Normalization
+    problist = problist/problist[-1]
+
+    # Find transition index of random event
+    event = np.random.rand()
+    for i in range((N+P)**2):
+        if(problist[i] >= event):
+            event = i
+            break
+    #TODO: implement binary tree search algorithm
+
+    # Convert to acceptor/electrode indices
+    transition = [int(event/(N+P)), int(event%(N+P))]
+
+    # Perform hop
+    if(transition[0] < N):  # Hop from acceptor
+        occupation[transition[0]] = False
+    else:  # Hop from electrode
+        electrode_occupation[transition[0] - N] -= 1
+    if(transition[1] < N):  # Hop to acceptor
+        occupation[transition[1]] = True
+    else:  # Hop to electrode
+        electrode_occupation[transition[1] - N] += 1
+
+    # Increment time
+    time += hop_time
+
+    return hop_time, time, transition, occupation, electrode_occupation
+
+
+@jit
+def _calc_site_energies_acc(N, I_0, R, occupation, distances, E_constant, site_energies):
+    '''
+    Calculates the potential energy of each acceptor site by evaluating
+    the Coulomb interactions between all other acceptors and by adding
+    the constant energy terms.
+    The energies are stored in the (N+P)x1 array site_energies
+    '''
+    for i in range(N):
+        acceptor_interaction = 0
+        site_energies[i] = E_constant[i]
+        for j in range(N):
+            if j is not i:
+                acceptor_interaction += (1 - occupation[j])/distances[i, j]
+
+        site_energies[i] += I_0*R*acceptor_interaction
+
+    return site_energies
+
+@jit
+def _transition_possible(i, j, N, occupation):
+    '''
+    Returns false if:
+     - i has occupation 0
+     - j has occupation 1
+     - i and j are electrodes
+    '''
+    if(i >= N and j >= N):
+        return False
+    elif(i >= N):
+        if(occupation[j] == True):
+            return False
+        else:
+            return True
+    elif(j >= N):
+        if(occupation[i] == False):
+            return False
+        else:
+            return True
+    elif(i == j):
+        return False
+    else:
+        if(occupation[i] == False or occupation[j] == True):
+            return False
+        else:
+            return True
+
+@jit
+def _calc_transitions_MA(N, P, nu, kT, I_0, R, occupation, transitions_constant, transitions,
+                         distances, site_energies):
+    '''
+    Calculates the transition matrix transitions using the Miller-Abrahams rate.
+    '''
+    for i in range(N+P):
+        for j in range(N+P):
+            if(not _transition_possible(i, j, N, occupation)):
+                transitions[i, j] = 0
+            else:
+                if(i < N and j < N):
+                    dE = (site_energies[j] - site_energies[i]
+                          - I_0*R*distances[i, j])
+                else:
+                    dE = site_energies[j] - site_energies[i]
+
+                t = nu*np.exp(-dE/kT)  # Calculate MA rate
+                # Threshold value if larger than 1
+                if(t > 1):
+                    t = 1
+
+                transitions[i, j] = t
+
+    return transitions_constant*transitions
+
+@jit
+def _pick_event(N, P, time, problist, transitions, occupation, electrodes):
+    '''
+    Picks event and performs the transition
+    '''
+    # Transform transitions matrix into cumulative sum
+    for i in range(N+P):
+        for j in range(N+P):
+            if(i == 0 and j == 0):
+                problist[0] = transitions[i, j]
+            else:
+                problist[(N+P)*i + j] = transitions[i, j] + problist[(N+P)*i + j-1]
+
+    # Calculate hopping time
+    hop_time = np.random.exponential(scale=1/problist[-1])
+
+    # Normalization
+    problist = problist/problist[-1]
+
+    # Find transition index of random event
+    event = np.random.rand()
+    for i in range((N+P)**2):
+        if(problist[i] >= event):
+            event = i
+            break
+    #TODO: implement binary tree search algorithm
+
+    # Convert to acceptor/electrode indices
+    transition = [int(event/(N+P)), int(event%(N+P))]
+
+    # Perform hop
+    if(transition[0] < N):  # Hop from acceptor
+        occupation[transition[0]] = False
+    else:  # Hop from electrode
+        electrodes[transition[0] - N, 4] -= 1
+    if(transition[1] < N):  # Hop to acceptor
+        occupation[transition[1]] = True
+    else:  # Hop to electrode
+        electrodes[transition[1] - N, 4] += 1
+
+    # Increment time
+    time += hop_time
+
+    return hop_time, time, transition, occupation, electrodes
 
 class kmc_dn():
     '''This class is a wrapper for all functions and variables needed to perform
@@ -60,12 +264,11 @@ class kmc_dn():
         zdim; z dimension size of domain
 
         possible kwargs:
-        electrodes; electrode configuration, an Px5 np.array, where
+        electrodes; electrode configuration, an Px4 np.array, where
             P is the number of electrodes, the first three columns correspond
             to the x, y and coordinates of the electrode, respectively,
-            the fourth column holds the electrode voltage and the last column
-            tracks the amount of carriers sourced/sinked in the electrode.
-            default: np.zeros((0, 5))
+            the fourth column holds the electrode voltage.
+            default: np.zeros((0, 4))
         res; resolution used for potential landscape calculation
             default: min[xdim, ydim, zdim]/100
         place_dopants_charges; choice of the place_dopants_charges method.
@@ -131,10 +334,10 @@ class kmc_dn():
         Other attributes:
         time; simulation time
         counter; simulation event counter
-        acceptors; Nx4 array, where first three columns are x, y, z position and
-            the last column is the hole occupancy
+        acceptors; Nx3 array, where first three columns are x, y, z position
         donors; Mx3 array, where the columns represent x, y, z position of donors.
             Donors are assumed to be always occupied.
+        occupation; (N,) bool array, indicating hole occupancy of each acceptor
         electrodes; electrode configuration, an Px5 np.array, where
             P is the number of electrodes, the first three columns correspond
             to the x, y and coordinates of the electrode, respectively,
@@ -229,16 +432,26 @@ class kmc_dn():
         # Check dimensionality
         if(self.ydim == 0 and self.zdim == 0):
             self.dim = 1
+            self.R = (self.N/self.xdim)**(-1/3)
         elif(self.zdim == 0):
             self.dim = 2
+            self.R = (self.N/(self.xdim*self.ydim))**(-1/3)
         else:
             self.dim = 3
+            self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
+
+        # Initialize shorthand constants
+        self.I_0 = self.e**2/(4*np.pi*self.eps*self.R)
+        self.kT = self.k*self.T
+
 
         # Initialize parameter kwargs
         if('electrodes' in kwargs):
             self.electrodes = kwargs['electrodes'].copy()
+            self.P = self.electrodes.shape[0]
         else:
-            self.electrodes = np.zeros((0, 5))
+            self.electrodes = np.zeros((0, 4))
+            self.P = 0
 
         if('res' in kwargs):
             self.res = kwargs['res']
@@ -273,12 +486,6 @@ class kmc_dn():
             self.calc_site_energies = self.calc_site_energies_acc
             self.coulomb_interactions = True
 
-        if('calc_rate' in kwargs):
-            if(kwargs['calc_rate'] == 'calc_rate_MA'):
-                self.calc_rate = self.calc_rate_MA
-        else:
-            self.calc_rate = self.calc_rate_MA
-
         if('calc_transitions' in kwargs):
             if(kwargs['calc_transitions'] == 'calc_transitions_MA'):
                 self.calc_transitions = self.calc_transitions_MA
@@ -291,12 +498,6 @@ class kmc_dn():
                 self.pick_event = self.pick_event_standard
         else:
             self.pick_event = self.pick_event_standard
-
-        if('perform_event' in kwargs):
-            if(kwargs['perform_event'] == 'perform_event_standard'):
-                self.perform_event = self.perform_event_standard
-        else:
-            self.perform_event = self.perform_event_standard
 
         if('stopping_criterion' in kwargs):
             if(kwargs['stopping_criterion'] == 'stopping_criterion_discrete'):
@@ -333,6 +534,8 @@ class kmc_dn():
         self.site_energies = np.zeros((N + self.electrodes.shape[0],))
         self.energy_differences = np.zeros((N + self.electrodes.shape[0],
                                             N + self.electrodes.shape[0]))
+        self.problist = np.zeros((self.N+self.P)**2)
+        self.electrode_occupation = np.zeros(self.P, dtype=int)
 
         # Initialize sim object
         self.initialize()
@@ -375,13 +578,26 @@ class kmc_dn():
         self.reset()  # Reset all relevant trackers before running a simulation
 
         while(not self.stopping_criterion(**kwargs)):
-            self.calc_site_energies()
-
-            self.calc_transitions()
-
-            self.pick_event()
-
-            self.perform_event()
+            # Perform a single event
+            (self.hop_time,
+             self.time,
+             self.transition,
+             self.occupation,
+             self.electrode_occupation) = _full_event_loop(self.N,
+                                                           self.P,
+                                                           self.nu,
+                                                           self.kT,
+                                                           self.I_0,
+                                                           self.R,
+                                                           self.time,
+                                                           self.occupation,
+                                                           self.distances,
+                                                           self.E_constant,
+                                                           self.site_energies,
+                                                           self.transitions_constant,
+                                                           self.transitions,
+                                                           self.problist,
+                                                           self.electrode_occupation)
 
             self.callback()
 
@@ -394,8 +610,7 @@ class kmc_dn():
         self.time = 0
         self.old_current = 0
         self.counter = 0
-        for i in range(self.electrodes.shape[0]):
-            self.electrodes[i, 4] = 0  # Reset current
+        self.electrode_occupation[:] = 0  # Reset current
         self.avg_carriers_prenorm = 0
         self.avg_carriers = 0
         self.current_vectors = np.zeros((self.transitions.shape[0], 3))
@@ -411,8 +626,9 @@ class kmc_dn():
         0 being an unoccupied acceptor and 1 being an occupied acceptor
         '''
         # Initialization
-        self.acceptors = np.random.rand(self.N, 4)
+        self.acceptors = np.random.rand(self.N, 3)
         self.donors = np.random.rand(self.M, 3)
+        self.occupation = np.zeros(self.N, dtype=bool)
 
         # Place dopants
         self.acceptors[:, 0] *= self.xdim
@@ -423,12 +639,11 @@ class kmc_dn():
         self.donors[:, 2] *= self.zdim
 
         # Place charges
-        self.acceptors[:, 3] = 0  # Set occupancy to 0
         charges_placed = 0
         while(charges_placed < self.N-self.M):
             trial = np.random.randint(self.N)  # Try a random acceptor
-            if(self.acceptors[trial, 3] < 1):
-                self.acceptors[trial, 3] += 1  # Place charge
+            if(self.occupation[trial] == False):
+                self.occupation[trial] = True  # Place charge
                 charges_placed += 1
 
     def calc_distances(self):
@@ -437,8 +652,8 @@ class kmc_dn():
         in the matrix distances.
         Also stores the unit vector in the hop direction i->j in the matrix vectors.
         '''
-        for i in range(self.distances.shape[0]):
-            for j in range(self.distances.shape[0]):
+        for i in range(self.N+self.P):
+            for j in range(self.N+self.P):
                 if(i >= self.N and j >= self.N):
                     self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
                                                       self.electrodes[j - self.N, :3])  # Distance electrode -> electrode
@@ -448,23 +663,22 @@ class kmc_dn():
 
                 elif(i >= self.N and j < self.N):
                     self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                      self.acceptors[j, :3])  # Distance electrode -> acceptor
-                    self.vectors[i, j] = ((self.acceptors[j, :3]
+                                                      self.acceptors[j])  # Distance electrode -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j]
                                           - self.electrodes[i - self.N, :3])
                                           /self.distances[i, j])
                 elif(i < self.N and j >= self.N):
-                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
+                    self.distances[i, j] = self.dist(self.acceptors[i],
                                                       self.electrodes[j - self.N, :3])  # Distance acceptor -> electrode
                     self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
-                                          - self.acceptors[i, :3])
+                                          - self.acceptors[i])
                                           /self.distances[i, j])
                 elif(i < self.N and j < self.N):
-                    self.distances[i, j] = self.dist(self.acceptors[i, :3],
-                                                      self.acceptors[j, :3])  # Distance acceptor -> acceptor
-                    self.vectors[i, j] = ((self.acceptors[j, :3]
-                                          - self.acceptors[i, :3])
+                    self.distances[i, j] = self.dist(self.acceptors[i],
+                                                      self.acceptors[j])  # Distance acceptor -> acceptor
+                    self.vectors[i, j] = ((self.acceptors[j]
+                                          - self.acceptors[i])
                                           /self.distances[i, j])
-        self.dist_plus_inf = self.distances + np.diag(np.ones(self.distances.shape[0])*np.inf)  # For vectorization later
 
     def calc_V(self):
         '''Numerically solve Laplace with relaxation method'''
@@ -719,34 +933,13 @@ class kmc_dn():
         the constant energy terms.
         The energies are stored in the (N+P)x1 array site_energies
         '''
-        self.occupation_repeat = np.repeat(self.acceptors[:, 3].reshape((1, self.N)), self.N, 0)
-
-        # Vectorized calculation of acceptor site energies
-        presum = (1 - self.occupation_repeat)/self.dist_plus_inf[:self.N, :self.N]
-        self.site_energies[:self.N] = (-self.e**2/(4 * np.pi * self.eps) *np.sum(presum, axis = 1)
-                                    + self.E_constant[:self.N])
-
-
-    def calc_transitions(self):
-        '''
-        Calculates the matrix transitions by calling the calc_rate method.
-        Caution: run calc_site_energies before this method, otherwise it will
-        calculate the transition based on old site energies.
-        '''
-        # Loop over possible hops from site i -> site j
-        for i in range(self.transitions.shape[0]):
-            for j in range(self.transitions.shape[0]):
-                if(not self.transition_possible(i, j)):
-                    self.transitions[i, j] = 0
-                else:
-                    dE = self.energy_difference(i, j)
-                    self.transitions[i, j] = self.calc_rate(i, j, dE)
-
-        # Raise flag if a fixed point (i.e. transitions = 0) is reached
-        if(not np.any(self.transitions)):
-            return 1
-        else:
-            return 0
+        self.site_energies = _calc_site_energies_acc(self.N,
+                                                     self.I_0,
+                                                     self.R,
+                                                     self.occupation,
+                                                     self.distances,
+                                                     self.E_constant,
+                                                     self.site_energies)
 
     def calc_transitions_MA(self):
         '''
@@ -756,38 +949,31 @@ class kmc_dn():
         transitions_constant also makes sure any transition rate to the same
         element is zero
         '''
-        # Calculate energy differences
-        self.calc_energy_differences()
+        self.transitions = _calc_transitions_MA(self.N,
+                                                self.P,
+                                                self.nu,
+                                                self.kT,
+                                                self.I_0,
+                                                self.R,
+                                                self.occupation,
+                                                self.transitions_constant,
+                                                self.transitions,
+                                                self.distances,
+                                                self.site_energies)
 
-        # Calculate MA rates
-        rates = np.exp(-self.energy_differences/self.k*self.T)
-
-        # Get a treshold mask for all values >= 1
-        treshold_mask = rates >= 1
-
-        # Calculate masked rates
-        rates = (1 - treshold_mask)*rates + treshold_mask
-
-        # Calculate possible transitions
-        self.calc_transitions_possible()
-
-        # Calculate final transitions by adding constant and MA rate, masked by
-        # transitions possible
-        self.transitions = self.transitions_possible*self.transitions_constant*rates
+        #TODO: check for fixed points
 
     def callback_standard(self):
         '''
-        This is the standard callback function, tracking average carriers
-        and current vectors.
+        This is the standard callback function, tracking only traffic
         '''
-        self.callback_avg_carriers()
-        self.callback_current_vectors()
+        self.callback_traffic()
 
     def callback_avg_carriers(self):
         '''
         Tracks the average number of carriers in the system
         '''
-        self.avg_carriers_prenorm += self.hop_time * sum(self.acceptors[:, 3])
+        self.avg_carriers_prenorm += self.hop_time * sum(self.occupation)
         self.avg_carriers = self.avg_carriers_prenorm/self.time
 
 
@@ -812,21 +998,18 @@ class kmc_dn():
         '''
         Based on the transition matrix self.transitions, pick a hopping event.
         '''
-        # Get the cumulative sum of flattened array transitions
-        self.problist = np.cumsum(self.transitions.flatten())
+        (self.hop_time,
+         self.time,
+         self.transition,
+         self.occupation,
+         self.electrodes) = _pick_event(self.N,
+                                        self.P,
+                                        self.time,
+                                        self.problist,
+                                        self.transitions,
+                                        self.occupation,
+                                        self.electrodes)
 
-        # Calculate hopping time
-        self.hop_time = np.random.exponential(scale=1/self.problist[-1])
-
-        # Normalization
-        self.problist = self.problist/self.problist[-1]
-
-        # Find transition index of random event
-        event = min(np.where(self.problist >= np.random.rand())[0])
-
-        # Convert to acceptor/electrode indices
-        self.transition = [int(event/self.transitions.shape[0]),
-                           event%self.transitions.shape[0]]
 
     def pick_event_tsigankov(self):
         '''Pick a hopping event based on t_dist and accept/reject it based on
@@ -860,23 +1043,6 @@ class kmc_dn():
 
         # Increment time
         self.time += self.timestep
-
-    def perform_event_standard(self):
-        '''
-        Performs the event transition (with the standard algorithm).
-        '''
-        # Perform hop
-        if(self.transition[0] < self.N):  # Hop from acceptor
-            self.acceptors[self.transition[0], 3] -= 1
-        else:  # Hop from electrode
-            self.electrodes[self.transition[0] - self.N, 4] -= 1
-        if(self.transition[1] < self.N):  # Hop to acceptor
-            self.acceptors[self.transition[1], 3] += 1
-        else:  # Hop to electrode
-            self.electrodes[self.transition[1] - self.N, 4] += 1
-
-        # Increment time
-        self.time += self.hop_time
 
     def stopping_criterion_discrete(self, **kwargs):
         '''
@@ -933,117 +1099,7 @@ class kmc_dn():
             return False
 
 
-    def simulate_tsigankov(self, interval = 500, tol = 1E-3):
-        '''Perform a kmc simulation with the Tsigankov algorithm (from
-        Tsigankov2003)'''
-        # Initialization
-        self.old_current = np.ones((self.electrodes.shape[0]))
-        self.current = np.zeros((self.electrodes.shape[0]))
-        self.time = 0  # Reset simulation time
-        self.avg_carriers = []  # Tracks average number of carriers per interval
-        self.avg_current = []  # Tracks average current per interval
-        for i in range(self.electrodes.shape[0]):
-            self.electrodes[i, 4] = 0  # Reset current
-        self.calc_t_dist()
-
-
-        # Simulation loop
-        converged = False
-        counter = 0  # Counts the amount of intervals needed for convergence
-        self.old_current *= np.inf
-        self.prev_time = self.time  # Timestamp of previous interval
-
-        while(not converged):
-            self.avg_carriers.append(0)  # Add entry to average carrier tracker
-            self.avg_current.append(0)  # Add entry to average current tracker
-            for i in range(interval):
-                # Hopping event
-                self.pick_event_tsigankov()
-
-                # Update number of particles
-                self.avg_carriers[counter] += self.timestep * sum(self.acceptors[:, 3])
-
-            # Update average trackers
-            self.avg_carriers[counter] /= (self.time - self.prev_time)
-            self.avg_current[counter] /= (self.time - self.prev_time)
-
-            # Calculate currents
-            self.current = self.electrodes[:, 4]/self.time
-
-            # Check convergence
-            if(np.linalg.norm(self.current, 2) == 0
-               and np.linalg.norm(self.old_current - self.current, 2) == 0):
-                converged = True
-            elif(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
-                converged = True
-            else:
-                self.old_current = self.current.copy()  # Store current
-
-            counter += 1
-            self.prev_time = self.time
-
-        print('Converged in '
-              + str(counter)
-              + ' intervals of '
-              + str(interval)
-              + ' hops ('
-              + str(counter*interval)
-              + ' total hops)'
-              )
-
     #%% Miscellaneous methods
-    def calc_transitions_possible(self):
-        '''
-        Calculates the boolean matrix transitions_possible.
-        if transitions_possible[i, j] is True a transition is possible.
-        '''
-        # Re-initialize transitions_possible as True
-        self.transitions_possible[:, :] = True
-
-        # Set electrode -> electrode hops to False
-        self.transitions_possible[self.N:, self.N:] = False
-
-        for i in range(self.N):
-            # Set unoccied -> anything False
-            if(self.acceptors[i, 3] == 0):
-                self.transitions_possible[i, :] = False
-            # Set anything -> occupied False
-            if(self.acceptors[i, 3] == 1):
-                self.transitions_possible[:, i] = False
-
-    def transition_possible(self, i, j):
-        '''Check if a hop from i -> j is possible. Returns True if transition is
-        allowed, otherwise returns False'''
-        possible = True
-        if(i >= self.N and j >= self.N):
-            possible = False  # No transition electrode -> electrode
-        elif(i >= self.N and j < self.N):
-            if(self.acceptors[j, 3] == 1):
-                possible = False  # No transition electrode -> occupied
-        elif(i < self.N and j >= self.N):
-            if(self.acceptors[i, 3] == 0):
-                possible = False  # No transition empty -> electrode
-        elif(i == j):
-            possible = False  # No transition to same acceptor
-        elif(i < self.N and j < self.N):
-            if(self.acceptors[i, 3] == 0
-               or self.acceptors[j, 3] == 1):
-                possible = False  # No transition empty -> or -> occupied
-        return possible
-
-    def calc_energy_differences(self):
-        '''Calculate the energy difference for a hop i -> j based on the array
-        site_energies. The class attribute coulomb_interactions indicates whether
-        the method for calculating the site energies incorporates acceptor-acceptor
-        interaction.
-        Stores the energy differences in the array energy_differences'''
-        se = np.repeat(self.site_energies.reshape((1, self.N + self.electrodes.shape[0])),
-                     self.N + self.electrodes.shape[0], 0)
-        self.energy_differences = se - se.transpose()
-
-        if(self.coulomb_interactions):
-            self.energy_differences[:self.N, :self.N] -= self.e**2/(4 * np.pi * self.eps*self.dist_plus_inf[:self.N, :self.N])
-
     def calc_t_dist(self):
         '''Calculates the transition rate matrix t_dist, which is based only
         on the distances between sites (as defined in Tsigankov2003)'''
@@ -1071,17 +1127,6 @@ class kmc_dn():
         # Normalization
         self.P = self.P/self.P[-1]
 
-
-    def calc_rate_MA(self, i, j, dE):
-        '''Calculate the transition rate for hop i->j with the Miller-Abrahams
-        rate, using the energy difference dE.'''
-        if(dE > 0):
-            transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab
-                                                    - dE/(self.k*self.T))
-        else:
-            transition_rate = self.nu*np.exp(-2*self.distances[i, j]/self.ab)
-
-        return transition_rate
 
     def total_energy(self):
         '''Calculates the hamiltonian for the full system.'''
@@ -1247,22 +1292,6 @@ class kmc_dn():
         fig.colorbar(quiv)
 
         return fig
-
-    def energy_difference(self, i, j):
-        '''Calculate the energy difference for a hop i -> j based on the matrix
-        site_energies. The class attribute coulomb_interactions indicates whether
-        the method for calculating the site energies incorporates acceptor-acceptor
-        interaction.'''
-        if(i >= self.N or j >= self.N):
-            dE = self.site_energies[j] - self.site_energies[i]  # No Coulomb interaction for electrode hops
-        elif(self.coulomb_interactions):
-            dE = (self.site_energies[j] - self.site_energies[i]
-                  - self.e**2/(4 * np.pi * self.eps*self.distances[i, j]))
-        else:
-            dE = ej - ei
-        return dE
-
-
 
     @staticmethod
     def dist(ri, rj):
