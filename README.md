@@ -20,6 +20,8 @@ conda activate kmc
 ```
 And run the following installs:
 ```
+conda install numpy
+conda install matplotlib
 conda install numba
 conda install -c conda-forge fenics
 ```
