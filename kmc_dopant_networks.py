@@ -547,7 +547,7 @@ class kmc_dn():
         self.energy_differences = np.zeros((N + self.electrodes.shape[0],
                                             N + self.electrodes.shape[0]))
         self.problist = np.zeros((self.N+self.P)**2)
-        self.electrode_occupation = np.zeros(self.P)
+        self.electrode_occupation = np.zeros(self.P, dtype=int)
 
         # Initialize sim object
         self.initialize()
@@ -608,7 +608,7 @@ class kmc_dn():
         self.time = 0
         self.old_current = 0
         self.counter = 0
-        self.electrode_occupation = np.zeros(self.P)  # Reset current
+        self.electrode_occupation[:] = 0  # Reset current
         self.avg_carriers_prenorm = 0
         self.avg_carriers = 0
         self.current_vectors = np.zeros((self.transitions.shape[0], 3))
