@@ -446,6 +446,10 @@ class kmc_dn():
         self.I_0 = self.e**2/(4*np.pi*self.eps*self.R)
         self.kT = self.k*self.T
 
+        # Set dimensonless variables to 1
+        self.ab = self.R
+        self.I_0 = self.kT
+
 
         # Initialize parameter kwargs
         if('electrodes' in kwargs):
@@ -526,16 +530,11 @@ class kmc_dn():
                                      N + self.electrodes.shape[0]))
         self.transitions_constant = np.zeros((N + self.electrodes.shape[0],
                                      N + self.electrodes.shape[0]))
-        self.transitions_possible = np.zeros((N + self.electrodes.shape[0],
-                                     N + self.electrodes.shape[0]))
-        self.transitions_possible = self.transitions_possible.astype(bool)
         self.distances = np.zeros((N + self.electrodes.shape[0],
                                    N + self.electrodes.shape[0]))
         self.vectors = np.zeros((N + self.electrodes.shape[0],
                                  N + self.electrodes.shape[0], 3))
         self.site_energies = np.zeros((N + self.electrodes.shape[0],))
-        self.energy_differences = np.zeros((N + self.electrodes.shape[0],
-                                            N + self.electrodes.shape[0]))
         self.problist = np.zeros((self.N+self.P)**2)
         self.electrode_occupation = np.zeros(self.P, dtype=int)
 
