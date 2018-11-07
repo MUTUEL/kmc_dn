@@ -541,24 +541,31 @@ class kmc_dn():
         # Initialize sim object
         self.initialize()
 
-    def initialize(self):
+    def initialize(self, placement = True, distances = True, 
+                   V = True, E_constant = True):
         '''
         Wrapper function which:
-        - places acceptors/donors
+        - places acceptors/donors 
         - calculates distances
         - calculates V (electrostatic potential profile)
         - calculates E_constant
         These are all methods that determine the starting position of a kmc
-        simulation.'''
-        self.place_dopants_charges()
+        simulation.
+        All methods are toggleable by boolean values.
+        '''
+        if(placement):
+            self.place_dopants_charges()
 
-        self.calc_distances()
+        if(distances):
+            self.calc_distances()
 
-        self.calc_transitions_constant()
+            self.calc_transitions_constant()
+        
+        if(V):
+            self.init_V()
 
-        self.init_V()
-
-        self.calc_E_constant()
+        if(E_constant):
+            self.calc_E_constant()
 
     def simulate(self, **kwargs):
         '''
@@ -656,28 +663,32 @@ class kmc_dn():
         for i in range(self.N+self.P):
             for j in range(self.N+self.P):
                 if(i is not j):
+                    # Distance electrode -> electrode
                     if(i >= self.N and j >= self.N):
                         self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                          self.electrodes[j - self.N, :3])  # Distance electrode -> electrode
+                                                          self.electrodes[j - self.N, :3])  
                         self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
                                               - self.electrodes[i - self.N, :3])
                                               /self.distances[i, j])
 
+                    # Distance electrodes -> acceptor
                     elif(i >= self.N and j < self.N):
                         self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                          self.acceptors[j])  # Distance electrode -> acceptor
+                                                          self.acceptors[j])  
                         self.vectors[i, j] = ((self.acceptors[j]
                                               - self.electrodes[i - self.N, :3])
                                               /self.distances[i, j])
+                    # Distance acceptor -> electrode
                     elif(i < self.N and j >= self.N):
                         self.distances[i, j] = self.dist(self.acceptors[i],
-                                                          self.electrodes[j - self.N, :3])  # Distance acceptor -> electrode
+                                                          self.electrodes[j - self.N, :3])  
                         self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
                                               - self.acceptors[i])
                                               /self.distances[i, j])
+                    # Distance acceptor -> acceptor
                     elif(i < self.N and j < self.N):
                         self.distances[i, j] = self.dist(self.acceptors[i],
-                                                          self.acceptors[j])  # Distance acceptor -> acceptor
+                                                          self.acceptors[j])  
                         self.vectors[i, j] = ((self.acceptors[j]
                                               - self.acceptors[i])
                                               /self.distances[i, j])
