@@ -687,16 +687,14 @@ class kmc_dn():
 
     def init_V(self):
         '''
-        This function will setup various parameters for the calculation of
-        the chemical potential profile. It is generally assumed that during the
-        simulation of a 'sample' the following are unchanged:
+        This function sets up various parameters for the calculation of
+        the chemical potential profile using fenics.
+        It is generally assumed that during the simulation of a 'sample'
+        the following are unchanged:
         - dopant positions
         - electrode positions/number
-        Now only 2D support
+        Note: only 2D support for now
         '''
-        self.fn_f = fn.Constant(0)
-        #self.boundary_condition =
-
         # Put electrode positions and values in a dict
         self.fn_electrodes = {}
         for i in range(self.P):
@@ -704,32 +702,44 @@ class kmc_dn():
             self.fn_electrodes[f'e{i}_y'] = self.electrodes[i, 1]
             self.fn_electrodes[f'e{i}'] = self.electrodes[i, 3]
 
-        # Define boundary function
-        self.expression = ''
-        self.surplus = self.xdim/10
+        # Define boundary expression string
+        self.fn_expression = ''
+        surplus = self.xdim/10  # Electrode modelled as point +/- surplus
         for i in range(self.P):
             if(self.electrodes[i, 0] == 0 or self.electrodes[i, 0] == self.xdim):
-                self.expression += f'x[0] == e{i}_x && x[1] >= e{i}_y - {self.surplus} && x[1] <= e{i}_y + {self.surplus} ? e{i} : '
+                self.fn_expression += (f'x[0] == e{i}_x && '
+                                       f'x[1] >= e{i}_y - {surplus} && '
+                                       f'x[1] <= e{i}_y + {surplus} ? e{i} : ')
             else:
-                self.expression += f'x[0] >= e{i}_x - {self.surplus} && x[0] <= e{i}_x + {self.surplus} && x[1] == e{i}_y ? e{i} : '
-        self.expression += '0'
-        self.fn_boundary = fn.Expression(self.expression, degree = 1, **self.fn_electrodes)
+                self.fn_expression += (f'x[0] >= e{i}_x - {surplus} && '
+                                       f'x[0] <= e{i}_x + {surplus} && '
+                                       f'x[1] == e{i}_y ? e{i} : ')
+        self.fn_expression += '0'  # Add final 0
 
-        # Define FEM mesh
-        self.fn_mesh = fn.RectangleMesh(fn.Point(0, 0), fn.Point(self.xdim, self.ydim), int(self.xdim//self.res), int(self.ydim//self.res))
+        # Define boundary expression
+        self.fn_boundary = fn.Expression(self.fn_expression,
+                                         degree = 1,
+                                         **self.fn_electrodes)
+
+        # Define FEM mesh (res should be small enough, otherwise solver may break)
+        self.fn_mesh = fn.RectangleMesh(fn.Point(0, 0),
+                                        fn.Point(self.xdim, self.ydim),
+                                        int(self.xdim//self.res),
+                                        int(self.ydim//self.res))
 
         # Define function space
         self.fn_functionspace = fn.FunctionSpace(self.fn_mesh, 'P', 1)
 
         # Define fenics boundary condition
         self.fn_bc = fn.DirichletBC(self.fn_functionspace,
-                                        self.fn_boundary,
-                                        self.fn_onboundary)
+                                    self.fn_boundary,
+                                    self.fn_onboundary)
 
         # Write problem as fn_a == fn_L
         self.V = fn.TrialFunction(self.fn_functionspace)
         self.fn_v = fn.TestFunction(self.fn_functionspace)
         self.fn_a = fn.dot(fn.grad(self.V), fn.grad(self.fn_v)) * fn.dx
+        self.fn_f = fn.Constant(0)
         self.fn_L = self.fn_f*self.fn_v*fn.dx
 
         # Solve V
@@ -738,17 +748,20 @@ class kmc_dn():
 
     def update_V(self):
         '''
-        This function updates V when electrode potentials have changed
+        This function updates/recalculates V using fenics.
+        Should be called after changing electrode voltages.
         '''
         # Update electrode values in fn_electrodes
         for i in range(self.P):
             self.fn_electrodes[f'e{i}'] = self.electrodes[i, 3]
 
         # Update boundary condition
-        self.fn_boundary = fn.Expression(self.expression, degree = 1, **self.fn_electrodes)
+        self.fn_boundary = fn.Expression(self.fn_expression,
+                                         degree = 1,
+                                         **self.fn_electrodes)
         self.fn_bc = fn.DirichletBC(self.fn_functionspace,
-                                        self.fn_boundary,
-                                        self.fn_onboundary)
+                                    self.fn_boundary,
+                                    self.fn_onboundary)
 
         # Solve V
         fn.solve(self.fn_a == self.fn_L, self.V, self.fn_bc)
