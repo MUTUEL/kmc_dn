@@ -541,11 +541,11 @@ class kmc_dn():
         # Initialize sim object
         self.initialize()
 
-    def initialize(self, placement = True, distances = True, 
+    def initialize(self, placement = True, distances = True,
                    V = True, E_constant = True):
         '''
         Wrapper function which:
-        - places acceptors/donors 
+        - places acceptors/donors
         - calculates distances
         - calculates V (electrostatic potential profile)
         - calculates E_constant
@@ -560,32 +560,24 @@ class kmc_dn():
             self.calc_distances()
 
             self.calc_transitions_constant()
-        
+
         if(V):
             self.init_V()
 
         if(E_constant):
             self.calc_E_constant()
 
-    def simulate(self, **kwargs):
-        '''
-        Wrapper function which performs the following simulation loop:
-        while(not stopping_criterion)
-        - calc_site_energies
-        - calc_transitions
-        - pick_event
-        - perform_event
-        - callback
-        Any simulation you perform follows this basic loop. Choose a different
-        type of simulation by specifying the specific method
-        TODO: e.g.
 
-        Possible kwargs:
-
+    def simulate_discrete(self, hops = 1000):
         '''
+        Wrapper function that perform a simulation loop for a predetermined
+        amount of hops.
+        hops has to be an integer.
+        '''
+
         self.reset()  # Reset all relevant trackers before running a simulation
 
-        while(not self.stopping_criterion(**kwargs)):
+        for i in range(hops):
             # Perform a single event
             (self.hop_time,
              self.time,
@@ -608,6 +600,58 @@ class kmc_dn():
                                                            self.electrode_occupation)
 
             self.callback()
+
+            self.counter += 1
+
+    def simulate(self, tol = 1E-2, interval = 1000):
+        '''
+        Wrapper function that performs a simulation until the all electrode
+        currents have converged with tolerance tol. The function checks
+        for convergence every interval hops.
+        '''
+        self.reset()  # Reset all relevant trackers before running a simulation
+
+        self.converged = False
+        while(not self.converged):
+            # Perform a single event
+            (self.hop_time,
+             self.time,
+             self.transition,
+             self.occupation,
+             self.electrode_occupation) = _full_event_loop(self.N,
+                                                           self.P,
+                                                           self.nu,
+                                                           self.kT,
+                                                           self.I_0,
+                                                           self.R,
+                                                           self.time,
+                                                           self.occupation,
+                                                           self.distances,
+                                                           self.E_constant,
+                                                           self.site_energies,
+                                                           self.transitions_constant,
+                                                           self.transitions,
+                                                           self.problist,
+                                                           self.electrode_occupation)
+
+            self.callback()
+
+            # Check for convergence
+            if(self.counter != 0 and self.counter%interval == 0):
+                self.current = self.electrode_occupation/self.time
+
+                # Check convergence
+                if(np.linalg.norm(self.current, 2) == 0):
+                    if(np.linalg.norm(self.old_current - self.current, 2) == 0):
+                        self.converged = True
+                    else:
+                        self.converged = False
+                elif((np.linalg.norm(self.old_current - self.current, 2)
+                      /np.linalg.norm(self.current,2)) < tol):
+                    self.converged = True
+                else:
+                    self.old_current = self.current.copy()  # Store current
+                    self.converged = False
 
             self.counter += 1
 
@@ -666,7 +710,7 @@ class kmc_dn():
                     # Distance electrode -> electrode
                     if(i >= self.N and j >= self.N):
                         self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                          self.electrodes[j - self.N, :3])  
+                                                          self.electrodes[j - self.N, :3])
                         self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
                                               - self.electrodes[i - self.N, :3])
                                               /self.distances[i, j])
@@ -674,21 +718,21 @@ class kmc_dn():
                     # Distance electrodes -> acceptor
                     elif(i >= self.N and j < self.N):
                         self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
-                                                          self.acceptors[j])  
+                                                          self.acceptors[j])
                         self.vectors[i, j] = ((self.acceptors[j]
                                               - self.electrodes[i - self.N, :3])
                                               /self.distances[i, j])
                     # Distance acceptor -> electrode
                     elif(i < self.N and j >= self.N):
                         self.distances[i, j] = self.dist(self.acceptors[i],
-                                                          self.electrodes[j - self.N, :3])  
+                                                          self.electrodes[j - self.N, :3])
                         self.vectors[i, j] = ((self.electrodes[j - self.N, :3]
                                               - self.acceptors[i])
                                               /self.distances[i, j])
                     # Distance acceptor -> acceptor
                     elif(i < self.N and j < self.N):
                         self.distances[i, j] = self.dist(self.acceptors[i],
-                                                          self.acceptors[j])  
+                                                          self.acceptors[j])
                         self.vectors[i, j] = ((self.acceptors[j]
                                               - self.acceptors[i])
                                               /self.distances[i, j])
@@ -975,61 +1019,6 @@ class kmc_dn():
 
         # Increment time
         self.time += self.timestep
-
-    def stopping_criterion_discrete(self, **kwargs):
-        '''
-        Stop when reaching the amount of hops specified
-        Possible kwargs:
-        hops; the amount of hops to perform
-            default: 1000
-        '''
-        #TODO: maybe put this somewhere else, now it is run every time
-        if('hops' in kwargs):
-            hops = kwargs['hops']
-        else:
-            hops = 1000
-
-        if(self.counter < hops):
-            return False
-        else:
-            return True
-
-    def stopping_criterion_convergence(self, **kwargs):
-        '''
-        Stop when the current through all electrodes has converged to some
-        tolerance
-        Possible kwargs:
-        tol; tolerance for convergence
-        interval; the amount of hopping events before rechecking the current
-        '''
-        #TODO: maybe put this somewhere else, now it is run every time
-        if('tol' in kwargs):
-            tol = kwargs['tol']
-        else:
-            tol = 1E-2
-        if('interval' in kwargs):
-            interval = kwargs['interval']
-        else:
-            interval = 1000
-
-        # Calculate currents
-        if(self.time != 0 and self.counter%interval == 0):
-            self.current = self.electrodes[:, 4]/self.time
-
-            # Check convergence
-            if(np.linalg.norm(self.current, 2) == 0):
-                if(np.linalg.norm(self.old_current - self.current, 2) == 0):
-                    return True
-                else:
-                    return False
-            elif(np.linalg.norm(self.old_current - self.current, 2)/np.linalg.norm(self.current,2) < tol):
-                return True
-            else:
-                self.old_current = self.current.copy()  # Store current
-                return False
-        else:
-            return False
-
 
     #%% Miscellaneous methods
     def calc_t_dist(self):
