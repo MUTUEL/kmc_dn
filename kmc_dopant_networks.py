@@ -1211,6 +1211,17 @@ class kmc_dn():
         occupancy. Plot vectors which correlate to the net hop direction.'''
         fig = self.visualize(show_occupancy = False)
 
+        # Calculate current_vectors from traffic
+        self.current_vectors[:, :] = 0
+        for i in range(self.N):
+            for j in range(self.traffic.shape[0]):
+                if(j is not i):
+                    # Arriving hops
+                    self.current_vectors[i] += self.traffic[j, i] * self.vectors[j, i]
+
+                    # Departing hops
+                    self.current_vectors[i] += self.traffic[i, j] * self.vectors[i, j]
+
         x = self.acceptors[:, 0]
         y = self.acceptors[:, 1]
         norm = np.linalg.norm(self.current_vectors[:self.N], axis = 1)
@@ -1221,6 +1232,63 @@ class kmc_dn():
         fig.colorbar(quiv)
 
         return fig
+
+    def visualize_current_density(self, res = None):
+        '''
+        Returns a figure of the domain where the colors indicate the current
+        density and arrow the current direction at dopant sites. It uses only
+        the during simulation tracked traffic array.
+        res is the resolution in which the domain is split up.
+        '''
+        # Set resolution to V grid resolution if unspecified
+        if(res == None):
+            res = self.res
+
+        # Set up grid
+        x = np.linspace(0, self.xdim, self.xdim/res + 1)
+        y = np.linspace(0, self.xdim, self.xdim/res + 1)
+        current_map = np.zeros((len(x) - 1, len(y) - 1))
+
+        # Calculate current_vectors from traffic
+        self.current_vectors[:, :] = 0
+        for i in range(self.N):
+            for j in range(self.traffic.shape[0]):
+                if(j is not i):
+                    # Arriving hops
+                    self.current_vectors[i] += self.traffic[j, i] * self.vectors[j, i]
+
+                    # Departing hops
+                    self.current_vectors[i] += self.traffic[i, j] * self.vectors[i, j]
+        norm = np.linalg.norm(self.current_vectors[:self.N], axis = 1)  # Vector lengths
+
+        for i in range(len(x)-1):
+            for j in range(len(y)-1):
+                # For each square in domain, loop over all acceptors
+                indices_in_square = []
+                for k in range(self.N):
+                    if( x[i] <= self.acceptors[k, 0] <= x[i+1]
+                        and y[j] <= self.acceptors[k, 1] <= y[j+1]):
+                        current_map[i, j] += norm[k]
+
+        # Plot current density
+        fig = plt.figure()
+        plt.axis('scaled')
+        ax = fig.add_subplot(111)
+        ax.set_xlim(right=self.xdim)
+        ax.set_ylim(top=self.ydim)
+        ax.imshow(current_map.transpose(), interpolation = 'none',
+               origin='lower', extent=(0, self.xdim, 0, self.ydim), cmap=plt.cm.plasma)
+        # Overlay dopants
+        ax.scatter(self.acceptors[:, 0], self.acceptors[:, 1], color = 'black', marker='o')
+        # Overlay dopant vectors
+        x_dopants = self.acceptors[:, 0]
+        y_dopants = self.acceptors[:, 1]
+        u = self.current_vectors[:self.N, 0]/norm
+        v = self.current_vectors[:self.N, 1]/norm
+        ax.quiver(x_dopants, y_dopants, u, v, norm, cmap=plt.cm.inferno)
+        #ax.quiver(x_dopants, y_dopants, u, v)
+
+        return fig, current_map
 
     @staticmethod
     def dist(ri, rj):
