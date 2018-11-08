@@ -153,12 +153,15 @@ def visualize_current_density(kmc_dn, res = None):
     return fig, current_map
 
 
-def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1):
-    '''Perform validation of a simulation algorithm by means of checking
+def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
+                       standalone = True):
+    '''
+    Perform validation of a simulation algorithm by means of checking
     whether it obeys boltzmann statistics. Hops is the total amount of hops
     performed and n equals the (constant!) number of carriers in the system.
     points; the amount of points in convergence array
-    V_0; chemical potential'''
+    V_0; chemical potential
+    '''
     kmc_dn.reset()
     # Initialize
     hops_array = np.zeros(points)
@@ -239,6 +242,8 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1):
 
     # Calculate norm
     convergence = np.linalg.norm(p_sim - p_theory)/np.linalg.norm(p_theory)
+
     print('Norm of difference: ' + str(convergence))
 
-    return hops_array, p_sim_interval, p_theory
+    if(not standalone):
+        return p_theory, hops_array, p_sim_interval
