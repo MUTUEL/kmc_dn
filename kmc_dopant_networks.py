@@ -65,7 +65,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
             if j is not i:
                 acceptor_interaction += (1 - occupation[j])/distances[i, j]
 
-        site_energies[i] += I_0*R*acceptor_interaction
+        site_energies[i] += -I_0*R*acceptor_interaction
 
     # calc_transitions
     for i in range(N+P):
@@ -75,13 +75,13 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
             else:
                 if(i < N and j < N):
                     dE = (site_energies[j] - site_energies[i]
-                          - I_0*R*distances[i, j])
+                          - I_0*R/distances[i, j])
                 else:
                     dE = site_energies[j] - site_energies[i]
 
-                t = nu*np.exp(-dE/kT)  # Calculate MA rate
-                # Threshold value if larger than 1
-                if(t > 1):
+                if(dE > 0):
+                    t = nu*np.exp(-dE/kT)  # Calculate MA rate
+                else:
                     t = 1
 
                 transitions[i, j] = t
@@ -144,7 +144,7 @@ def _calc_site_energies_acc(N, I_0, R, occupation, distances, E_constant, site_e
             if j is not i:
                 acceptor_interaction += (1 - occupation[j])/distances[i, j]
 
-        site_energies[i] += I_0*R*acceptor_interaction
+        site_energies[i] += -I_0*R*acceptor_interaction
 
     return site_energies
 
@@ -189,7 +189,7 @@ def _calc_transitions_MA(N, P, nu, kT, I_0, R, occupation, transitions_constant,
             else:
                 if(i < N and j < N):
                     dE = (site_energies[j] - site_energies[i]
-                          - I_0*R*distances[i, j])
+                          - I_0*R/distances[i, j])
                 else:
                     dE = site_energies[j] - site_energies[i]
 
@@ -251,7 +251,7 @@ class kmc_dn():
     '''This class is a wrapper for all functions and variables needed to perform
     a kinetic monte carlo simulation of a variable range hopping system'''
 
-    def __init__(self, N, M, xdim, ydim, zdim, **kwargs):
+    def __init__(self, N, M, xdim, ydim, zdim, mu = 0, **kwargs):
         '''Upon initialization of this class, the impurities and charges are placed.
         They are placed inside a rectangle of xdim by ydim. There are N acceptors
         and M donors.
@@ -422,6 +422,7 @@ class kmc_dn():
         self.ab = 100 # Bohr radius (or localization radius)
         self.U = 100  # 5/8 * 1/self.ab   # J
         self.time = 0  # s
+        self.mu = mu  # Equilibrium chemical potential
 
         # Initialize variables
         self.N = N
@@ -505,14 +506,6 @@ class kmc_dn():
         else:
             self.pick_event = self.pick_event_standard
 
-        if('stopping_criterion' in kwargs):
-            if(kwargs['stopping_criterion'] == 'stopping_criterion_discrete'):
-                self.stopping_criterion = self.stopping_criterion_discrete
-            if(kwargs['stopping_criterion'] == 'stopping_criterion_convergence'):
-                self.stopping_criterion = self.stopping_criterion_convergence
-        else:
-            self.stopping_criterion = self.stopping_criterion_discrete
-
         if('callback' in kwargs):
             if(kwargs['callback'] == 'callback_standard'):
                 self.callback = self.callback_standard
@@ -568,14 +561,16 @@ class kmc_dn():
             self.calc_E_constant()
 
 
-    def simulate_discrete(self, hops = 1000):
+    def simulate_discrete(self, hops = 1000, reset = True):
         '''
         Wrapper function that perform a simulation loop for a predetermined
         amount of hops.
         hops has to be an integer.
+        Reset is optional, such that this function can be used to go through
+        a simulation step by step (useful for e.g. boltzmann validation)
         '''
-
-        self.reset()  # Reset all relevant trackers before running a simulation
+        if(reset):
+            self.reset()  # Reset all relevant trackers before running a simulation
 
         for i in range(hops):
             # Perform a single event
@@ -769,7 +764,7 @@ class kmc_dn():
                 self.fn_expression += (f'x[0] >= e{i}_x - {surplus} && '
                                        f'x[0] <= e{i}_x + {surplus} && '
                                        f'x[1] == e{i}_y ? e{i} : ')
-        self.fn_expression += '0'  # Add final 0
+        self.fn_expression += f'{self.mu}'  # Add constant chemical potential
 
         # Define boundary expression
         self.fn_boundary = fn.Expression(self.fn_expression,
@@ -1056,108 +1051,18 @@ class kmc_dn():
         # Coulomb interaction sum
         for i in range(self.N-1):
             for j in range(i+1, self.N):
-                H += ((1 - self.acceptors[i, 3]) * (1 - self.acceptors[j, 3])
+                H += ((1 - self.occupation[i]) * (1 - self.occupation[j])
                       /self.distances[i, j])
-        H *= self.e**2/(4*np.pi*self.eps)
+        H *= self.I_0 * self.R
 
         # Add electrostatic contribution
         for i in range(self.N):
-            H = H - (1 - self.acceptors[i, 3]) * self.eV_constant[i]
+            H = H - (1 - self.occupation[i]) * self.eV_constant[i]
 
         return H
 
 
-    def validate_boltzmann(self, hops = 1000, n = 2, points = 100, V_0 = 1):
-        '''Perform validation of a simulation algorithm by means of checking
-        whether it obeys boltzmann statistics. Hops is the total amount of hops
-        performed and n equals the (constant!) number of carriers in the system.
-        points; the amount of points in convergence array
-        V_0; chemical potential'''
-        # Initialize
-        hops_array = np.zeros(points)
-        interval = hops/points
 
-        # Prepare system
-        self.electrodes = np.zeros((0, 5))  # Remove electrodes from system
-        # Initialize other attributes
-        self.transitions = np.zeros((self.N + self.electrodes.shape[0],
-                                     self.N + self.electrodes.shape[0]))
-        self.transitions_constant = np.zeros((self.N + self.electrodes.shape[0],
-                                     self.N + self.electrodes.shape[0]))
-        self.transitions_possible = np.zeros((self.N + self.electrodes.shape[0],
-                                     self.N + self.electrodes.shape[0]))
-        self.transitions_possible = self.transitions_possible.astype(bool)
-        self.distances = np.zeros((self.N + self.electrodes.shape[0],
-                                   self.N + self.electrodes.shape[0]))
-        self.vectors = np.zeros((self.N + self.electrodes.shape[0],
-                                 self.N + self.electrodes.shape[0], 3))
-        self.site_energies = np.zeros((self.N + self.electrodes.shape[0],))
-        self.energy_differences = np.zeros((self.N + self.electrodes.shape[0],
-                                            self.N + self.electrodes.shape[0]))
-        self.initialize()
-
-        self.V[:, :, :] = V_0 # Set chemical potential
-        self.calc_E_constant()  # Update electrostatic energy contribution
-
-
-        # Make microstate array
-        perm_array = np.zeros((self.N))
-        perm_array[:n] = 1
-        perms = list(itertools.permutations(perm_array))  # All possible permutations
-        self.microstates = np.asarray(list(set(perms)))  # Remove all duplicate microstates
-
-        # Assign energies to microstates
-        self.E_microstates = np.zeros(self.microstates.shape[0])
-        for i in range(self.E_microstates.shape[0]):
-            self.acceptors[:, 3] = self.microstates[i]  # Create microstate
-            self.E_microstates[i] = self.total_energy()
-
-        # Calculate theoretical probabilities
-        self.p_theory = np.zeros(self.microstates.shape[0])
-        self.Z = 0  # Partition function
-        for i in range(self.p_theory.shape[0]):
-            self.p_theory[i] = np.exp(-self.E_microstates[i]/(self.k*self.T))
-            self.Z += self.p_theory[i]
-        self.p_theory = self.p_theory/self.Z  # Normalize
-
-        # Simulate probabilities
-        self.time = 0  # Reset simulation time
-        previous_microstate = np.random.randint(self.microstates.shape[0])  # Random first microstate
-        self.acceptors[:, 3] = self.microstates[previous_microstate]
-        self.p_sim = np.zeros(self.microstates.shape[0])
-        p_sim_interval = np.zeros((self.microstates.shape[0], points))
-
-        # Simulation loop
-        interval_counter = 0
-        for i in range(hops):
-            # Hopping event
-            self.calc_site_energies()
-            self.calc_transitions()
-            self.pick_event()
-            self.perform_event()
-
-            # Save time spent in previous microstate
-            self.p_sim[previous_microstate] += self.hop_time
-
-            # Find index of current microstate
-            for j in range(self.microstates.shape[0]):
-                if(np.array_equal(self.acceptors[:, 3], self.microstates[j])):
-                    previous_microstate = j
-                    break
-
-            # Save probabilities each interval
-            if(i >= (interval_counter+1)* interval - 1):
-                p_sim_interval[:, interval_counter] = self.p_sim/self.time
-                hops_array[interval_counter] = i + 1
-                interval_counter += 1
-
-        self.p_sim /= self.time  # Normalize end probability
-
-        # Calculate norm
-        convergence = np.linalg.norm(self.p_sim - self.p_theory)/np.linalg.norm(self.p_theory)
-        print('Norm of difference: ' + str(convergence))
-
-        return hops_array, p_sim_interval
 
     @staticmethod
     def dist(ri, rj):

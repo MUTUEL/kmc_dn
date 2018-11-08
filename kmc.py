@@ -1,55 +1,37 @@
 '''
-This code performs a Kinetic Monte Carlo simulation of a 2D variable range
-hopping system. The code is inspired by the work of Jeroen van Gelder.
-
-Pseudo-code (algorithm):
-    # Initialization
-    1. Donor placement (N acceptors and M < N donors)
-    2. Place charges (N-M)
-    3. Solve electrostatic potential from gates (relaxation method?)
-    4. Solve compensation energy terms
-    # Loop
-    5. Calculate Coulomb energy terms
-    6. Calculate hopping rates
-    7. Hopping event
-    8. Current converged?
-        No: return to 5.
-        Yes: simulation done.
+This file is a basic example of working with the kmc_dn class.
+It illustrates initialization, simulation and visualization.
+The setup here is a simple two electrode configuration on
+a 1x1 2D domain with 10 acceptors.
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
 
 import kmc_dopant_networks as kmc_dn
+import kmc_dopant_networks_utils as kmc_dn_utils
 import numpy as np
 import matplotlib.pyplot as plt
-import cProfile
-
 
 #%% Parameters
-
-N = 5  # Number of acceptors
+N = 10  # Number of acceptors
 M = 0  # Number of donors
 xdim = 1  # Length along x dimension
 ydim = 1  # Length along y dimension
 zdim = 0  # Length along z dimension
-#res = 1  # Resolution of laplace grid
 
 # Define electrodes
-electrodes = np.zeros((2, 5))  # Electrodes with their voltage
-electrodes[0] = [0, ydim/2, 0, 10, 0]  # Left electrode
-electrodes[1] = [xdim, ydim/2, 0, -10, 0] # Right electrode
-# electrodes[2] = [xdim/2, ydim, 0, -10, 0] # Top electrode
-# electrodes[3] = [xdim/2, 0, 0, -10, 0] # Bottom electrode
+electrodes = np.zeros((2, 4))
+electrodes[0] = [0, ydim/2, 0, 10]  # Left electrode
+electrodes[1] = [xdim, ydim/2, 0, -10] # Right electrode
 
-# Define methods
-placement_method = 'place_dopants_charges_random'
- 
 #%% Initialize simulation object
-
-kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes, reso = 1,
-                    place_dopants_charges = placement_method)
+kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes)
 
 #%% Simulate
+hops = int(1E4)
+kmc.simulate_discrete(hops = hops)
 
-
-#%% Visualize()
+#%% Visualize
+domain = kmc_dn_utils.visualize_basic(kmc)
+current_plot = kmc_dn_utils.visualize_current(kmc)
+plt.show()
