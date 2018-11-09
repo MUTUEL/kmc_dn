@@ -25,4 +25,8 @@ conda install matplotlib
 conda install numba
 conda install -c conda-forge fenics
 ```
-Now your environment is set up and all dependencies should be met.
+Lastly, to make sure that kmc_dopant_networks is always found when running code in the kmc environment, look for the system path that looks like this:
+```
+~/anaconda3/envs/kmc/lib/python3.6/site-packages/
+```
+Then make a new file `kmc.pth` which contains the absolute path to the repo.
