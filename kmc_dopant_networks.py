@@ -435,10 +435,10 @@ class kmc_dn():
         # Check dimensionality
         if(self.ydim == 0 and self.zdim == 0):
             self.dim = 1
-            self.R = (self.N/self.xdim)**(-1/3)
+            self.R = (self.N/self.xdim)**(-1)
         elif(self.zdim == 0):
             self.dim = 2
-            self.R = (self.N/(self.xdim*self.ydim))**(-1/3)
+            self.R = (self.N/(self.xdim*self.ydim))**(-1/2)
         else:
             self.dim = 3
             self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
