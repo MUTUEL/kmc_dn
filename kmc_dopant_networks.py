@@ -731,6 +731,7 @@ class kmc_dn():
                         self.vectors[i, j] = ((self.acceptors[j]
                                               - self.acceptors[i])
                                               /self.distances[i, j])
+
     @staticmethod
     def fn_onboundary(x, on_boundary):
         return on_boundary
@@ -1015,6 +1016,18 @@ class kmc_dn():
         # Increment time
         self.time += self.timestep
 
+    #%% Load methods
+    def load_acceptors(self, acceptors):
+        '''
+        This function allows loading an acceptor layout.
+        '''
+        # Overwrite acceptors array
+        self.acceptors = acceptors
+        self.N = self.acceptors.shape[0]
+
+        # Re-initialize everything but V
+        self.initialize(V = False)
+        
     #%% Miscellaneous methods
     def calc_t_dist(self):
         '''Calculates the transition rate matrix t_dist, which is based only
