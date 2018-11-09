@@ -750,21 +750,27 @@ class kmc_dn():
         self.fn_electrodes = {}
         for i in range(self.P):
             self.fn_electrodes[f'e{i}_x'] = self.electrodes[i, 0]
-            self.fn_electrodes[f'e{i}_y'] = self.electrodes[i, 1]
+            if(self.dim > 1):
+                self.fn_electrodes[f'e{i}_y'] = self.electrodes[i, 1]
             self.fn_electrodes[f'e{i}'] = self.electrodes[i, 3]
 
         # Define boundary expression string
         self.fn_expression = ''
-        surplus = self.xdim/10  # Electrode modelled as point +/- surplus
-        for i in range(self.P):
-            if(self.electrodes[i, 0] == 0 or self.electrodes[i, 0] == self.xdim):
-                self.fn_expression += (f'x[0] == e{i}_x && '
-                                       f'x[1] >= e{i}_y - {surplus} && '
-                                       f'x[1] <= e{i}_y + {surplus} ? e{i} : ')
-            else:
-                self.fn_expression += (f'x[0] >= e{i}_x - {surplus} && '
-                                       f'x[0] <= e{i}_x + {surplus} && '
-                                       f'x[1] == e{i}_y ? e{i} : ')
+        if(self.dim == 1):
+            for i in range(self.P):
+                self.fn_expression += (f'x[0] == e{i}_x ? e{i} : ')
+
+        if(self.dim == 2):
+            surplus = self.xdim/10  # Electrode modelled as point +/- surplus
+            for i in range(self.P):
+                if(self.electrodes[i, 0] == 0 or self.electrodes[i, 0] == self.xdim):
+                    self.fn_expression += (f'x[0] == e{i}_x && '
+                                           f'x[1] >= e{i}_y - {surplus} && '
+                                           f'x[1] <= e{i}_y + {surplus} ? e{i} : ')
+                else:
+                    self.fn_expression += (f'x[0] >= e{i}_x - {surplus} && '
+                                           f'x[0] <= e{i}_x + {surplus} && '
+                                           f'x[1] == e{i}_y ? e{i} : ')
         self.fn_expression += f'{self.mu}'  # Add constant chemical potential
 
         # Define boundary expression
@@ -773,10 +779,13 @@ class kmc_dn():
                                          **self.fn_electrodes)
 
         # Define FEM mesh (res should be small enough, otherwise solver may break)
-        self.fn_mesh = fn.RectangleMesh(fn.Point(0, 0),
-                                        fn.Point(self.xdim, self.ydim),
-                                        int(self.xdim//self.res),
-                                        int(self.ydim//self.res))
+        if(self.dim == 1):
+            self.fn_mesh = fn.IntervalMesh(int(self.xdim//self.res), 0, self.xdim)
+        if(self.dim == 2):
+            self.fn_mesh = fn.RectangleMesh(fn.Point(0, 0),
+                                            fn.Point(self.xdim, self.ydim),
+                                            int(self.xdim//self.res),
+                                            int(self.ydim//self.res))
 
         # Define function space
         self.fn_functionspace = fn.FunctionSpace(self.fn_mesh, 'P', 1)
@@ -841,8 +850,7 @@ class kmc_dn():
         for i in range(self.N):
             # Add electrostatic potential
             if(self.dim == 1):
-                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
-                self.eV_constant[i] += self.e*self.V[int(round(x)), 0, 0]
+                self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0])
 
             if(self.dim == 2):
                 self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0], self.acceptors[i, 1])
@@ -874,8 +882,7 @@ class kmc_dn():
         for i in range(self.N):
             # Add electrostatic potential
             if(self.dim == 1):
-                x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
-                self.eV_constant[i] += self.e*self.V[int(round(x)), 0, 0]
+                self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0])
 
             if(self.dim == 2):
                 self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0], self.acceptors[i, 1])
@@ -1027,7 +1034,7 @@ class kmc_dn():
 
         # Re-initialize everything but V
         self.initialize(V = False)
-        
+
     #%% Miscellaneous methods
     def calc_t_dist(self):
         '''Calculates the transition rate matrix t_dist, which is based only
