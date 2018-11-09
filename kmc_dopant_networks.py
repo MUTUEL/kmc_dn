@@ -650,6 +650,8 @@ class kmc_dn():
 
             self.counter += 1
 
+        print(f'Converged in {self.counter} hops')
+
     def reset(self):
         '''
         Resets all relevant trackers before running a simulation
@@ -825,6 +827,9 @@ class kmc_dn():
 
         # Solve V
         fn.solve(self.fn_a == self.fn_L, self.V, self.fn_bc)
+
+        # Update constant energy
+        self.calc_E_constant()
 
 
     def calc_transitions_constant(self):
@@ -1032,8 +1037,8 @@ class kmc_dn():
         self.acceptors = acceptors
         self.N = self.acceptors.shape[0]
 
-        # Re-initialize everything but V
-        self.initialize(V = False)
+        # Re-initialize everything but placement and V
+        self.initialize(V = False, placement = False)
 
     #%% Miscellaneous methods
     def calc_t_dist(self):

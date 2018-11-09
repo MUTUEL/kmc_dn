@@ -244,3 +244,23 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
 
     if(not standalone):
         return E_microstates, p_theory, hops_array, p_sim_interval
+
+
+def IV(kmc_dn, electrode, voltagelist):
+    '''
+    Performs a simple IV curve measurement, by supplying the
+    voltages in voltagelist on electrode electrode.
+    '''
+    voltages = len(voltagelist)
+    currentlist = np.zeros((voltages, kmc_dn.P))
+
+    for i in range(voltages):
+        # Set voltage
+        kmc_dn.electrodes[electrode, 3] = voltagelist[i]
+        kmc_dn.update_V()
+
+        kmc_dn.simulate()
+
+        currentlist[i] = kmc_dn.current
+
+    return currentlist
