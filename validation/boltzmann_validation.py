@@ -1,75 +1,76 @@
-# Make a nice convergence plot for Boltzmann validation
-#%% imports
-
+'''
+This file performs an extended version of the boltzmann validation experiment.
+To quickly check this, use the kmc_dn_utils method validate_boltzmann with
+keyword argument standalone = True.
+'''
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
 import time
-import kmc_dopant_networks
+import kmc_dopant_networks as kmc_dn
+import kmc_dopant_networks_utils as kmc_dn_utils
 
-#%% Import object and visualize
+#%% Parameters
+N = 10  # Number of acceptors
+M = 0  # Number of donors
+xdim = 1  # Length along x dimension
+ydim = 1  # Length along y dimension
+zdim = 0  # Length along z dimension
+mu = 1  # Chemical potential
+n = 5  # Amount of carriers
+hops = int(1E4)  # Hops per validation run
+points = 1000  # Amount of points for plotting convergence
+avg = 10  # Amount of validation runs
 
-input = open('boltzmann_validation_obj.pkl', 'rb')
-kmc = pickle.load(input)
+#%% Initialize simulation object
+kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, mu = mu)
 
-#%% Do validation for n = 5
+#%% Run validation
 
-V_0 =  kmc.k*kmc.T/kmc.e  # Fix eV_0/kT = 1
-n = 5
-hops = int(1E6)
-points = 1000
-avg = 10
-
-
+# Prerun validation function once for compilation
+(E_microstates,
+ p_theory,
+ hops_array,
+ p_sim_interval) = kmc_dn_utils.validate_boltzmann(kmc,
+                                                   hops = 10,
+                                                   n = n,
+                                                   points = 1,
+                                                   mu = mu,
+                                                   standalone = False)
+p_sim = np.zeros((avg, p_theory.shape[0], points))
+# Actual validation loop
 for i in range(avg):
     tic = time.time()
-    h, p = kmc.validate_boltzmann(hops=hops, n=n, points = points, V_0 = V_0)
+    (E_microstates,
+     p_theory,
+     hops_array,
+     p_sim[i]) = kmc_dn_utils.validate_boltzmann(kmc,
+                                                 hops = hops,
+                                                 n = n,
+                                                 points = points,
+                                                 mu = mu,
+                                                 standalone = False)
     toc = time.time()
     print('Elapsed time for ' + str(hops) + ': ' + str(toc-tic) + ' seconds')
-    np.save('harst' + str(i) + '.npy', h)
-    np.save('pstrs' + str(i) + '.npy', p)
 
-#%% Calculations on p
-#s = np.zeros((p.shape[0], p.shape[1]-window))
-#for i in range(window, len(h)):
-#    # Calculate std on current window
-#    s[:, i-window] = np.std(p[:, i-window:i], axis=1)
-    
-#s_sim = np.zeros(p.shape[0])
-#p_sim = np.zeros(p.shape[0])
-#for i in range(s_sim.shape[0]):
-#    s_sim[i] = np.std(p[i])
-#    p_sim[i] = np.mean(p[i])
-#    
-#norm = np.zeros(p.shape[1])
-#for i in range(norm.shape[0]):
-#    norm[i] = np.linalg.norm(kmc.p - p[:, i])/np.linalg.norm(kmc.p) 
-#    
-# Calculate sigma on final p
-sigma = np.std(p[:, :, -1], axis = 0)
-p_sim = np.average(p[:, :, -1], axis = 0)
-#%% Various plots
-    
-#i = 1
-#plt.figure()
-#plt.plot(h, p[i])
-#plt.fill_between(h[window:], p[i, window:] + 2*s[i], p[i, window:] - 2*s[i], alpha=0.5, color = 'r')
-#plt.hlines(kmc.p[i], h[0], h[-1], linestyle = '--')
+#%% Calculations 
+sigma = np.std(p_sim[:, :, -1], axis = 0)
+p_sim = np.average(p_sim[:, :, -1], axis = 0)
 
-# Theoretical probabilities
-#plt.figure()
-#plt.plot(kmc.E_microstates, kmc.p, '.')
-#plt.xlabel('Microstate energy (kT)')
-#plt.ylabel('Probability')
+# Check how many are within 2*sigma
+within_error = 0
+for i in range(p_sim.shape[0]):
+    if(p_theory[i] - 2*sigma[i] < p_sim[i] < p_theory[i] + 2*sigma[i]):
+        within_error += 1
+within_error /= p_sim.shape[0]
 
-# Simulated probabilities with error 
-indices = np.argsort(kmc.E_microstates)
+
+#%% Plotting
+
+# Simulated probabilities with error
+indices = np.argsort(E_microstates)
 plt.figure()
-plt.errorbar(kmc.E_microstates, p_sim, yerr=2*sigma, fmt='o')
-plt.plot(kmc.E_microstates[indices], kmc.p[indices], 'r-')
+plt.errorbar(E_microstates, p_sim, yerr=2*sigma, fmt='o')
+plt.plot(E_microstates[indices], p_theory[indices], 'r-')
+plt.title(f'{within_error*100:.4}% within 2*$\sigma$.')
 
-# Full norm plot
-#plt.figure()
-#plt.loglog(h, norm)
-#
 plt.show()

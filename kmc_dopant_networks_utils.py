@@ -184,12 +184,9 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
     kmc_dn.problist = np.zeros((kmc_dn.N+kmc_dn.P)**2)
     kmc_dn.electrode_occupation = np.zeros(kmc_dn.P, dtype=int)
 
-    kmc_dn.initialize()
-
-    # Set chemical potential
+    # Set chemical potential and initialize
     kmc_dn.mu = mu
-    kmc_dn.init_V()
-    kmc_dn.calc_E_constant()
+    kmc_dn.initialize(placement = False)
 
     # Make microstate array
     perm_array = np.zeros((kmc_dn.N), dtype = bool)
@@ -246,4 +243,4 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
     print('Norm of difference: ' + str(convergence))
 
     if(not standalone):
-        return p_theory, hops_array, p_sim_interval
+        return E_microstates, p_theory, hops_array, p_sim_interval
