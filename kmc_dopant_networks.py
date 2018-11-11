@@ -518,19 +518,6 @@ class kmc_dn():
         else:
             self.callback = self.callback_standard
 
-        # Initialize other attributes
-        self.transitions = np.zeros((N + self.electrodes.shape[0],
-                                     N + self.electrodes.shape[0]))
-        self.transitions_constant = np.zeros((N + self.electrodes.shape[0],
-                                     N + self.electrodes.shape[0]))
-        self.distances = np.zeros((N + self.electrodes.shape[0],
-                                   N + self.electrodes.shape[0]))
-        self.vectors = np.zeros((N + self.electrodes.shape[0],
-                                 N + self.electrodes.shape[0], 3))
-        self.site_energies = np.zeros((N + self.electrodes.shape[0],))
-        self.problist = np.zeros((self.N+self.P)**2)
-        self.electrode_occupation = np.zeros(self.P, dtype=int)
-
         # Initialize sim object
         self.initialize()
 
@@ -546,6 +533,20 @@ class kmc_dn():
         simulation.
         All methods are toggleable by boolean values.
         '''
+        # Initialize other attributes
+        self.transitions = np.zeros((self.N + self.P,
+                                     self.N + self.P))
+        self.transitions_constant = np.zeros((self.N + self.P,
+                                     self.N + self.P))
+        self.distances = np.zeros((self.N + self.P,
+                                   self.N + self.P))
+        self.vectors = np.zeros((self.N + self.P,
+                                 self.N + self.P, 3))
+        self.site_energies = np.zeros((self.N + self.P,))
+        self.problist = np.zeros((self.N+self.P)**2)
+        self.occupation = np.zeros(self.N, dtype=bool)
+        self.electrode_occupation = np.zeros(self.P, dtype=int)
+
         if(placement):
             self.place_dopants_charges()
 
@@ -1039,6 +1040,22 @@ class kmc_dn():
         self.acceptors = acceptors
         self.N = self.acceptors.shape[0]
 
+        # Re-initialize dimensionless constants (R may have changed)
+        if(self.ydim == 0 and self.zdim == 0):
+            self.R = (self.N/self.xdim)**(-1)
+        elif(self.zdim == 0):
+            self.R = (self.N/(self.xdim*self.ydim))**(-1/2)
+        else:
+            self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
+
+        # Initialize shorthand constants
+        self.I_0 = self.e**2/(4*np.pi*self.eps*self.R)
+        self.kT = self.k*self.T
+
+        # Set dimensonless variables to 1
+        self.ab = self.R
+        self.I_0 = self.kT
+
         # Re-initialize everything but placement and V
         self.initialize(V = False, placement = False)
 
@@ -1047,8 +1064,8 @@ class kmc_dn():
         '''Calculates the transition rate matrix t_dist, which is based only
         on the distances between sites (as defined in Tsigankov2003)'''
         # Initialization
-        self.t_dist = np.zeros((self.N + self.electrodes.shape[0],
-                                self.N + self.electrodes.shape[0]))
+        self.t_dist = np.zeros((self.N + P,
+                                self.N + P))
         self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
 
         # Loop over possible transitions site i -> site j
