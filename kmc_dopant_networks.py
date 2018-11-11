@@ -598,6 +598,8 @@ class kmc_dn():
 
             self.counter += 1
 
+        self.current = self.electrode_occupation/self.time
+
     def simulate(self, tol = 1E-2, interval = 1000):
         '''
         Wrapper function that performs a simulation until the all electrode
