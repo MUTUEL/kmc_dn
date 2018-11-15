@@ -483,7 +483,7 @@ class kmc_dn():
             if(kwargs['calc_E_constant'] == 'calc_E_constant_V_comp'):
                 self.calc_E_constant = self.calc_E_constant_V_comp
         else:
-            self.calc_E_constant = self.calc_E_constant_V
+            self.calc_E_constant = self.calc_E_constant_V_comp
 
         if('calc_site_energies' in kwargs):
             if(kwargs['calc_site_energies'] == 'calc_site_energies_acc'):
@@ -562,16 +562,43 @@ class kmc_dn():
             self.calc_E_constant()
 
 
-    def simulate_discrete(self, hops = 1000, reset = True):
+    def simulate_discrete(self, hops = 1000, reset = True, prehops = 0):
         '''
         Wrapper function that perform a simulation loop for a predetermined
         amount of hops.
         hops has to be an integer.
         Reset is optional, such that this function can be used to go through
         a simulation step by step (useful for e.g. boltzmann validation)
+        prehops can be used to perform hops before measuring any current, 
+        and can be used to bring the system in 'equilibrium' first.
         '''
         if(reset):
             self.reset()  # Reset all relevant trackers before running a simulation
+
+        if(prehops != 0):
+            for i in range(prehops):
+                # Perform a single event
+                (self.hop_time,
+                self.time,
+                self.transition,
+                self.occupation,
+                self.electrode_occupation) = _full_event_loop(self.N,
+                                                            self.P,
+                                                            self.nu,
+                                                            self.kT,
+                                                            self.I_0,
+                                                            self.R,
+                                                            self.time,
+                                                           self.occupation,
+                                                           self.distances,
+                                                           self.E_constant,
+                                                           self.site_energies,
+                                                           self.transitions_constant,
+                                                           self.transitions,
+                                                           self.problist,
+                                                           self.electrode_occupation)
+
+                self.reset()
 
         for i in range(hops):
             # Perform a single event
@@ -601,14 +628,41 @@ class kmc_dn():
 
         self.current = self.electrode_occupation/self.time
 
-    def simulate(self, tol = 1E-2, interval = 1000):
+    def simulate(self, tol = 1E-2, interval = 1000, prehops = 0):
         '''
         Wrapper function that performs a simulation until the all electrode
         currents have converged with tolerance tol. The function checks
         for convergence every interval hops.
+        prehops indicates the amount of hops performed before calculating
+        currents for convergence. This can be used to first bring the system
+        into 'equilibrium'.
         '''
         self.reset()  # Reset all relevant trackers before running a simulation
 
+
+        for i in range(prehops):
+            # Perform a single event
+            (self.hop_time,
+             self.time,
+             self.transition,
+             self.occupation,
+             self.electrode_occupation) = _full_event_loop(self.N,
+                                                           self.P,
+                                                           self.nu,
+                                                           self.kT,
+                                                           self.I_0,
+                                                           self.R,
+                                                           self.time,
+                                                           self.occupation,
+                                                           self.distances,
+                                                           self.E_constant,
+                                                           self.site_energies,
+                                                           self.transitions_constant,
+                                                           self.transitions,
+                                                           self.problist,
+                                                           self.electrode_occupation)
+
+        self.reset()
         self.converged = False
         while(not self.converged):
             # Perform a single event
@@ -904,8 +958,8 @@ class kmc_dn():
                                                     int(round(z))]
 
             # Add compensation
-            self.comp_constant[i] += -self.e**2/(4 * np.pi * self.eps) * sum(
-                    1/self.dist(self.acceptors[i, :3], self.donors[k, :3]) for k in range(self.M))
+            self.comp_constant[i] += self.I_0*self.R* sum(
+                    1/self.dist(self.acceptors[i], self.donors[k]) for k in range(self.M))
 
         self.E_constant = self.eV_constant + self.comp_constant
 
@@ -1058,6 +1112,17 @@ class kmc_dn():
 
         # Re-initialize everything but placement and V
         self.initialize(V = False, placement = False)
+
+    def load_donors(self, donors):
+        '''
+        This function loads a donor layout.
+        '''
+        # Overwrite donors array
+        self.donors = donors
+        self.M = self.donors.shape[0]
+
+        # Re-initialize everything but placement and V
+        self.initialize(V=False, placement=False)
 
     #%% Miscellaneous methods
     def calc_t_dist(self):

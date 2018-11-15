@@ -247,7 +247,7 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
 
 
 def IV(kmc_dn, electrode, voltagelist,
-       tol = 1E-2, interval = 1000, hops = 0):
+       tol = 1E-2, interval = 1000, hops = 0, prehops = 0):
     '''
     Performs a simple IV curve measurement, by supplying the
     voltages in voltagelist on electrode electrode.
@@ -267,9 +267,9 @@ def IV(kmc_dn, electrode, voltagelist,
         kmc_dn.update_V()
 
         if(discrete):
-            kmc_dn.simulate_discrete(hops = hops)
+            kmc_dn.simulate_discrete(hops = hops, prehops = prehops)
         else:
-            kmc_dn.simulate(tol = tol, interval = interval)
+            kmc_dn.simulate(tol = tol, interval = interval, prehops = prehops)
 
         currentlist[i] = kmc_dn.current
 
