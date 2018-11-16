@@ -20,7 +20,7 @@ import kmc_dopant_networks as kmc_dn
 import kmc_dopant_networks_utils as kmc_dn_utils
 import numpy as np
 import matplotlib.pyplot as plt
-
+import time 
 #%% System setup
 R = 0.1
 xdim = 0.9 + 0.0707
@@ -53,12 +53,15 @@ kmc.I_0 = I_0
 kmc.ab = ab_R*kmc.R
 kmc.initialize(placement = False)
 
+tic = time.time()
 #%% Simulate IV curve
 V_high = 250
 points = 100
 bias = np.linspace(-V_high, V_high, points)
 current = kmc_dn_utils.IV(kmc, 0, bias, hops = 10000) 
+toc = time.time()
 
+print(f'finished IV curve in {toc - tic} seconds')
 #%% Visualize
 domain = kmc_dn_utils.visualize_basic(kmc)
 

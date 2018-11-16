@@ -260,11 +260,27 @@ def IV(kmc_dn, electrode, voltagelist,
 
     voltages = len(voltagelist)
     currentlist = np.zeros((voltages, kmc_dn.P))
+    
+    # Check if any other electrode is non-zero
+    zero = sum(kmc_dn.electrodes[:, 3]) - kmc_dn.electrodes[electrode, 3]
+    zero = (zero == 0)
+    zero = False
+    print(zero)
+    # If all other electrodes are zero, calculate V profile only once!
+    if(zero):
+        V0 = voltagelist[0]
+        kmc_dn.electrodes[electrode, 3] = voltagelist[0]
+        kmc_dn.update_V()
+        Vref = kmc_dn.V.copy(deepcopy = True)
 
     for i in range(voltages):
-        # Set voltage
-        kmc_dn.electrodes[electrode, 3] = voltagelist[i]
-        kmc_dn.update_V()
+        if(zero):
+            kmc_dn.V = fn.project(Vref*fn.Constant(voltagelist[i]/V0))  
+            kmc_dn.electrodes[electrode, 3] = voltagelist[i]
+            kmc_dn.calc_E_constant()
+        else:
+            kmc_dn.electrodes[electrode, 3] = voltagelist[i]
+            kmc_dn.update_V()
 
         if(discrete):
             kmc_dn.simulate_discrete(hops = hops, prehops = prehops)
