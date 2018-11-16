@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 import fenics as fn
+import time
 
 plt.ioff()
 
@@ -264,20 +265,26 @@ def IV(kmc_dn, electrode, voltagelist,
     # Check if any other electrode is non-zero
     zero = sum(kmc_dn.electrodes[:, 3]) - kmc_dn.electrodes[electrode, 3]
     zero = (zero == 0)
-    zero = False
-    print(zero)
+
     # If all other electrodes are zero, calculate V profile only once!
     if(zero):
         V0 = voltagelist[0]
         kmc_dn.electrodes[electrode, 3] = voltagelist[0]
         kmc_dn.update_V()
-        Vref = kmc_dn.V.copy(deepcopy = True)
+        eVref = kmc_dn.eV_constant.copy()
 
     for i in range(voltages):
+        # Measure time for second voltage to estimate total time
+        if(i == 1):
+            tic = time.time()
+
+        # If all electrodes zero, only explicitly update E_constant
         if(zero):
-            kmc_dn.V = fn.project(Vref*fn.Constant(voltagelist[i]/V0))  
+            kmc_dn.eV_constant = eVref * voltagelist[i]/V0
             kmc_dn.electrodes[electrode, 3] = voltagelist[i]
-            kmc_dn.calc_E_constant()
+            kmc_dn.E_constant = kmc_dn.eV_constant + kmc_dn.comp_constant
+            kmc_dn.site_energies[kmc_dn.N + electrode] = kmc_dn.e*voltagelist[i]
+        # Otherwise recalculate V
         else:
             kmc_dn.electrodes[electrode, 3] = voltagelist[i]
             kmc_dn.update_V()
@@ -288,5 +295,8 @@ def IV(kmc_dn, electrode, voltagelist,
             kmc_dn.simulate(tol = tol, interval = interval, prehops = prehops)
 
         currentlist[i] = kmc_dn.current
-
+        
+        # Print estimated remaining time
+        if(i == 1):
+            print(f'Estimated time for IV curve: {(time.time()-tic)*voltages} seconds')
     return currentlist
