@@ -515,6 +515,8 @@ class kmc_dn():
                 self.callback = self.callback_current_vectors
             if(kwargs['callback'] == 'callback_traffic'):
                 self.callback = self.callback_traffic
+            if(kwargs['callback'] == 'none'):
+                self.callback = self.callback_none
         else:
             self.callback = self.callback_standard
 
@@ -1002,6 +1004,9 @@ class kmc_dn():
                                                 self.site_energies)
 
         #TODO: check for fixed points
+
+    def callback_none(self):
+        pass
 
     def callback_standard(self):
         '''

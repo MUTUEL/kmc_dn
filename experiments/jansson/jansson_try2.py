@@ -21,6 +21,7 @@ import kmc_dopant_networks_utils as kmc_dn_utils
 import numpy as np
 import matplotlib.pyplot as plt
 import time 
+
 #%% System setup
 R = 0.1
 xdim = 0.9 + 0.0707
@@ -41,30 +42,36 @@ electrodes[0] = [0, ydim/2, 0, 10]
 electrodes[1] = [xdim, ydim/2, 0, 0]
 kT = 1
 I_0 = 30*kT
-ab_R = 0.25
+ab_R = 0.1
 
 #%% Initialize system
-kmc = kmc_dn.kmc_dn(1, 0, xdim, ydim, 0, electrodes=electrodes)
+kmc = kmc_dn.kmc_dn(1, 0, xdim, ydim, 0, electrodes=electrodes, callback = 'none')
 kmc.load_acceptors(acceptors)
 kmc.R = R
+
 # Set constants
 kmc.kT = kT
 kmc.I_0 = I_0
 kmc.ab = ab_R*kmc.R
 kmc.initialize(placement = False)
 
-tic = time.time()
 #%% Simulate IV curve
-V_high = 250
+V_high = -250
 points = 100
-bias = np.linspace(-V_high, V_high, points)
-current = kmc_dn_utils.IV(kmc, 0, bias, hops = 10000) 
-toc = time.time()
+prehops = 5000
+tol = 1E-3
+interval = 5000
+hops = 1000
+avg = 10
+bias = np.linspace(V_high, 0, points)
+current = np.zeros((avg, points, 2))
+for i in range(avg):
+    current[i] = kmc_dn_utils.IV(kmc, 0, bias, prehops = prehops, tol = tol, interval = interval) 
+current_avg = np.mean(current, axis = 0)
 
-print(f'finished IV curve in {toc - tic} seconds')
+#%% Save data
+np.savez('data', current = current, bias = bias, kT = kT, I_0 = I_0, ab_R = ab_R)
 #%% Visualize
-domain = kmc_dn_utils.visualize_basic(kmc)
-
 plt.figure()
-plt.plot(-bias, current[:, 0])
+plt.plot(-bias, current_avg[:, 0])
 plt.show()
