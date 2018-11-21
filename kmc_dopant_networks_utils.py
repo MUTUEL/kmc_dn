@@ -15,7 +15,6 @@ import time
 plt.ioff()
 
 #%% Visualization functions
-
 def visualize_basic(kmc_dn, show_occupancy = True, show_V = True):
     '''
     Returns a figure which shows the domain with potential profile. It
@@ -152,6 +151,49 @@ def visualize_current_density(kmc_dn, res = None):
     #ax.quiver(x_dopants, y_dopants, u, v)
 
     return fig, current_map
+
+def visualize_dwelltime(kmc_dn, show_V = True):
+    '''
+    Returns a figure which shows the domain with potential profile. 
+    It shows dwelltime (relative hole occupancy) as the size of
+    the dopants.
+    Note: only 2D is supported
+    '''
+    if(kmc_dn.dim == 2):
+        # Initialize figure
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.set_xlim(right=kmc_dn.xdim)
+        ax.set_ylim(top=kmc_dn.ydim)
+
+        # Extract potential profile from V
+        x = np.arange(0, kmc_dn.xdim, kmc_dn.res)
+        y = np.arange(0, kmc_dn.ydim, kmc_dn.res)
+        V_plot = np.zeros((len(x), len(y)))
+        for i in range(len(x)):
+            for j in range(len(y)):
+                V_plot[i, j] = kmc_dn.V(x[i], y[j])
+
+
+        # Plot potential profile
+        if(show_V):
+            V_profile = ax.imshow(V_plot.transpose(),
+                                  interpolation='bicubic',
+                                  origin='lower',
+                                  extent=(0, kmc_dn.xdim, 0, kmc_dn.ydim))
+            cbar = fig.colorbar(V_profile)
+
+
+        ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], s = kmc_dn.dwelltime/np.max(kmc_dn.dwelltime) * 110,marker='o')
+
+        ax.scatter(kmc_dn.donors[:, 0], kmc_dn.donors[:, 1], marker='x')
+
+        ax.set_xlabel('x (a.u.)')
+        ax.set_ylabel('y (a.u.)')
+        ax.set_title('Yellow = occupied, black = unoccupied')
+        cbar.set_label('Chemical potential (V)')
+
+    return fig
 
 
 def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,

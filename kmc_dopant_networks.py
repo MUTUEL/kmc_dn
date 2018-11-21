@@ -515,6 +515,8 @@ class kmc_dn():
                 self.callback = self.callback_current_vectors
             if(kwargs['callback'] == 'callback_traffic'):
                 self.callback = self.callback_traffic
+            if(kwargs['callback'] == 'callback_dwelltime'):
+                self.callback = self.callback_dwelltime
             if(kwargs['callback'] == 'none'):
                 self.callback = self.callback_none
         else:
@@ -719,10 +721,14 @@ class kmc_dn():
         self.old_current = 0
         self.counter = 0
         self.electrode_occupation[:] = 0  # Reset current
+
+        # Callback quantities
         self.avg_carriers_prenorm = 0
         self.avg_carriers = 0
         self.current_vectors = np.zeros((self.transitions.shape[0], 3))
         self.traffic = np.zeros(self.transitions.shape)
+        self.dwelltime = np.zeros(self.N)
+        self.previous_occupation = self.occupation
 
     def place_dopants_charges_random(self):
         '''
@@ -1039,6 +1045,12 @@ class kmc_dn():
         '''
         self.traffic[self.transition[0], self.transition[1]] += 1
 
+    def callback_dwelltime(self):
+        '''
+        Tracks the time every acceptor is occupied
+        '''
+        self.dwelltime += self.hop_time * self.previous_occupation
+        self.previous_occupation = self.occupation
 
     def pick_event_standard(self):
         '''
