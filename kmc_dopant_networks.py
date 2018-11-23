@@ -184,17 +184,16 @@ class kmc_dn():
             'calc_E_constant_V'; include only local chemical potential
             'calc_E_constant_V_comp'; include local chemical potential 
                 and compensation sites.
-            Default: calc_E_constant_V_comp
-        callback; choice of the callback method
-            Possible options are:
-            'callback_standard'; track avg_carriers and current vectors
-            'callback_avg_carriers'; track avg_carriers
-            'callback_current_vectors'; track current vectors
-            'callback_traffic'; tracks traffic in array
-            Default: callback_standard
-        #TODO: change callback handling, by just providing some boolean
-        parameters, similar to the initialize method.
-        
+            default: calc_E_constant_V_comp
+        callback_traffic; bool
+            If set to True, all hopping events are stored in matrix
+            traffic
+            default: False
+        callback_dwelltime; bool
+            If set to True, total occupation time of each acceptor is
+            track in array dwelltime
+            default: False
+
         Class attributes
         ================
         Here follows a list of all class attributes that were not 
@@ -354,7 +353,6 @@ class kmc_dn():
                 self.res = min([self.xdim, self.ydim, self.zdim])/100
 
         # Initialize method kwargs
-
         if('calc_E_constant' in kwargs):
             if(kwargs['calc_E_constant'] == 'calc_E_constant_V'):
                 self.calc_E_constant = self.calc_E_constant_V
@@ -363,42 +361,15 @@ class kmc_dn():
         else:
             self.calc_E_constant = self.calc_E_constant_V_comp
 
-        if('calc_site_energies' in kwargs):
-            if(kwargs['calc_site_energies'] == 'calc_site_energies_acc'):
-                self.calc_site_energies = self.calc_site_energies_acc
-                self.coulomb_interactions = True
+        # Initialize callback kwargs
+        if('callback_traffic' in kwargs):
+            self.callback_traffic = kwargs['callback_traffic']
         else:
-            self.calc_site_energies = self.calc_site_energies_acc
-            self.coulomb_interactions = True
-
-        if('calc_transitions' in kwargs):
-            if(kwargs['calc_transitions'] == 'calc_transitions_MA'):
-                self.calc_transitions = self.calc_transitions_MA
+            self.callback_traffic = False
+        if('callback_dwelltime' in kwargs):
+            self.callback_dwelltime = kwargs['callback_dwelltime']
         else:
-            self.calc_transitions = self.calc_transitions_MA
-
-
-        if('pick_event' in kwargs):
-            if(kwargs['pick_event'] == 'pick_event_standard'):
-                self.pick_event = self.pick_event_standard
-        else:
-            self.pick_event = self.pick_event_standard
-
-        if('callback' in kwargs):
-            if(kwargs['callback'] == 'callback_standard'):
-                self.callback = self.callback_standard
-            if(kwargs['callback'] == 'callback_avg_carriers'):
-                self.callback = self.callback_avg_carriers
-            if(kwargs['callback'] == 'callback_current_vectors'):
-                self.callback = self.callback_current_vectors
-            if(kwargs['callback'] == 'callback_traffic'):
-                self.callback = self.callback_traffic
-            if(kwargs['callback'] == 'callback_dwelltime'):
-                self.callback = self.callback_dwelltime
-            if(kwargs['callback'] == 'none'):
-                self.callback = self.callback_none
-        else:
-            self.callback = self.callback_standard
+            self.callback_dwelltime = False
 
         # Initialize sim object
         self.initialize()
@@ -507,7 +478,8 @@ class kmc_dn():
                                                            self.problist,
                                                            self.electrode_occupation)
 
-            self.callback()
+            self.callback(traffic = self.callback_traffic, 
+                          dwelltime = self.callback_dwelltime)
 
             self.counter += 1
 
@@ -571,7 +543,8 @@ class kmc_dn():
                                                            self.problist,
                                                            self.electrode_occupation)
 
-            self.callback()
+            self.callback(traffic = self.callback_traffic, 
+                          dwelltime = self.callback_dwelltime)
 
             # Check for convergence
             if(self.counter != 0 and self.counter%interval == 0):
@@ -604,12 +577,11 @@ class kmc_dn():
         self.electrode_occupation[:] = 0  # Reset current
 
         # Callback quantities
-        self.avg_carriers_prenorm = 0
-        self.avg_carriers = 0
-        self.current_vectors = np.zeros((self.transitions.shape[0], 3))
-        self.traffic = np.zeros(self.transitions.shape)
-        self.dwelltime = np.zeros(self.N)
-        self.previous_occupation = self.occupation
+        if(self.callback_traffic):
+            self.traffic = np.zeros(self.transitions.shape)
+        if(self.callback_dwelltime):
+            self.dwelltime = np.zeros(self.N)
+            self.previous_occupation = self.occupation
 
     def place_dopants_random(self):
         '''
@@ -860,100 +832,20 @@ class kmc_dn():
         # Calculate electrode energies
         self.site_energies[self.N:] = self.e*self.electrodes[:, 3]
 
-    def calc_site_energies_acc(self):
+    def callback(self, traffic = False, dwelltime = False):
         '''
-        Calculates the potential energy of each acceptor site by evaluating
-        the Coulomb interactions between all other acceptors and by adding
-        the constant energy terms.
-        The energies are stored in the (N+P)x1 array site_energies
+        This function is called after every hop and is used to track
+        certain quantities. The various options are tuned by keywords.
+        if traffic = True; the traffic is tracked, i.e. all hopping 
+            events are stored in the matrix traffic.
+        if dwelltime = True; the total time that an acceptor is occupied
+            by a hole is tracked for each acceptor.
         '''
-        self.site_energies = _calc_site_energies_acc(self.N,
-                                                     self.I_0,
-                                                     self.R,
-                                                     self.occupation,
-                                                     self.distances,
-                                                     self.E_constant,
-                                                     self.site_energies)
-
-    def calc_transitions_MA(self):
-        '''
-        Calculates the matrix transitions, following the MA hopping rate.
-        It uses the method calc_energy_differences().
-        transitions_constant = nu*exp(-2r_ij/a)
-        transitions_constant also makes sure any transition rate to the same
-        element is zero
-        '''
-        self.transitions = _calc_transitions_MA(self.N,
-                                                self.P,
-                                                self.nu,
-                                                self.kT,
-                                                self.I_0,
-                                                self.R,
-                                                self.occupation,
-                                                self.transitions_constant,
-                                                self.transitions,
-                                                self.distances,
-                                                self.site_energies)
-
-        #TODO: check for fixed points
-
-    def callback_none(self):
-        pass
-
-    def callback_standard(self):
-        '''
-        This is the standard callback function, tracking only traffic
-        '''
-        self.callback_traffic()
-        self.callback_current_vectors()
-
-    def callback_avg_carriers(self):
-        '''
-        Tracks the average number of carriers in the system
-        '''
-        self.avg_carriers_prenorm += self.hop_time * sum(self.occupation)
-        self.avg_carriers = self.avg_carriers_prenorm/self.time
-
-
-    def callback_current_vectors(self):
-        '''
-        Adds the appropriate unit vectors of the last transition to the matrix
-        current_vectors.
-        '''
-        self.current_vectors[self.transition[1]] += self.vectors[self.transition[0],
-                                                                 self.transition[1]] # Arrival
-        self.current_vectors[self.transition[0]] += self.vectors[self.transition[0],
-                                                                 self.transition[1]] # Departure
-
-    def callback_traffic(self):
-        '''
-        Tracks the amount of hops i -> j in the matrix traffic.
-        '''
-        self.traffic[self.transition[0], self.transition[1]] += 1
-
-    def callback_dwelltime(self):
-        '''
-        Tracks the time every acceptor is occupied
-        '''
-        self.dwelltime += self.hop_time * self.previous_occupation
-        self.previous_occupation = self.occupation
-
-    def pick_event_standard(self):
-        '''
-        Based on the transition matrix self.transitions, pick a hopping event.
-        '''
-        (self.hop_time,
-         self.time,
-         self.transition,
-         self.occupation,
-         self.electrodes) = _pick_event(self.N,
-                                        self.P,
-                                        self.time,
-                                        self.problist,
-                                        self.transitions,
-                                        self.occupation,
-                                        self.electrodes)
-
+        if(traffic):
+            self.traffic[self.transition[0], self.transition[1]] += 1
+        if(dwelltime):
+            self.dwelltime += self.hop_time * self.previous_occupation
+            self.previous_occupation = self.occupation
 
     def pick_event_tsigankov(self):
         '''Pick a hopping event based on t_dist and accept/reject it based on
