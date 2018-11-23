@@ -471,11 +471,6 @@ class kmc_dn():
                 self.res = min([self.xdim, self.ydim, self.zdim])/100
 
         # Initialize method kwargs
-        if('place_dopants_charges' in kwargs):
-            if(kwargs['place_dopants_charges'] == 'place_dopants_charges_random'):
-                self.place_dopants_charges = self.place_dopants_charges_random
-        else:
-            self.place_dopants_charges = self.place_dopants_charges_random
 
         if('calc_E_constant' in kwargs):
             if(kwargs['calc_E_constant'] == 'calc_E_constant_V'):
@@ -525,7 +520,7 @@ class kmc_dn():
         # Initialize sim object
         self.initialize()
 
-    def initialize(self, placement = True, distances = True,
+    def initialize(self, dopant_placement = True, charge_placement = True, distances = True,
                    V = True, E_constant = True):
         '''
         Wrapper function which:
@@ -551,8 +546,11 @@ class kmc_dn():
         self.occupation = np.zeros(self.N, dtype=bool)
         self.electrode_occupation = np.zeros(self.P, dtype=int)
 
-        if(placement):
-            self.place_dopants_charges()
+        if(dopant_placement):
+            self.place_dopants_random()
+
+        if(charge_placement):
+            self.place_charges_random()
 
         if(distances):
             self.calc_distances()
@@ -730,7 +728,7 @@ class kmc_dn():
         self.dwelltime = np.zeros(self.N)
         self.previous_occupation = self.occupation
 
-    def place_dopants_charges_random(self):
+    def place_dopants_random(self):
         '''
         Place dopants and charges on a 3D hyperrectangular domain (xdim, ydim, zdim).
         Place N acceptors and M donors. Place N-M charges.
@@ -752,6 +750,10 @@ class kmc_dn():
         self.donors[:, 1] *= self.ydim
         self.donors[:, 2] *= self.zdim
 
+    def place_charges_random(self):
+        '''
+        Places N-M holes
+        '''
         # Place charges
         charges_placed = 0
         while(charges_placed < self.N-self.M):
@@ -1128,7 +1130,7 @@ class kmc_dn():
         self.I_0 = self.kT
 
         # Re-initialize everything but placement and V
-        self.initialize(V = False, placement = False)
+        self.initialize(V = False, dopant_placement = False)
 
     def load_donors(self, donors):
         '''
@@ -1139,7 +1141,7 @@ class kmc_dn():
         self.M = self.donors.shape[0]
 
         # Re-initialize everything but placement and V
-        self.initialize(V=False, placement=False)
+        self.initialize(V=False, dopant_placement=False)
 
     #%% Miscellaneous methods
     def calc_t_dist(self):
