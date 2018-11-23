@@ -1,63 +1,42 @@
 '''
-Class definition file for the kinetic monte carlo simulations on the
-dopant network system. This class incorporates the following algorithm.
+================================================
+kinetic Monte Carlo for dopant networks (kmc_dn)
+================================================
+This file defines a class, kmc_dn, that is an implementation of
+a kinetic Monte Carlo simulation algorithm for dopant networks.
+In particular, simulations on an acceptor-doped material with
+compensating donors can be performed on a domain surrounded by an
+arbitrary number of electrodes. Documentation is available both
+in docstrings in this file, as well as on GitHub 
+(LINK).
 
-Pseudo-code (algorithm):
-    # Initialization
-    1. Donor placement (N acceptors and M < N donors)
-    2. Place charges (N-M)
-    3. Solve electrostatic potential from gates (relaxation method?)
-    4. Solve compensation energy terms
-    # Loop
-    5. Calculate Coulomb energy terms
-    6. Calculate hopping rates
-    7. Hopping event
-    8. Current converged?
-        No: return to 5.
-        Yes: simulation done.
-
-(Average) quantities that are tracked:
-    Current through electrodes
-    ?Current through domain?
-    Number of particles in the system
-    Average energy of the system
-    ?Average hopping distance?
-
-Quantities that can be calculated:
-    Mobility?
-    Conductance?
-
-TODO: Implement Tsigankov mixed algorithm and perform validation
-TODO: Replace electrodes.shape[0] with self.P and replace self.P by smth like
-    problist.
-
+TODO list
+=========
+#TODO: Implement Tsigankov mixed algorithm and perform validation
 
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
 
+# Imports
 import numpy as np
-import matplotlib.pyplot as plt
-import itertools
 from numba import jit
 import fenics as fn
 
-plt.ioff()
-
 # Method definitions outside class (for numba support)
-
 @jit
-def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_constant, site_energies,
-                      transitions_constant, transitions, problist, electrode_occupation):
+def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, 
+                     E_constant, site_energies, transitions_constant, 
+                     transitions, problist, electrode_occupation):
     '''
-    This functions does everything to perform one event, which means:
-    - Calculate site energies; it does this including chemical potential and
-        acceptor interaction.
-    - Calculate transition matrix; uses site_energies and transitions_constant
-        and implement the MA rate.
-    - Pick and perform event; uses the transition matrix (a standard step)
+    This function performs one hopping event, meaning:
+    - Calculate site energies; this is done by adding the acceptor-
+        acceptor interaction to the constant energy per site E_constant.
+    - Calculate transition matrix; uses site_energies and 
+        transitions_constant and implements the MA rate.
+    - Pick and perform event; uses the transition matrix 
     '''
-    # calc_site_energies_acc
+    # Calculate site_energies
     for i in range(N):
         acceptor_interaction = 0
         site_energies[i] = E_constant[i]
@@ -67,7 +46,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
 
         site_energies[i] += -I_0*R*acceptor_interaction
 
-    # calc_transitions
+    # Calculate transitions
     for i in range(N+P):
         for j in range(N+P):
             if(not _transition_possible(i, j, N, occupation)):
@@ -79,12 +58,12 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
                 else:
                     dE = site_energies[j] - site_energies[i]
 
+                # Calculate MA rate
                 if(dE > 0):
-                    t = nu*np.exp(-dE/kT)  # Calculate MA rate
+                    transitions[i, j] = nu*np.exp(-dE/kT)  
                 else:
-                    t = 1
+                    transitions[i, j] = 1
 
-                transitions[i, j] = t
     transitions = transitions_constant*transitions
 
     # pick_event
@@ -94,12 +73,13 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
             if(i == 0 and j == 0):
                 problist[0] = transitions[i, j]
             else:
-                problist[(N+P)*i + j] = transitions[i, j] + problist[(N+P)*i + j-1]
+                problist[(N+P)*i + j] = (transitions[i, j] 
+                                         + problist[(N+P)*i + j-1])
 
     # Calculate hopping time
     hop_time = np.random.exponential(scale=1/problist[-1])
 
-    # Normalization
+    # Normalization of probability list
     problist = problist/problist[-1]
 
     # Find transition index of random event
@@ -110,7 +90,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
             break
     #TODO: implement binary tree search algorithm
 
-    # Convert to acceptor/electrode indices
+    # Convert event to acceptor/electrode indices
     transition = [int(event/(N+P)), int(event%(N+P))]
 
     # Perform hop
@@ -127,26 +107,6 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, E_consta
     time += hop_time
 
     return hop_time, time, transition, occupation, electrode_occupation
-
-
-@jit
-def _calc_site_energies_acc(N, I_0, R, occupation, distances, E_constant, site_energies):
-    '''
-    Calculates the potential energy of each acceptor site by evaluating
-    the Coulomb interactions between all other acceptors and by adding
-    the constant energy terms.
-    The energies are stored in the (N+P)x1 array site_energies
-    '''
-    for i in range(N):
-        acceptor_interaction = 0
-        site_energies[i] = E_constant[i]
-        for j in range(N):
-            if j is not i:
-                acceptor_interaction += (1 - occupation[j])/distances[i, j]
-
-        site_energies[i] += -I_0*R*acceptor_interaction
-
-    return site_energies
 
 @jit
 def _transition_possible(i, j, N, occupation):
@@ -176,143 +136,55 @@ def _transition_possible(i, j, N, occupation):
         else:
             return True
 
-@jit
-def _calc_transitions_MA(N, P, nu, kT, I_0, R, occupation, transitions_constant, transitions,
-                         distances, site_energies):
-    '''
-    Calculates the transition matrix transitions using the Miller-Abrahams rate.
-    '''
-    for i in range(N+P):
-        for j in range(N+P):
-            if(not _transition_possible(i, j, N, occupation)):
-                transitions[i, j] = 0
-            else:
-                if(i < N and j < N):
-                    dE = (site_energies[j] - site_energies[i]
-                          - I_0*R/distances[i, j])
-                else:
-                    dE = site_energies[j] - site_energies[i]
-
-                t = nu*np.exp(-dE/kT)  # Calculate MA rate
-                # Threshold value if larger than 1
-                if(t > 1):
-                    t = 1
-
-                transitions[i, j] = t
-
-    return transitions_constant*transitions
-
-@jit
-def _pick_event(N, P, time, problist, transitions, occupation, electrodes):
-    '''
-    Picks event and performs the transition
-    '''
-    # Transform transitions matrix into cumulative sum
-    for i in range(N+P):
-        for j in range(N+P):
-            if(i == 0 and j == 0):
-                problist[0] = transitions[i, j]
-            else:
-                problist[(N+P)*i + j] = transitions[i, j] + problist[(N+P)*i + j-1]
-
-    # Calculate hopping time
-    hop_time = np.random.exponential(scale=1/problist[-1])
-
-    # Normalization
-    problist = problist/problist[-1]
-
-    # Find transition index of random event
-    event = np.random.rand()
-    for i in range((N+P)**2):
-        if(problist[i] >= event):
-            event = i
-            break
-    #TODO: implement binary tree search algorithm
-
-    # Convert to acceptor/electrode indices
-    transition = [int(event/(N+P)), int(event%(N+P))]
-
-    # Perform hop
-    if(transition[0] < N):  # Hop from acceptor
-        occupation[transition[0]] = False
-    else:  # Hop from electrode
-        electrodes[transition[0] - N, 4] -= 1
-    if(transition[1] < N):  # Hop to acceptor
-        occupation[transition[1]] = True
-    else:  # Hop to electrode
-        electrodes[transition[1] - N, 4] += 1
-
-    # Increment time
-    time += hop_time
-
-    return hop_time, time, transition, occupation, electrodes
-
 class kmc_dn():
-    '''This class is a wrapper for all functions and variables needed to perform
-    a kinetic monte carlo simulation of a variable range hopping system'''
-
     def __init__(self, N, M, xdim, ydim, zdim, mu = 0, **kwargs):
-        '''Upon initialization of this class, the impurities and charges are placed.
-        They are placed inside a rectangle of xdim by ydim. There are N acceptors
-        and M donors.
+        '''
+        =======================
+        kmc_dn simulation class
+        =======================
+        This class is capable of performing kinetic Monte Carlo 
+        simulations on a 1D/2D/3D domain of acceptor sites, surrounded
+        by an arbitary number of electrodes. The physical modelling is
+        based on the Miller-Abrahams formalism of variable range hopping
+        conduction and the simulation algorithm is a rather standard 
+        one.
 
-        ------------------------------------------------------------------------
         Input arguments
-        ------------------------------------------------------------------------
-        N; number of acceptors
-        M; number of donors
-        xdim; x dimension size of domain
-        ydim; y dimension size of domain
-        zdim; z dimension size of domain
+        ===============
+        N; int
+            number of acceptors.
+        M; int
+            number of donors.
+        xdim; float
+            x dimension of domain.
+        ydim; float
+            y dimension of domain, if ydim = 0 then domain is 1D.
+        zdim; float
+            z dimension of domain, if zdim = 0 then domain is 2D.
+        mu; float
+            chemical potential along those parts of the domain border
+            where no electrodes are defined.
 
-        possible kwargs:
-        electrodes; electrode configuration, an Px4 np.array, where
-            P is the number of electrodes, the first three columns correspond
-            to the x, y and coordinates of the electrode, respectively,
-            the fourth column holds the electrode voltage.
+        Possible keyword arguments
+        ==========================
+        electrodes; Px4 float np.array 
+            Represents the electrode layout, where P is the number of 
+            electrodes, the first three columns correspond to the x, y 
+            and z coordinates of the electrode, respectively.
+            The fourth column holds the electrode voltage.
             default: np.zeros((0, 4))
-        res; resolution used for potential landscape calculation
+        res; float
+            Resolution used for solving the chemical potential profile 
+            with fenics. E.g., if (xdim, ydim) = (1, 1) and res = 0.1, 
+            the domain would be split into hundred elements.
             default: min[xdim, ydim, zdim]/100
-        place_dopants_charges; choice of the place_dopants_charges method.
-            Possible options are:
-            'place_dopants_charges_random'; random dopant and charge placement
-            Default: place_dopants_charges_random
-        calc_E_constant; choice of the calc_E_constant method.
+        calc_E_constant; string
+            Determines the choice of the calc_E_constant method.
             Possible options are:
             'calc_E_constant_V'; include only local chemical potential
-            'calc_E_constant_V_comp'; include local chemical potential and
-                compensation sites.
+            'calc_E_constant_V_comp'; include local chemical potential 
+                and compensation sites.
             Default: calc_E_constant_V_comp
-        calc_site_energies; choice of the calc_site_energies method
-            Possible options are:
-            'calc_site_energies_acc'; Site energy depends on acc-acc interaction
-                and E_constant
-            Default: calc_site_energies_acc
-        calc_rate; choice of the calc_rate method
-            Possible options are:
-            'calc_rate_MA'; Miller-Abrahams rate
-            Default: calc_rate_MA
-        calc_transitions; choice of the calc_transitions method
-            Possible options are:
-            'calc_transitions_MA'; use the Miller-Abrahams rate.
-            Default: calc_transitions_MA
-        pick_event; choice of the pick_event method
-            Possible options are:
-            'pick_event_standard'; pick event following standard algorithm, i.e.
-                purely based on the transitions matrix.
-            Default: pick_event_standard
-        perform_event; choice of the perform_event method
-            Possible options are:
-            'perform_event_standard'; perfom event following standard algorithm,
-                i.e. change relevant occupation numbers and increment time.
-            Default: perform_event_standard
-        stopping_criterion; choice of the stopping_criterion method
-            Possible options are:
-            'stopping_criterion_discrete'; stop when a predetermined amount of
-                hops is reached.
-            'stopping_criterion_convergence'; stop when the current converged
-                the predefined tolerance tol.
-            Default: stopping_criterion_discrete
         callback; choice of the callback method
             Possible options are:
             'callback_standard'; track avg_carriers and current vectors
@@ -320,98 +192,109 @@ class kmc_dn():
             'callback_current_vectors'; track current vectors
             'callback_traffic'; tracks traffic in array
             Default: callback_standard
-
-        ------------------------------------------------------------------------
+        #TODO: change callback handling, by just providing some boolean
+        parameters, similar to the initialize method.
+        
         Class attributes
-        ------------------------------------------------------------------------
-        Constants:
-        e; elementary charge
-        eps; relative permittivity
-        nu; attempt frequency for transitions
+        ================
+        Here follows a list of all class attributes that were not 
+        previously mentioned, but are used in simulation.
+
+        Constants
+        ~~~~~~~~~
+        #TODO: remove dimensional constants in simulation.
+        dim; int
+            Represents the dimensionality of the system (either 1, 2 
+            or 3).
+        e; float
+            The elementary charge
+        eps; float
+        nu; float
+            Attempt frequency for hopping events
         k; boltzmann constant
         T; temperature
-        ab; bohr radius/localization radius
+        ab; float
+            Bohr radius/localization radius
         U; interaction energy for double occupancy (EXPERIMENTAL/UNIMPLEMENTED)
 
-        Other attributes:
-        time; simulation time
-        counter; simulation event counter
-        acceptors; Nx3 array, where first three columns are x, y, z position
-        donors; Mx3 array, where the columns represent x, y, z position of donors.
-            Donors are assumed to be always occupied.
-        occupation; (N,) bool array, indicating hole occupancy of each acceptor
-        electrodes; electrode configuration, an Px5 np.array, where
-            P is the number of electrodes, the first three columns correspond
-            to the x, y and coordinates of the electrode, respectively,
-            the fourth column holds the electrode voltage and the last column
-            tracks the amount of carriers sourced/sinked in the electrode.
-        electrodes_grid; same array as electrodes, but here x, y, z are integers
-            matched to the V matrix. So x, y, z are the indices such that
-            V[x, y, z] is the local chemical potential at that electrode.
-        distances; (N+P)x(N+P) array, with the distance for each transition
-        transitions; (N+P)x(N+P) array, with the transition rate for each transition
-        transitions_constant; (N+P)x(N+P) array, with the constant part
-            (i.e. position dependent) of the transitions array
-        transitions_possible; (N+P)x(N+P) boolean array, indicating for each
-            hop i -> j if it is possible.
-        vectors; (N+P)x(N+P)x3 array, where vectors[i, j] is the unit vector
-            point from site i to site j
-        current_vectors; (N+P)x3 array, where vectors[i] is the vector which
-        points in the average direction of transport through the acceptor i.
-        V; 3D array, the chemical potential profile
-        E_constant; Nx1 array, energy contributions that are constant throughout one simulation
-            run, is equal to the sum of:
-            eV_constant; Nx1 array, contribution of chemical potential to site energy
-            comp_constant; Nx1 array, contribution of compensation charges to site energy
-        site_energies; Nx1 array, contains potential energy of each acceptor site.
-        P; cumulative probability list for possible transitions
-        hop_time; time spent for the last hop
-        transition; [i, j] for the last hop from site i -> site j
-        current; Px1 array, holds the current, i.e. electrodes[:, 4]/time, for
-            each electrode
-        old_current; Px1 array, holds the current for the previous interval, used
+        Chemical potential related attributes
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        V; function
+            The chemical potential in the domain as a callable function.
+            E.g. in a (1, 1) domain V(0.5, 0.5) would give the chemical
+            potential in the center of the domain.
+        fn_electrodes; dict
+            A dictionary holding strings to define fn_expression.
+        fn_expression; string
+            A string containing the expression that defines the fenics
+            boundary condition.
+        fn_boundary; fenics Expression
+        fn_mesh; fenics Mesh
+        fn_functionspace; fenics FunctionSpace
+            Represents the functionspace in which fenics finds a
+            solution
+        fn_bc; fenics BC
+        fn_v; fenics TestFunction
+        fn_a;
+        fn_f;
+        fn_L;
+        
+        Other attributes
+        ~~~~~~~~~~~~~~~~
+        time; float
+            Simulation time.
+        counter; int
+            Counts the number of performed hops.
+        acceptors; Nx3 float np.array
+            Represents the acceptor layout. The columns correspond to
+            the x, y and z coordinates, respectively.
+        donors; Mx3 float np.array
+            Represents the donor layout. The columns correspond to
+            the x, y and z coordinates, respectively.
+        occupation; (N,) bool np.array
+            Indicates hole occupancy of each acceptor.
+        electrode_occupation; (P,) int np.array
+            Indicates the amount of holes sourced/sinked from each
+            electrode. A negative value means sourcing, i.e. holes
+            leaving the electrode into the system.
+        distances; (N+P)x(N+P) float np.array
+            Contains the distance between all sites, i.e. both acceptors
+            and electrodes.
+        transitions; (N+P)x(N+P) float np.array
+            Contains the transition rate for each pair of sites. I.e.
+            transitions[i, j] is the transition rate for hop i->j.
+        transitions_constant; (N+P)x(N+P) float np.array
+            Contains the constant (i.e. position dependent) contribution
+            to the transitions array.
+        vectors; (N+P)x(N+P)x3 float np.array
+            vectors[i, j] is the unit vector pointing from site i to 
+            site j.
+        E_constant; (N,) float np.array
+            Contains energy contributions that are constant throughout 
+            one simulation run and is (by default) equal to the sum of 
+            eV_constant and comp_constant.
+        site_energies; (N+P,) float np.array
+            Contains the potential energy of each site.
+        hop_time; float
+            Time increment of the last hop.
+        transition; list
+            [i, j], where i and j correspond to the sites for the hop 
+            i->j. 
+        current; (P,) float np.array
+            Contains the current, i.e. electrode_occupation/time, for
+            each electrode.
+        old_current; (P,) float np.array
+            Contains the current for the previous interval, used
             to check for convergence.
         avg_current; tracks the current each interval
         avg_carriers; tracks the average number of carriers in the system.
 
-        ------------------------------------------------------------------------
         Class methods
-        ------------------------------------------------------------------------
-        Individual methods:
-        place_dopants_charges; places dopants and charges on the domain
-        calc_distances; calculates matrices distances and vectors
-        calc_V; calculates matrix V
-        calc_E_constant; calculates potential energy terms that are constant
-            through a single simulation.
-        calc_site_energies; calculate the vector site_energies
-        calc_transitions; calculate the matrix transitions
-            depends on
-            - calc_rate; hopping rate equation
-        callback; arbitrary function that is executed each kmc iteration. Used to
-            track various quantities, visualization etc.
-        pick_event; pick event based on transitions
-        perform_event; perform event picked by pick_event and increment time.
-        stopping_criterion; function that checks if stopping criterion is met.
-
-        Wrapper methods:
-        The above methods are all specifically performing one step of a
-        simulation routine. However, each method can be replaced by a different
-        one. E.g. calc_site_energies will depend on the type of Hamiltonian you
-        wish to simulate, but its output will always be of the same type.
-        There are two main wrapper methods that allow you to easily run a
-        simulation in an external script.
-        initialize; performs everything that is constant for kmc simulation
-            - place_dopants_charges
-            - calc_distances
-            - calc_V
-            - calc_E_constant
-        simulate; runs a kmc simulation based on the initialized situation
-            while(not stopping_criterion)
-            - calc_site_energies
-            - calc_transitions
-            - pick_event
-            - perform_event
-            - callback
+        =============
+        Below follows a short description of each method in this class.
+        For detailed documentation, refer to the individual docstrings
+        of each method.
+        #TODO
         '''
         # Constants
         self.e = 1  #  1.602E-19 Coulomb
@@ -831,6 +714,7 @@ class kmc_dn():
 
         if(self.dim == 2):
             surplus = self.xdim/10  # Electrode modelled as point +/- surplus
+            #TODO: Make this not hardcoded
             for i in range(self.P):
                 if(self.electrodes[i, 0] == 0 or self.electrodes[i, 0] == self.xdim):
                     self.fn_expression += (f'x[0] == e{i}_x && '
