@@ -296,23 +296,18 @@ class kmc_dn():
         #TODO
         '''
         # Constants
-        self.e = 1  #  1.602E-19 Coulomb
-        self.eps = 1  # Relative permittivity (11.68 for boron doped Si)
-        self.nu = 1
-        self.k = 1
-        self.T = 1
-        self.ab = 100 # Bohr radius (or localization radius)
-        self.U = 100  # 5/8 * 1/self.ab   # J
+        self.nu = 1  # Hop attempt frequency (1/s)
+        self.kT = 1  # Temperature energy
+        self.I_0 = self.kT  # Interaction energy
         self.time = 0  # s
         self.mu = mu  # Equilibrium chemical potential
-
+        
         # Initialize variables
         self.N = N
         self.M = M
         self.xdim = xdim
         self.ydim = ydim
         self.zdim = zdim
-
 
         # Check dimensionality
         if(self.ydim == 0 and self.zdim == 0):
@@ -325,14 +320,8 @@ class kmc_dn():
             self.dim = 3
             self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
 
-        # Initialize shorthand constants
-        self.I_0 = self.e**2/(4*np.pi*self.eps*self.R)
-        self.kT = self.k*self.T
-
         # Set dimensonless variables to 1
         self.ab = self.R
-        self.I_0 = self.kT
-
 
         # Initialize parameter kwargs
         if('electrodes' in kwargs):
@@ -778,10 +767,10 @@ class kmc_dn():
         for i in range(self.N):
             # Add electrostatic potential
             if(self.dim == 1):
-                self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0])
+                self.eV_constant[i] += self.V(self.acceptors[i, 0])
 
             if(self.dim == 2):
-                self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0], self.acceptors[i, 1])
+                self.eV_constant[i] += self.V(self.acceptors[i, 0], self.acceptors[i, 1])
 
             if(self.dim == 3):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
@@ -794,7 +783,7 @@ class kmc_dn():
         self.E_constant = self.eV_constant
 
         # Calculate electrode energies
-        self.site_energies[self.N:] = self.e*self.electrodes[:, 3]
+        self.site_energies[self.N:] = self.electrodes[:, 3]
 
     def calc_E_constant_V_comp(self):
         '''
@@ -810,10 +799,10 @@ class kmc_dn():
         for i in range(self.N):
             # Add electrostatic potential
             if(self.dim == 1):
-                self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0])
+                self.eV_constant[i] += self.V(self.acceptors[i, 0])
 
             if(self.dim == 2):
-                self.eV_constant[i] += self.e*self.V(self.acceptors[i, 0], self.acceptors[i, 1])
+                self.eV_constant[i] += self.V(self.acceptors[i, 0], self.acceptors[i, 1])
 
             if(self.dim == 3):
                 x = self.acceptors[i, 0]/self.xdim * (self.V.shape[0] - 3) + 1
@@ -830,7 +819,7 @@ class kmc_dn():
         self.E_constant = self.eV_constant + self.comp_constant
 
         # Calculate electrode energies
-        self.site_energies[self.N:] = self.e*self.electrodes[:, 3]
+        self.site_energies[self.N:] = self.electrodes[:, 3]
 
     def callback(self, traffic = False, dwelltime = False):
         '''
@@ -897,13 +886,8 @@ class kmc_dn():
         else:
             self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
 
-        # Initialize shorthand constants
-        self.I_0 = self.e**2/(4*np.pi*self.eps*self.R)
-        self.kT = self.k*self.T
-
         # Set dimensonless variables to 1
         self.ab = self.R
-        self.I_0 = self.kT
 
         # Re-initialize everything but placement and V
         self.initialize(V = False, dopant_placement = False)
