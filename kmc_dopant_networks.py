@@ -474,7 +474,8 @@ class kmc_dn():
 
         self.current = self.electrode_occupation/self.time
 
-    def simulate(self, tol = 1E-2, interval = 1000, prehops = 0):
+    def simulate(self, tol = 1E-2, interval = 1000, prehops = 0,
+                 maxhops = 1E6):
         '''
         Wrapper function that performs a simulation until the all electrode
         currents have converged with tolerance tol. The function checks
@@ -551,6 +552,10 @@ class kmc_dn():
                 else:
                     self.old_current = self.current.copy()  # Store current
                     self.converged = False
+
+            # Check for maximum amount of hops
+            if(self.counter == maxhops):
+                self.converged = True
 
             self.counter += 1
 

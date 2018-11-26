@@ -302,7 +302,7 @@ def IV(kmc_dn, electrode, voltagelist,
         discrete = True
 
     voltages = len(voltagelist)
-    currentlist = np.zeros((voltages, kmc_dn.P))
+    currentlist = np.zeros((kmc_dn.P, voltages))
     
     # Check if any other electrode is non-zero
     zero = sum(kmc_dn.electrodes[:, 3]) - kmc_dn.electrodes[electrode, 3]
@@ -325,7 +325,7 @@ def IV(kmc_dn, electrode, voltagelist,
             kmc_dn.eV_constant = eVref * voltagelist[i]/V0
             kmc_dn.electrodes[electrode, 3] = voltagelist[i]
             kmc_dn.E_constant = kmc_dn.eV_constant + kmc_dn.comp_constant
-            kmc_dn.site_energies[kmc_dn.N + electrode] = kmc_dn.e*voltagelist[i]
+            kmc_dn.site_energies[kmc_dn.N + electrode] = voltagelist[i]
         # Otherwise recalculate V
         else:
             kmc_dn.electrodes[electrode, 3] = voltagelist[i]
@@ -336,7 +336,7 @@ def IV(kmc_dn, electrode, voltagelist,
         else:
             kmc_dn.simulate(tol = tol, interval = interval, prehops = prehops)
 
-        currentlist[i] = kmc_dn.current
+        currentlist[:, i] = kmc_dn.current
         
         # Print estimated remaining time
         if(i == 1):
