@@ -154,7 +154,7 @@ def visualize_current_density(kmc_dn, res = None):
 
 def visualize_dwelltime(kmc_dn, show_V = True):
     '''
-    Returns a figure which shows the domain with potential profile. 
+    Returns a figure which shows the domain with potential profile.
     It shows dwelltime (relative hole occupancy) as the size of
     the dopants.
     Note: only 2D is supported
@@ -229,7 +229,7 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
 
     # Set chemical potential and initialize
     kmc_dn.mu = mu
-    kmc_dn.initialize(placement = False)
+    kmc_dn.initialize(dopant_placement = False)
 
     # Make microstate array
     perm_array = np.zeros((kmc_dn.N), dtype = bool)
@@ -260,7 +260,7 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
     interval_counter = 0
     for i in range(hops):
         # Hopping event
-        kmc_dn.simulate_discrete(hops = 1, reset = False)
+        kmc_dn.simulate_discrete_callback(hops = 1, reset = False)
 
         # Save time spent in previous microstate
         p_sim[previous_microstate] += kmc_dn.hop_time
@@ -303,7 +303,7 @@ def IV(kmc_dn, electrode, voltagelist,
 
     voltages = len(voltagelist)
     currentlist = np.zeros((kmc_dn.P, voltages))
-    
+
     # Check if any other electrode is non-zero
     zero = sum(kmc_dn.electrodes[:, 3]) - kmc_dn.electrodes[electrode, 3]
     zero = (zero == 0)
@@ -337,7 +337,7 @@ def IV(kmc_dn, electrode, voltagelist,
             kmc_dn.simulate(tol = tol, interval = interval, prehops = prehops)
 
         currentlist[:, i] = kmc_dn.current
-        
+
         # Print estimated remaining time
         if(i == 1):
             print(f'Estimated time for IV curve: {(time.time()-tic)*voltages} seconds')

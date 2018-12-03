@@ -7,7 +7,7 @@ a kinetic Monte Carlo simulation algorithm for dopant networks.
 In particular, simulations on an acceptor-doped material with
 compensating donors can be performed on a domain surrounded by an
 arbitrary number of electrodes. Documentation is available both
-in docstrings in this file, as well as on GitHub 
+in docstrings in this file, as well as on GitHub
 (LINK).
 
 TODO list
@@ -25,16 +25,218 @@ import fenics as fn
 
 # Method definitions outside class (for numba support)
 @jit
-def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances, 
-                     E_constant, site_energies, transitions_constant, 
+def _simulate(N, P, nu, kT, I_0, R, time, occupation, distances,
+               E_constant, site_energies, transitions_constant,
+               transitions, problist, electrode_occupation,
+               tol, interval, maxhops):
+    '''
+    This function performs hopping events until convergence, meaning:
+    - Calculate site energies; this is done by adding the acceptor-
+        acceptor interaction to the constant energy per site E_constant.
+    - Calculate transition matrix; uses site_energies and
+        transitions_constant and implements the MA rate.
+    - Pick and perform event; uses the transition matrix
+    This repeats until current has converged.
+    '''
+    old_current = np.zeros(P)
+    converged = False
+    counter = 0
+    while(not converged):
+        # Calculate site_energies
+        for i in range(N):
+            acceptor_interaction = 0
+            site_energies[i] = E_constant[i]
+            for j in range(N):
+                if j is not i:
+                    acceptor_interaction += (1 - occupation[j])/distances[i, j]
+
+            site_energies[i] += -I_0*R*acceptor_interaction
+
+        # Calculate transitions
+        for i in range(N+P):
+            for j in range(N+P):
+                if(not _transition_possible(i, j, N, occupation)):
+                    transitions[i, j] = 0
+                else:
+                    if(i < N and j < N):
+                        dE = (site_energies[j] - site_energies[i]
+                              - I_0*R/distances[i, j])
+                    else:
+                        dE = site_energies[j] - site_energies[i]
+
+                    # Calculate MA rate
+                    if(dE > 0):
+                        transitions[i, j] = nu*np.exp(-dE/kT)
+                    else:
+                        transitions[i, j] = 1
+        #TODO: Fix nu handling
+
+        transitions = transitions_constant*transitions
+
+        # pick_event
+        # Transform transitions matrix into cumulative sum
+        for i in range(N+P):
+            for j in range(N+P):
+                if(i == 0 and j == 0):
+                    problist[0] = transitions[i, j]
+                else:
+                    problist[(N+P)*i + j] = (transitions[i, j]
+                                             + problist[(N+P)*i + j-1])
+
+        # Calculate hopping time
+        hop_time = np.random.exponential(scale=1/problist[-1])
+
+        # Normalization of probability list
+        problist = problist/problist[-1]
+
+        # Find transition index of random event
+        event = np.random.rand()
+        for i in range((N+P)**2):
+            if(problist[i] >= event):
+                event = i
+                break
+        #TODO: implement binary tree search algorithm
+
+        # Convert event to acceptor/electrode indices
+        transition = [int(event/(N+P)), int(event%(N+P))]
+
+        # Perform hop
+        if(transition[0] < N):  # Hop from acceptor
+            occupation[transition[0]] = False
+        else:  # Hop from electrode
+            electrode_occupation[transition[0] - N] -= 1
+        if(transition[1] < N):  # Hop to acceptor
+            occupation[transition[1]] = True
+        else:  # Hop to electrode
+            electrode_occupation[transition[1] - N] += 1
+
+        # Increment time
+        time += hop_time
+
+        # Check for convergence
+        if(counter != 0 and counter%interval == 0):
+            current = electrode_occupation/time
+
+            # Check convergence
+            if(np.linalg.norm(current, 2) == 0):
+                if(np.linalg.norm(old_current - current, 2) == 0):
+                    converged = True
+                else:
+                    converged = False
+            elif((np.linalg.norm(old_current - current, 2)
+                  /np.linalg.norm(current,2)) < tol):
+                converged = True
+            else:
+                old_current = current.copy()  # Store current
+                converged = False
+
+        # Check for maximum amount of hops
+        if(counter == maxhops):
+            converged = True
+
+        counter += 1
+
+    return time, electrode_occupation
+
+@jit
+def _simulate_discrete(N, P, nu, kT, I_0, R, time, occupation, distances,
+                       E_constant, site_energies, transitions_constant,
+                       transitions, problist, electrode_occupation,
+                       hops):
+    '''
+    This function performs hops hopping events, meaning:
+    - Calculate site energies; this is done by adding the acceptor-
+        acceptor interaction to the constant energy per site E_constant.
+    - Calculate transition matrix; uses site_energies and
+        transitions_constant and implements the MA rate.
+    - Pick and perform event; uses the transition matrix
+    And repeat this hops times.
+    '''
+    for hh in range(hops):
+        # Calculate site_energies
+        for i in range(N):
+            acceptor_interaction = 0
+            site_energies[i] = E_constant[i]
+            for j in range(N):
+                if j is not i:
+                    acceptor_interaction += (1 - occupation[j])/distances[i, j]
+
+            site_energies[i] += -I_0*R*acceptor_interaction
+
+        # Calculate transitions
+        for i in range(N+P):
+            for j in range(N+P):
+                if(not _transition_possible(i, j, N, occupation)):
+                    transitions[i, j] = 0
+                else:
+                    if(i < N and j < N):
+                        dE = (site_energies[j] - site_energies[i]
+                              - I_0*R/distances[i, j])
+                    else:
+                        dE = site_energies[j] - site_energies[i]
+
+                    # Calculate MA rate
+                    if(dE > 0):
+                        transitions[i, j] = nu*np.exp(-dE/kT)
+                    else:
+                        transitions[i, j] = 1
+        #TODO: Fix nu handling
+
+        transitions = transitions_constant*transitions
+
+        # pick_event
+        # Transform transitions matrix into cumulative sum
+        for i in range(N+P):
+            for j in range(N+P):
+                if(i == 0 and j == 0):
+                    problist[0] = transitions[i, j]
+                else:
+                    problist[(N+P)*i + j] = (transitions[i, j]
+                                             + problist[(N+P)*i + j-1])
+
+        # Calculate hopping time
+        hop_time = np.random.exponential(scale=1/problist[-1])
+
+        # Normalization of probability list
+        problist = problist/problist[-1]
+
+        # Find transition index of random event
+        event = np.random.rand()
+        for i in range((N+P)**2):
+            if(problist[i] >= event):
+                event = i
+                break
+        #TODO: implement binary tree search algorithm
+
+        # Convert event to acceptor/electrode indices
+        transition = [int(event/(N+P)), int(event%(N+P))]
+
+        # Perform hop
+        if(transition[0] < N):  # Hop from acceptor
+            occupation[transition[0]] = False
+        else:  # Hop from electrode
+            electrode_occupation[transition[0] - N] -= 1
+        if(transition[1] < N):  # Hop to acceptor
+            occupation[transition[1]] = True
+        else:  # Hop to electrode
+            electrode_occupation[transition[1] - N] += 1
+
+        # Increment time
+        time += hop_time
+
+    return time, electrode_occupation
+
+@jit
+def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances,
+                     E_constant, site_energies, transitions_constant,
                      transitions, problist, electrode_occupation):
     '''
     This function performs one hopping event, meaning:
     - Calculate site energies; this is done by adding the acceptor-
         acceptor interaction to the constant energy per site E_constant.
-    - Calculate transition matrix; uses site_energies and 
+    - Calculate transition matrix; uses site_energies and
         transitions_constant and implements the MA rate.
-    - Pick and perform event; uses the transition matrix 
+    - Pick and perform event; uses the transition matrix
     '''
     # Calculate site_energies
     for i in range(N):
@@ -60,7 +262,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances,
 
                 # Calculate MA rate
                 if(dE > 0):
-                    transitions[i, j] = nu*np.exp(-dE/kT)  
+                    transitions[i, j] = nu*np.exp(-dE/kT)
                 else:
                     transitions[i, j] = 1
     #TODO: Fix nu handling
@@ -74,7 +276,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances,
             if(i == 0 and j == 0):
                 problist[0] = transitions[i, j]
             else:
-                problist[(N+P)*i + j] = (transitions[i, j] 
+                problist[(N+P)*i + j] = (transitions[i, j]
                                          + problist[(N+P)*i + j-1])
 
     # Calculate hopping time
@@ -143,11 +345,11 @@ class kmc_dn():
         =======================
         kmc_dn simulation class
         =======================
-        This class is capable of performing kinetic Monte Carlo 
+        This class is capable of performing kinetic Monte Carlo
         simulations on a 1D/2D/3D domain of acceptor sites, surrounded
         by an arbitary number of electrodes. The physical modelling is
         based on the Miller-Abrahams formalism of variable range hopping
-        conduction and the simulation algorithm is a rather standard 
+        conduction and the simulation algorithm is a rather standard
         one.
 
         Input arguments
@@ -168,22 +370,22 @@ class kmc_dn():
 
         Possible keyword arguments
         ==========================
-        electrodes; Px4 float np.array 
-            Represents the electrode layout, where P is the number of 
-            electrodes, the first three columns correspond to the x, y 
+        electrodes; Px4 float np.array
+            Represents the electrode layout, where P is the number of
+            electrodes, the first three columns correspond to the x, y
             and z coordinates of the electrode, respectively.
             The fourth column holds the electrode voltage.
             default: np.zeros((0, 4))
         res; float
-            Resolution used for solving the chemical potential profile 
-            with fenics. E.g., if (xdim, ydim) = (1, 1) and res = 0.1, 
+            Resolution used for solving the chemical potential profile
+            with fenics. E.g., if (xdim, ydim) = (1, 1) and res = 0.1,
             the domain would be split into hundred elements.
             default: min[xdim, ydim, zdim]/100
         calc_E_constant; string
             Determines the choice of the calc_E_constant method.
             Possible options are:
             'calc_E_constant_V'; include only local chemical potential
-            'calc_E_constant_V_comp'; include local chemical potential 
+            'calc_E_constant_V_comp'; include local chemical potential
                 and compensation sites.
             default: calc_E_constant_V_comp
         callback_traffic; bool
@@ -197,14 +399,14 @@ class kmc_dn():
 
         Class attributes
         ================
-        Here follows a list of all class attributes that were not 
+        Here follows a list of all class attributes that were not
         previously mentioned, but are used in simulation.
 
         Constants
         ~~~~~~~~~
         #TODO: remove dimensional constants in simulation.
         dim; int
-            Represents the dimensionality of the system (either 1, 2 
+            Represents the dimensionality of the system (either 1, 2
             or 3).
         e; float
             The elementary charge
@@ -238,7 +440,7 @@ class kmc_dn():
         fn_a;
         fn_f;
         fn_L;
-        
+
         Other attributes
         ~~~~~~~~~~~~~~~~
         time; float
@@ -267,19 +469,19 @@ class kmc_dn():
             Contains the constant (i.e. position dependent) contribution
             to the transitions array.
         vectors; (N+P)x(N+P)x3 float np.array
-            vectors[i, j] is the unit vector pointing from site i to 
+            vectors[i, j] is the unit vector pointing from site i to
             site j.
         E_constant; (N,) float np.array
-            Contains energy contributions that are constant throughout 
-            one simulation run and is (by default) equal to the sum of 
+            Contains energy contributions that are constant throughout
+            one simulation run and is (by default) equal to the sum of
             eV_constant and comp_constant.
         site_energies; (N+P,) float np.array
             Contains the potential energy of each site.
         hop_time; float
             Time increment of the last hop.
         transition; list
-            [i, j], where i and j correspond to the sites for the hop 
-            i->j. 
+            [i, j], where i and j correspond to the sites for the hop
+            i->j.
         current; (P,) float np.array
             Contains the current, i.e. electrode_occupation/time, for
             each electrode.
@@ -302,7 +504,7 @@ class kmc_dn():
         self.I_0 = self.kT  # Interaction energy
         self.time = 0  # s
         self.mu = mu  # Equilibrium chemical potential
-        
+
         # Initialize variables
         self.N = N
         self.M = M
@@ -361,6 +563,14 @@ class kmc_dn():
         else:
             self.callback_dwelltime = False
 
+        # Determine if simulation methods need callback
+        if(self.callback_traffic or self.callback_dwelltime):
+            self.simulate = self.simulate_callback
+            self.simulate_discrete = self.simulate_discrete_callback
+        else:
+            self.simulate = self.simulate_fast
+            self.simulate_discrete = self.simulate_discrete_fast
+            
         # Initialize sim object
         self.initialize()
 
@@ -408,14 +618,14 @@ class kmc_dn():
             self.calc_E_constant()
 
 
-    def simulate_discrete(self, hops = 1000, reset = True, prehops = 0):
+    def simulate_discrete_callback(self, hops = 1000, reset = True, prehops = 0):
         '''
         Wrapper function that perform a simulation loop for a predetermined
         amount of hops.
         hops has to be an integer.
         Reset is optional, such that this function can be used to go through
         a simulation step by step (useful for e.g. boltzmann validation)
-        prehops can be used to perform hops before measuring any current, 
+        prehops can be used to perform hops before measuring any current,
         and can be used to bring the system in 'equilibrium' first.
         '''
         if(reset):
@@ -444,7 +654,7 @@ class kmc_dn():
                                                            self.problist,
                                                            self.electrode_occupation)
 
-                self.reset()
+            self.reset()
 
         for i in range(hops):
             # Perform a single event
@@ -468,14 +678,61 @@ class kmc_dn():
                                                            self.problist,
                                                            self.electrode_occupation)
 
-            self.callback(traffic = self.callback_traffic, 
+            self.callback(traffic = self.callback_traffic,
                           dwelltime = self.callback_dwelltime)
 
             self.counter += 1
 
+    def simulate_discrete_fast(self, hops = 1000, reset = True, prehops = 0):
+        '''
+        Simple wrapper function for running a simulation that performs
+        hops hops with prehops hops before tracking current.
+        '''
+        if(reset):
+            self.reset()  # Reset all relevant trackers before running a simulation
+
+        # Prehops
+        if(prehops != 0):
+            _simulate_discrete(self.N,
+                               self.P,
+                               self.nu,
+                               self.kT,
+                               self.I_0,
+                               self.R,
+                               self.time,
+                               self.occupation,
+                               self.distances,
+                               self.E_constant,
+                               self.site_energies,
+                               self.transitions_constant,
+                               self.transitions,
+                               self.problist,
+                               self.electrode_occupation,
+                               prehops)
+            self.reset()
+        # Hops
+        (self.time,
+         self.electrode_occupation) = _simulate_discrete(self.N,
+                                                       self.P,
+                                                       self.nu,
+                                                       self.kT,
+                                                       self.I_0,
+                                                       self.R,
+                                                       self.time,
+                                                       self.occupation,
+                                                       self.distances,
+                                                       self.E_constant,
+                                                       self.site_energies,
+                                                       self.transitions_constant,
+                                                       self.transitions,
+                                                       self.problist,
+                                                       self.electrode_occupation,
+                                                       hops)
+
+
         self.current = self.electrode_occupation/self.time
 
-    def simulate(self, tol = 1E-2, interval = 1000, prehops = 0,
+    def simulate_callback(self, tol = 1E-2, interval = 1000, prehops = 0,
                  maxhops = 1E6):
         '''
         Wrapper function that performs a simulation until the all electrode
@@ -534,7 +791,7 @@ class kmc_dn():
                                                            self.problist,
                                                            self.electrode_occupation)
 
-            self.callback(traffic = self.callback_traffic, 
+            self.callback(traffic = self.callback_traffic,
                           dwelltime = self.callback_dwelltime)
 
             # Check for convergence
@@ -561,6 +818,63 @@ class kmc_dn():
             self.counter += 1
 
         print(f'Converged in {self.counter} hops')
+
+    def simulate_fast(self, tol = 1E-2, interval = 1000, prehops = 0,
+                      maxhops = 1E6):
+        '''
+        Wrapper function that performs a simulation until the all electrode
+        currents have converged with tolerance tol. The function checks
+        for convergence every interval hops.
+        prehops indicates the amount of hops performed before calculating
+        currents for convergence. This can be used to first bring the system
+        into 'equilibrium'.
+        '''
+        self.reset()  # Reset all relevant trackers before running a simulation
+
+        # Prehops
+        if(prehops != 0):
+            _simulate_discrete(self.N,
+                               self.P,
+                               self.nu,
+                               self.kT,
+                               self.I_0,
+                               self.R,
+                               self.time,
+                               self.occupation,
+                               self.distances,
+                               self.E_constant,
+                               self.site_energies,
+                               self.transitions_constant,
+                               self.transitions,
+                               self.problist,
+                               self.electrode_occupation,
+                               prehops)
+            self.reset()
+
+        # Simulate until convergence
+        (self.time,
+         self.electrode_occupation) = _simulate(self.N,
+                                               self.P,
+                                               self.nu,
+                                               self.kT,
+                                               self.I_0,
+                                               self.R,
+                                               self.time,
+                                               self.occupation,
+                                               self.distances,
+                                               self.E_constant,
+                                               self.site_energies,
+                                               self.transitions_constant,
+                                               self.transitions,
+                                               self.problist,
+                                               self.electrode_occupation,
+                                               tol,
+                                               interval,
+                                               maxhops)
+
+        self.current = self.electrode_occupation/self.time
+
+        self.reset()
 
     def reset(self):
         '''
@@ -833,7 +1147,7 @@ class kmc_dn():
         '''
         This function is called after every hop and is used to track
         certain quantities. The various options are tuned by keywords.
-        if traffic = True; the traffic is tracked, i.e. all hopping 
+        if traffic = True; the traffic is tracked, i.e. all hopping
             events are stored in the matrix traffic.
         if dwelltime = True; the total time that an acceptor is occupied
             by a hole is tracked for each acceptor.
