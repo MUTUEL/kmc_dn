@@ -47,11 +47,8 @@ kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes)
 
 #%% Profile code
 
+# Prerun discrete simulation for honest timing
+kmc.simulate_discrete(hops=hops)
+
 a = cProfile.run('kmc.simulate_discrete(hops = hops)')
 
-
-#%% Profile _pick_event (it takes long)
-
-#b = cProfile.run('kmc_dn._pick_event(kmc.N, kmc.P, kmc.time, kmc.problist, kmc.transitions, kmc.occupation, kmc.electrodes)')
-
-#%% Visualize()

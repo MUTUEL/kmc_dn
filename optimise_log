@@ -359,3 +359,31 @@ ncalls  tottime  percall  cumtime  percall filename:lineno(function)
         1    0.000    0.000    0.145    0.145 {built-in method builtins.exec}
         2    0.000    0.000    0.000    0.000 {built-in method numpy.core.multiarray.zeros}
         1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+
+# Speed as of dec 3 2018
+
+Ordered by: standard name
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.102    0.102 <string>:1(<module>)
+    10000    0.051    0.000    0.051    0.000 kmc_dopant_networks.py:27(_full_event_loop)
+        1    0.049    0.049    0.102    0.102 kmc_dopant_networks.py:411(simulate_discrete)
+        1    0.000    0.000    0.000    0.000 kmc_dopant_networks.py:565(reset)
+    10000    0.001    0.000    0.001    0.000 kmc_dopant_networks.py:832(callback)
+        1    0.000    0.000    0.102    0.102 {built-in method builtins.exec}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+
+# Put discrete loop inside jitted function
+
+         6 function calls in 0.027 seconds
+
+   Ordered by: standard name
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.027    0.027 <string>:1(<module>)
+        1    0.027    0.027    0.027    0.027 kmc_dopant_networks.py:141(_simulate_discrete)
+        1    0.000    0.000    0.027    0.027 kmc_dopant_networks.py:686(simulate_discrete_fast)
+        1    0.000    0.000    0.000    0.000 kmc_dopant_networks.py:879(reset)
+        1    0.000    0.000    0.027    0.027 {built-in method builtins.exec}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+
