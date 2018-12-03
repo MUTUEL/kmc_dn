@@ -63,6 +63,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances,
                     transitions[i, j] = nu*np.exp(-dE/kT)  
                 else:
                     transitions[i, j] = 1
+    #TODO: Fix nu handling
 
     transitions = transitions_constant*transitions
 
@@ -589,7 +590,6 @@ class kmc_dn():
         # Initialization
         self.acceptors = np.random.rand(self.N, 3)
         self.donors = np.random.rand(self.M, 3)
-        self.occupation = np.zeros(self.N, dtype=bool)
 
         # Place dopants
         self.acceptors[:, 0] *= self.xdim
@@ -603,6 +603,9 @@ class kmc_dn():
         '''
         Places N-M holes
         '''
+        # Empty charges
+        self.occupation = np.zeros(self.N, dtype=bool)
+
         # Place charges
         charges_placed = 0
         while(charges_placed < self.N-self.M):
