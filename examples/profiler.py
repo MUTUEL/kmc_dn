@@ -32,7 +32,7 @@ M = 0  # Number of donors
 xdim = 1  # Length along x dimension
 ydim = 1  # Length along y dimension
 zdim = 0  # Length along z dimension
-hops = int(1E4)
+hops = int(1E6)
 #res = 1  # Resolution of laplace grid
 
 # Define electrodes
