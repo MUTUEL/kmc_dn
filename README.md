@@ -1,7 +1,7 @@
 ![Kinetic Monte Carlo simulation tool for dopant networks](https://github.com/brambozz/kmc_dn/blob/master/misc/logo.png "Kinetic Monte Carlo simulation tool for dopant networks")
 
 ## Dependencies
-+ python
++ python 3.6+
 + numpy
 + matplotlib
 + numba
