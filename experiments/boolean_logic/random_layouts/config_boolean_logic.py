@@ -68,16 +68,16 @@ class experiment_config(config_class):
         ################################################
         # Model parameters
         self.kT = 1
-        self.I_0 = 50*self.kT
-        self.ab_R = 0.25
+        self.I_0 = 15*self.kT
+        self.ab_R = 0.22
         self.layout = 1
-        self.prehops = 1000
-        self.hops = 1000
+        self.prehops = 100000
+        self.hops = 10000
 
         # Define experiment
-        self.generations = 100
+        self.generations = 40
         self.generange = [[0, 1]]*5
-        self.avg = 10
+        self.avg = 1
         self.P = 0
         self.Q = 1
         self.output = 2
@@ -107,7 +107,7 @@ class experiment_config(config_class):
             self.XNOR[i*self.avg:(i+1)*self.avg] = self.XNOR_discrete[i]
 
         # Set target
-        self.target = self.XOR
+        self.target = self.XNOR
         self.Fitness = self.FitnessCorr
 
         # Specify either partition or genomes

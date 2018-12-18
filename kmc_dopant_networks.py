@@ -22,6 +22,7 @@ TODO list
 import numpy as np
 from numba import jit
 import fenics as fn
+import logging
 
 # Method definitions outside class (for numba support)
 @jit
@@ -981,6 +982,9 @@ class kmc_dn():
         - electrode positions/number
         Note: only 2D support for now
         '''
+        # Turn off log messages
+        fn.set_log_level(logging.WARNING)
+
         # Put electrode positions and values in a dict
         self.fn_electrodes = {}
         for i in range(self.P):
