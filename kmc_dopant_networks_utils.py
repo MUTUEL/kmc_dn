@@ -107,12 +107,12 @@ def visualize_current_density(kmc_dn, res = None):
 
     # Set up grid
     x = np.linspace(0, kmc_dn.xdim, kmc_dn.xdim/res + 1)
-    y = np.linspace(0, kmc_dn.xdim, kmc_dn.xdim/res + 1)
+    y = np.linspace(0, kmc_dn.ydim, kmc_dn.ydim/res + 1)
     current_map = np.zeros((len(x) - 1, len(y) - 1))
 
     # Calculate current_vectors from traffic
     current_vectors = np.zeros((kmc_dn.transitions.shape[0], 3))
-    for i in range(kmc_dn.N):
+    for i in range(kmc_dn.N + kmc_dn.P):
         for j in range(kmc_dn.traffic.shape[0]):
             if(j is not i):
                 # Arriving hops
@@ -121,34 +121,52 @@ def visualize_current_density(kmc_dn, res = None):
                 # Departing hops
                 current_vectors[i] += kmc_dn.traffic[i, j] * kmc_dn.vectors[i, j]
 
-    norm = np.linalg.norm(current_vectors[:kmc_dn.N], axis = 1)  # Vector lengths
+    norm = np.linalg.norm(current_vectors, axis = 1)  # Vector lengths
 
-    for i in range(len(x)-1):
-        for j in range(len(y)-1):
-            # For each square in domain, loop over all acceptors
-            indices_in_square = []
+
+    # Loop over all squares in the domain
+    # Square index is bottom left corner
+    for i in range(len(x) -1):
+        for j in range(len(y) - 1):
+            acc_in_box = []  # indices of acceptors in box
             for k in range(kmc_dn.N):
-                if( x[i] <= kmc_dn.acceptors[k, 0] <= x[i+1]
-                    and y[j] <= kmc_dn.acceptors[k, 1] <= y[j+1]):
-                    current_map[i, j] += norm[k]
+                if( (x[i] <= kmc_dn.acceptors[k, 0] <= x[i+1])
+                    and (y[j] <= kmc_dn.acceptors[k, 1] <= y[j+1])):
+                    acc_in_box.append(k)
 
+            net_box_current = 0
+            for k in acc_in_box:
+                net_box_current += current_vectors[k]
+            
+            current_map[i, j] = np.linalg.norm(net_box_current)
+
+    # Normalize electrode currents
+    electrode_currents = kmc_dn.electrode_occupation/np.max(kmc_dn.electrode_occupation)
+
+    interp = 'none'
+    interp = 'gaussian'
     # Plot current density
     fig = plt.figure()
-    plt.axis('scaled')
     ax = fig.add_subplot(111)
-    ax.set_xlim(right=kmc_dn.xdim)
-    ax.set_ylim(top=kmc_dn.ydim)
-    ax.imshow(current_map.transpose(), interpolation = 'none',
+    margins = 0.1
+    ax.set_xlim(left=-margins*kmc_dn.xdim, right=(1+margins)*kmc_dn.xdim)
+    ax.set_ylim(bottom=-margins*kmc_dn.ydim, top=(1+margins)*kmc_dn.ydim)
+    ax.set_aspect('equal')
+    ax.imshow(current_map.transpose(), interpolation = interp,
            origin='lower', extent=(0, kmc_dn.xdim, 0, kmc_dn.ydim), cmap=plt.cm.plasma)
     # Overlay dopants
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], color = 'black', marker='o')
     # Overlay dopant vectors
     x_dopants = kmc_dn.acceptors[:, 0]
     y_dopants = kmc_dn.acceptors[:, 1]
-    u = current_vectors[:kmc_dn.N, 0]/norm
-    v = current_vectors[:kmc_dn.N, 1]/norm
-    ax.quiver(x_dopants, y_dopants, u, v, norm, cmap=plt.cm.inferno)
-    #ax.quiver(x_dopants, y_dopants, u, v)
+    u = current_vectors[:, 0]/norm
+    v = current_vectors[:, 1]/norm
+    #ax.quiver(x_dopants, y_dopants, u, v, norm, cmap=plt.cm.inferno)
+    ax.quiver(x_dopants, y_dopants, u[:kmc_dn.N], v[:kmc_dn.N])
+    # Overlay electrodes as dots
+    ax.quiver(kmc_dn.electrodes[:, 0], kmc_dn.electrodes[:, 1],
+              current_vectors[kmc_dn.N:, 0], current_vectors[kmc_dn.N:, 1], pivot='mid', color='red',
+              alpha=0.8)
 
     return fig, current_map
 

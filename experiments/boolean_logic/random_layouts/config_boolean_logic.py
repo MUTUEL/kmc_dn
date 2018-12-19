@@ -70,14 +70,14 @@ class experiment_config(config_class):
         self.kT = 1
         self.I_0 = 15*self.kT
         self.ab_R = 0.22
-        self.layout = 1
-        self.prehops = 100000
-        self.hops = 10000
+        self.layout = 2
+        self.prehops = 10000
+        self.hops = 100000
 
         # Define experiment
         self.generations = 40
         self.generange = [[0, 1]]*5
-        self.avg = 1
+        self.avg = 3
         self.P = 0
         self.Q = 1
         self.output = 2

@@ -225,7 +225,7 @@ def _simulate_discrete(N, P, nu, kT, I_0, R, time, occupation, distances,
         # Increment time
         time += hop_time
 
-    return time, electrode_occupation
+    return time, occupation, electrode_occupation
 
 @jit
 def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances,
@@ -684,35 +684,42 @@ class kmc_dn():
 
             self.counter += 1
 
-    def simulate_discrete_fast(self, hops = 1000, reset = True, prehops = 0):
+    def simulate_discrete_fast(self, hops = 0, reset = True, prehops = 0):
         '''
         Simple wrapper function for running a simulation that performs
         hops hops with prehops hops before tracking current.
         '''
+        if(hops == 0 and prehops == 0):
+            print('Specify either hops or prehops')
+            return
+
         if(reset):
             self.reset()  # Reset all relevant trackers before running a simulation
 
         # Prehops
         if(prehops != 0):
-            _simulate_discrete(self.N,
-                               self.P,
-                               self.nu,
-                               self.kT,
-                               self.I_0,
-                               self.R,
-                               self.time,
-                               self.occupation,
-                               self.distances,
-                               self.E_constant,
-                               self.site_energies,
-                               self.transitions_constant,
-                               self.transitions,
-                               self.problist,
-                               self.electrode_occupation,
-                               prehops)
+            (self.time,
+             self.occupation,
+             self.electrode_occupation) = _simulate_discrete(self.N,
+                                                           self.P,
+                                                           self.nu,
+                                                           self.kT,
+                                                           self.I_0,
+                                                           self.R,
+                                                           self.time,
+                                                           self.occupation,
+                                                           self.distances,
+                                                           self.E_constant,
+                                                           self.site_energies,
+                                                           self.transitions_constant,
+                                                           self.transitions,
+                                                           self.problist,
+                                                           self.electrode_occupation,
+                                                           prehops)
             self.reset()
         # Hops
         (self.time,
+         self.occupation,
          self.electrode_occupation) = _simulate_discrete(self.N,
                                                        self.P,
                                                        self.nu,
@@ -729,7 +736,6 @@ class kmc_dn():
                                                        self.problist,
                                                        self.electrode_occupation,
                                                        hops)
-
 
         self.current = self.electrode_occupation/self.time
 
