@@ -50,7 +50,7 @@ kmc.ab = ab_R*kmc.R
 P = [0, 1, 0, 1]
 Q = [0, 0, 1, 1]
 w = [1, 1, 1, 1]
-kmc.electrodes[cf.output] = 0
+kmc.electrodes[cf.output, 3] = 0
 
 # Initialize arrays to save experiment
 geneArray = np.zeros((cf.generations, cf.genomes, cf.genes))
@@ -81,8 +81,8 @@ for i in range(cf.generations):
         # Obtain device response
         output = np.zeros(4*cf.avg)
         for k in range(4):
-            kmc.electrodes[cf.P] = P[k]*cf.inputrange
-            kmc.electrodes[cf.Q] = Q[k]*cf.inputrange
+            kmc.electrodes[cf.P, 3] = P[k]*cf.inputrange
+            kmc.electrodes[cf.Q, 3] = Q[k]*cf.inputrange
             kmc.update_V()
             kmc.simulate_discrete(prehops = prehops)
             for l in range(cf.avg):

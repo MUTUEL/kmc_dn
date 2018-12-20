@@ -31,7 +31,7 @@ kmc.load_acceptors(acceptor_layouts[layout])
 kmc.load_donors(donor_layouts[layout])
 
 # Parameters
-gene = [0.22220101, 0.71913737, 0.44880244, 0.69106348, 0.20022154]
+gene = [0.3730247  0.94274381 0.49073662 0.89030952 0.30259412]
 avg = 1
 output_electrode = 2
 kT = 1
