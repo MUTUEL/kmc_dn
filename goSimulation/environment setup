@@ -1,0 +1,19 @@
+Download anaconda
+    cd /tmp
+    curl -O https://repo.anaconda.com/archive/Anaconda3-5.2.0-Linux-x86_64.sh
+
+Check if is correct
+sha256sum Anaconda3-5.2.0-Linux-x86_64.sh
+expecting: 09f53738b0cd3bb96f5b1bac488e5528df9906be2480fe61df40e0e0d19e3d48  Anaconda3-5.2.0-Linux-x86_64.sh
+
+Run installation
+bash Anaconda3-5.2.0-Linux-x86_64.sh 
+source ~/.bashrc
+
+Create environment and activate it
+conda create --name kmc python=3
+source activate kmc
+
+Install necessary packages
+conda install numpy matplotlib
+conda install -c conda-forge/label/gcc7 numba fenics
