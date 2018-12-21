@@ -535,6 +535,12 @@ class kmc_dn():
             self.electrodes = np.zeros((0, 4))
             self.P = 0
 
+        if('static_electrodes' in kwargs):
+            self.static_electrodes = kwargs['static_electrodes'].copy()
+        else:
+            self.static_electrodes = np.zeros((0, 4))
+
+
         if('res' in kwargs):
             self.res = kwargs['res']
         else:
@@ -998,12 +1004,20 @@ class kmc_dn():
             if(self.dim > 1):
                 self.fn_electrodes[f'e{i}_y'] = self.electrodes[i, 1]
             self.fn_electrodes[f'e{i}'] = self.electrodes[i, 3]
+        for i in range(self.static_electrodes.shape[0]):
+            self.fn_electrodes[f'es{i}_x'] = self.static_electrodes[i, 0]
+            if(self.dim > 1):
+                self.fn_electrodes[f'es{i}_y'] = self.static_electrodes[i, 1]
+            self.fn_electrodes[f'es{i}'] = self.static_electrodes[i, 3]
+
 
         # Define boundary expression string
         self.fn_expression = ''
         if(self.dim == 1):
             for i in range(self.P):
                 self.fn_expression += (f'x[0] == e{i}_x ? e{i} : ')
+            for i in range(self.static_electrodes.shape[0]):
+                self.fn_expression += (f'x[0] == es{i}_x ? es{i} : ')
 
         if(self.dim == 2):
             surplus = self.xdim/10  # Electrode modelled as point +/- surplus
@@ -1017,6 +1031,16 @@ class kmc_dn():
                     self.fn_expression += (f'x[0] >= e{i}_x - {surplus} && '
                                            f'x[0] <= e{i}_x + {surplus} && '
                                            f'x[1] == e{i}_y ? e{i} : ')
+            for i in range(self.static_electrodes.shape[0]):
+                if(self.static_electrodes[i, 0] == 0 or self.static_electrodes[i, 0] == self.xdim):
+                    self.fn_expression += (f'x[0] == es{i}_x && '
+                                           f'x[1] >= es{i}_y - {surplus} && '
+                                           f'x[1] <= es{i}_y + {surplus} ? es{i} : ')
+                else:
+                    self.fn_expression += (f'x[0] >= es{i}_x - {surplus} && '
+                                           f'x[0] <= es{i}_x + {surplus} && '
+                                           f'x[1] == es{i}_y ? es{i} : ')
+
         self.fn_expression += f'{self.mu}'  # Add constant chemical potential
 
         # Define boundary expression
@@ -1060,6 +1084,8 @@ class kmc_dn():
         # Update electrode values in fn_electrodes
         for i in range(self.P):
             self.fn_electrodes[f'e{i}'] = self.electrodes[i, 3]
+        for i in range(self.static_electrodes.shape[0]):
+            self.fn_electrodes[f'es{i}'] = self.static_electrodes[i, 3]
 
         # Update boundary condition
         self.fn_boundary = fn.Expression(self.fn_expression,
