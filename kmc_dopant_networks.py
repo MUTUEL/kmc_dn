@@ -19,6 +19,9 @@ TODO list
 '''
 
 # Imports
+import sys
+sys.path.insert(0,'./goSimulation')
+from goSimulation.pythonBind import callGoSimulation
 import numpy as np
 from numba import jit
 import fenics as fn
@@ -720,7 +723,7 @@ class kmc_dn():
         # Hops
         (self.time,
          self.occupation,
-         self.electrode_occupation) = _simulate_discrete(self.N,
+         self.electrode_occupation) = callGoSimulation(self.N,
                                                        self.P,
                                                        self.nu,
                                                        self.kT,
@@ -730,11 +733,9 @@ class kmc_dn():
                                                        self.occupation,
                                                        self.distances,
                                                        self.E_constant,
-                                                       self.site_energies,
                                                        self.transitions_constant,
-                                                       self.transitions,
-                                                       self.problist,
                                                        self.electrode_occupation,
+                                                       self.site_energies,
                                                        hops)
 
         self.current = self.electrode_occupation/self.time

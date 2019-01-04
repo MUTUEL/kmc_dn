@@ -19,6 +19,8 @@ Pseudo-code (algorithm):
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
 
+import sys
+sys.path.insert(0,'../')
 import kmc_dopant_networks as kmc_dn
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,12 +29,12 @@ import cProfile
 
 #%% Parameters
 
-N = 10  # Number of acceptors
-M = 0  # Number of donors
+N = 30  # Number of acceptors
+M = 3  # Number of donors
 xdim = 1  # Length along x dimension
 ydim = 1  # Length along y dimension
 zdim = 0  # Length along z dimension
-hops = int(1E6)
+hops = int(2E5)
 #res = 1  # Resolution of laplace grid
 
 # Define electrodes
@@ -48,7 +50,7 @@ kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes)
 #%% Profile code
 
 # Prerun discrete simulation for honest timing
-kmc.simulate_discrete(hops=hops)
+#kmc.simulate_discrete(hops=hops)
 
 a = cProfile.run('kmc.simulate_discrete(hops = hops)')
 

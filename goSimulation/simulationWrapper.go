@@ -3,7 +3,7 @@ package main
 import "C"
 import "fmt"
 import "sync"
-//import ".simulation"
+//import "main"
 
 var count int
 var mtx sync.Mutex
@@ -17,6 +17,7 @@ func Log(msg string) int {
   }
   
 func deFlattenFloat64(m []float64, x int64, y int64) [][]float64 {
+	Log(fmt.Sprintf("%d %d", x, y))
 	  r := make([][]float64, x)
 	  c := 0
 	  for i := int64(0); i < x; i+=1 {
@@ -26,15 +27,15 @@ func deFlattenFloat64(m []float64, x int64, y int64) [][]float64 {
 			  c += 1
 		  }
 	  }
-	  Log(fmt.Sprintf("%v", r))
 	  return r
 }
 
 //export simulateWrapper
 func simulateWrapper(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
 		occupation []bool, distances []float64, E_constant []float64, transitions_constant float64,
-		electrode_occupation []int, site_energies []float64, hops int) float64{
-	newDistances := deFlattenFloat64(distances, NSites, NSites);
+		electrode_occupation []float64, site_energies []float64, hops int) float64 {
+	Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
+	newDistances := deFlattenFloat64(distances, NSites+NElectrodes, NSites+NElectrodes);
 	return simulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, time, occupation, 
 		newDistances , E_constant, transitions_constant, electrode_occupation, site_energies, hops)
 }

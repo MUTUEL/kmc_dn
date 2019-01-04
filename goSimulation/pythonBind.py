@@ -1,5 +1,6 @@
 from ctypes import *
 from numpy import float64
+import numpy as np
 import timeit
 
 def flattenDouble(arr2):
@@ -23,10 +24,18 @@ def getGoSlice(arr):
 class GoSlice(Structure):
     _fields_ = [("data", POINTER(c_double)),
                 ("len", c_longlong), ("cap", c_longlong)]
+                
 
-def callSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
+def getSliceValues(slice):
+    r = []
+    for i in range(slice.len):
+        r.append(slice.data[i])
+    return r
+
+def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
 		distances , E_constant, transitions_constant, electrode_occupation, site_energies, hops):
     newDistances, d, s = flattenDouble(distances)
+    print ("d is %d and s is %d"%(d, s))
     newDistances = GoSlice(newDistances, s, s)
     newOccupation = getGoSlice(occupation)
     newE_constant = getGoSlice(E_constant)
@@ -36,8 +45,12 @@ def callSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation,
     lib.simulateWrapper.argtypes = [c_longlong, c_longlong, c_double, c_double, c_double, c_double, c_double,
         GoSlice, GoSlice, GoSlice, c_double, GoSlice, GoSlice, c_int]
     lib.simulateWrapper.restype = c_double
-
-    time, newElectrodes_occupation = lib.simulateWrapper(NSites, NElectrodes, nu, kT, I_0, R, time, newOccupation, 
+    print (newElectrode_occupation.data[0])
+    #printSlice(newElectrode_occupation)
+    time = lib.simulateWrapper(NSites, NElectrodes, nu, kT, I_0, R, time, newOccupation, 
 		newDistances , newE_constant, 1.0, newElectrode_occupation, newSite_energies, hops)
-    print (time)
-    print (newElectrode_occupation)
+    #printSlice (newElectrode_occupation)
+    rElectrode_occupation = np.array([[int(i) for i in getSliceValues(newElectrode_occupation)]])
+    print (rElectrode_occupation)    
+
+    return (time, occupation, rElectrode_occupation)
