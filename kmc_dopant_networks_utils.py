@@ -94,7 +94,8 @@ def visualize_current(kmc_dn):
 
     return fig
 
-def visualize_current_density(kmc_dn, res = None):
+def visualize_current_density(kmc_dn, res = None, title = None,
+                              normalize = True):
     '''
     Returns a figure of the domain where the colors indicate the current
     density and arrow the current direction at dopant sites. It uses only
@@ -140,6 +141,9 @@ def visualize_current_density(kmc_dn, res = None):
             
             current_map[i, j] = np.linalg.norm(net_box_current)
 
+    if(normalize):
+        current_map = current_map/np.max(current_map)
+
     # Normalize electrode currents
     electrode_currents = kmc_dn.electrode_occupation/np.max(kmc_dn.electrode_occupation)
 
@@ -152,7 +156,7 @@ def visualize_current_density(kmc_dn, res = None):
     ax.set_xlim(left=-margins*kmc_dn.xdim, right=(1+margins)*kmc_dn.xdim)
     ax.set_ylim(bottom=-margins*kmc_dn.ydim, top=(1+margins)*kmc_dn.ydim)
     ax.set_aspect('equal')
-    ax.imshow(current_map.transpose(), interpolation = interp,
+    im = ax.imshow(current_map.transpose(), interpolation = interp,
            origin='lower', extent=(0, kmc_dn.xdim, 0, kmc_dn.ydim), cmap=plt.cm.plasma)
     # Overlay dopants
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], color = 'black', marker='o')
@@ -167,6 +171,14 @@ def visualize_current_density(kmc_dn, res = None):
     ax.quiver(kmc_dn.electrodes[:, 0], kmc_dn.electrodes[:, 1],
               current_vectors[kmc_dn.N:, 0], current_vectors[kmc_dn.N:, 1], pivot='mid', color='red',
               alpha=0.8)
+
+    # Add colorbar
+    fig.colorbar(im, label = 'Current density (a.u.)')
+
+    ax.set_xlabel('x (a.u.)')
+    ax.set_ylabel('y (a.u.)')
+    if(title != None):
+        ax.set_title(title)
 
     return fig, current_map
 

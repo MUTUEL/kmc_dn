@@ -690,6 +690,8 @@ class kmc_dn():
 
             self.counter += 1
 
+        self.current = self.electrode_occupation/self.time
+
     def simulate_discrete_fast(self, hops = 0, reset = True, prehops = 0):
         '''
         Simple wrapper function for running a simulation that performs
