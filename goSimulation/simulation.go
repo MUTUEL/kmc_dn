@@ -3,7 +3,7 @@ package main
 import "fmt"
 import "math"
 import "math/rand"
-import "sort"
+//import "sort"
 
 func wrapReturnables(time float64, occupation []bool, electrode_occupation []int) []float64 {
     returnable := make([]float64, 1 + len(occupation) + len(electrode_occupation))
@@ -89,7 +89,7 @@ func makeJump(occupation []bool, electrode_occupation []float64, site_energies [
 
 func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64, time float64,
         occupation []bool, distances [][]float64, E_constant []float64, transitions_constant float64,
-        electrode_occupation []float64, site_energies []float64, hops int) float64 {
+        electrode_occupation []float64, site_energies []float64, hops int, record_problist bool) float64 {
     N := NSites + NElectrodes
     transitions := make([][]float64, N)
     allProbs := make(map[uint64]*probabilities)
@@ -111,6 +111,7 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
     propabilityMedianCounter := 0
     countMedians := 0
     randStat := 0
+    showStep := 1
     for hop := 0; hop < hops; hop++ {
         var probList []float64
         key64 := getKey(occupation)
@@ -120,11 +121,11 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         } else {
             calcTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N)
             probList = make([]float64, N*N)
-            testList := make([]float64, N*N)
+            //testList := make([]float64, N*N)
 
             for i := 0; i < N; i++ {
                 for j := 0; j < N; j++ {
-                    testList[N*i+j] = transitions[i][j]
+                    //testList[N*i+j] = transitions[i][j]
                     if i==0 && j==0 {
                         probList[0] = transitions[i][j]
                     } else {
@@ -133,7 +134,7 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
                 }
             }
 
-            sort.Float64s(testList)
+            /*sort.Float64s(testList)
             summa := float64(0)
             for i := 0; i < len(testList); i++ {
                 summa += testList[i]
@@ -142,10 +143,11 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
                     propabilityMedianCounter+=i
                     break
                 }
+            }*/
+            if record_problist {
+                newProbability := probabilities{probList}
+                allProbs[key64] = &newProbability
             }
-
-            newProbability := probabilities{probList}
-            allProbs[key64] = &newProbability
         }
         time += rand.ExpFloat64() / (probList[len(probList)-1] * transitions_constant) //TODO this is a potential error
         eventRand := rand.Float64() * probList[len(probList)-1]
@@ -161,6 +163,11 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         to := event%N
         makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
             NSites, from, to)
+        if hop % showStep == 0 {
+            showStep*=2
+            current := electrode_occupation[0] / time
+            fmt.Println("Hop: %d, current: %.2f", hop, current)
+        }
     }
     fmt.Println(time)
     fmt.Println(site_energies)

@@ -36,6 +36,12 @@ func simulateWrapper(NSites int64, NElectrodes int64, nu float64, kT float64, I_
 		electrode_occupation []float64, site_energies []float64, hops int) float64 {
 	Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
 	newDistances := deFlattenFloat64(distances, NSites+NElectrodes, NSites+NElectrodes);
+	record_problist := true;
+	if NSites > 20 {
+		record_problist = false;
+	} else if 2^NSites > int64(hops) / 2 {
+		record_problist = false;
+	}
 	return simulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, time, occupation, 
-		newDistances , E_constant, transitions_constant, electrode_occupation, site_energies, hops)
+		newDistances , E_constant, transitions_constant, electrode_occupation, site_energies, hops, record_problist)
 }
