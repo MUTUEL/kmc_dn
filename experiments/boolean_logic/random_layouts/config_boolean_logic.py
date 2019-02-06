@@ -68,22 +68,22 @@ class experiment_config(config_class):
         ################################################
         # Model parameters
         self.kT = 1
-        self.I_0 = 1.5*self.kT
-        self.ab_R = 0.11
-        self.layout = 4
+        self.I_0 = 50*self.kT
+        self.ab_R = 0.5
+        self.layout = 0
         self.prehops = 10000
-        self.hops = 50000
+        self.hops = 100000
 
         # Define experiment
-        self.generations = 20
+        self.generations = 50
         self.generange = [[0, 1]]*5
         self.avg = 2
         self.P = 0
         self.Q = 1
         self.output = 2
         self.controls = [3, 4, 5, 6, 7]
-        self.controlrange = np.array([-300, 300])*self.kT
-        self.inputrange = 150*self.kT
+        self.controlrange = np.array([-2000, 2000])*self.kT
+        self.inputrange = 1000*self.kT
 
         # Define targets
         self.AND_discrete = np.array([0, 0, 0, 1])
