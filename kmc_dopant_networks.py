@@ -14,7 +14,6 @@ TODO list
 =========
 #TODO: Implement Tsigankov mixed algorithm and perform validation
 
-
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
 '''
 
@@ -72,7 +71,7 @@ def _simulate(N, P, nu, kT, I_0, R, time, occupation, distances,
                     if(dE > 0):
                         transitions[i, j] = nu*np.exp(-dE/kT)
                     else:
-                        transitions[i, j] = 1
+                        transitions[i, j] = nu
         #TODO: Fix nu handling
 
         transitions = transitions_constant*transitions
@@ -183,7 +182,7 @@ def _simulate_discrete(N, P, nu, kT, I_0, R, time, occupation, distances,
                     if(dE > 0):
                         transitions[i, j] = nu*np.exp(-dE/kT)
                     else:
-                        transitions[i, j] = 1
+                        transitions[i, j] = nu
         #TODO: Fix nu handling
 
         transitions = transitions_constant*transitions
@@ -231,6 +230,108 @@ def _simulate_discrete(N, P, nu, kT, I_0, R, time, occupation, distances,
     return time, occupation, electrode_occupation
 
 @jit
+def _simulate_discrete_record(N, P, nu, kT, I_0, R, time, occupation, 
+                              distances,
+                               E_constant, site_energies, transitions_constant,
+                               transitions, problist, electrode_occupation,
+                               hops):
+    '''
+    This function performs hops hopping events, meaning:
+    - Calculate site energies; this is done by adding the acceptor-
+        acceptor interaction to the constant energy per site E_constant.
+    - Calculate transition matrix; uses site_energies and
+        transitions_constant and implements the MA rate.
+    - Pick and perform event; uses the transition matrix
+    And repeat this hops times.
+    '''
+    # Initialize time, current and traffic array
+    t_array = np.zeros(hops)
+    electrode_occupation_array = np.zeros((len(electrode_occupation), hops))
+    traffic = np.zeros(transitions_constant.shape)
+
+    for hh in range(hops):
+        # Append current time
+        t_array[hh] = time
+
+        # Calculate site_energies
+        for i in range(N):
+            acceptor_interaction = 0
+            site_energies[i] = E_constant[i]
+            for j in range(N):
+                if j is not i:
+                    acceptor_interaction += (1 - occupation[j])/distances[i, j]
+
+            site_energies[i] += -I_0*R*acceptor_interaction
+
+        # Calculate transitions
+        for i in range(N+P):
+            for j in range(N+P):
+                if(not _transition_possible(i, j, N, occupation)):
+                    transitions[i, j] = 0
+                else:
+                    if(i < N and j < N):
+                        dE = (site_energies[j] - site_energies[i]
+                              - I_0*R/distances[i, j])
+                    else:
+                        dE = site_energies[j] - site_energies[i]
+
+                    # Calculate MA rate
+                    if(dE > 0):
+                        transitions[i, j] = nu*np.exp(-dE/kT)
+                    else:
+                        transitions[i, j] = nu
+        #TODO: Fix nu handling
+
+        transitions = transitions_constant*transitions
+
+        # pick_event
+        # Transform transitions matrix into cumulative sum
+        for i in range(N+P):
+            for j in range(N+P):
+                if(i == 0 and j == 0):
+                    problist[0] = transitions[i, j]
+                else:
+                    problist[(N+P)*i + j] = (transitions[i, j]
+                                             + problist[(N+P)*i + j-1])
+
+        # Calculate hopping time
+        hop_time = np.random.exponential(scale=1/problist[-1])
+
+        # Normalization of probability list
+        problist = problist/problist[-1]
+
+        # Find transition index of random event
+        event = np.random.rand()
+        for i in range((N+P)**2):
+            if(problist[i] >= event):
+                event = i
+                break
+        #TODO: implement binary tree search algorithm
+
+        # Convert event to acceptor/electrode indices
+        transition = [int(event/(N+P)), int(event%(N+P))]
+
+        # Perform hop
+        if(transition[0] < N):  # Hop from acceptor
+            occupation[transition[0]] = False
+        else:  # Hop from electrode
+            electrode_occupation[transition[0] - N] -= 1
+        if(transition[1] < N):  # Hop to acceptor
+            occupation[transition[1]] = True
+        else:  # Hop to electrode
+            electrode_occupation[transition[1] - N] += 1
+
+        # Update traffic
+        traffic[transition[0], transition[1]] += 1
+
+        # Append current electrode occupation
+        electrode_occupation_array[:, hh] = electrode_occupation
+
+        # Increment time
+        time += hop_time
+
+    return t_array, occupation, electrode_occupation_array, traffic
+@jit
 def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances,
                      E_constant, site_energies, transitions_constant,
                      transitions, problist, electrode_occupation):
@@ -268,7 +369,7 @@ def _full_event_loop(N, P, nu, kT, I_0, R, time, occupation, distances,
                 if(dE > 0):
                     transitions[i, j] = nu*np.exp(-dE/kT)
                 else:
-                    transitions[i, j] = 1
+                    transitions[i, j] = nu
     #TODO: Fix nu handling
 
     transitions = transitions_constant*transitions
@@ -354,7 +455,9 @@ class kmc_dn():
         by an arbitary number of electrodes. The physical modelling is
         based on the Miller-Abrahams formalism of variable range hopping
         conduction and the simulation algorithm is a rather standard
-        one.
+        one. A more detailed description of the model may be found
+        in my (Bram de Wilde) master thesis, which will be published
+        on the GitHub page for this project.
 
         Input arguments
         ===============
@@ -379,6 +482,14 @@ class kmc_dn():
             electrodes, the first three columns correspond to the x, y
             and z coordinates of the electrode, respectively.
             The fourth column holds the electrode voltage.
+            default: np.zeros((0, 4))
+        static_electrodes; Px4 float np.array
+            Represents the electrode layout, where P is the number of
+            electrodes, the first three columns correspond to the x, y
+            and z coordinates of the electrode, respectively.
+            The fourth column holds the electrode voltage.
+            These electrodes do not allow any current transport and
+            only influence the potential profile V.
             default: np.zeros((0, 4))
         res; float
             Resolution used for solving the chemical potential profile
@@ -408,19 +519,22 @@ class kmc_dn():
 
         Constants
         ~~~~~~~~~
-        #TODO: remove dimensional constants in simulation.
         dim; int
             Represents the dimensionality of the system (either 1, 2
             or 3).
-        e; float
-            The elementary charge
-        eps; float
         nu; float
             Attempt frequency for hopping events
-        k; boltzmann constant
-        T; temperature
+        kT; float
+            Energy corresponding to the temperature (i.e. Boltzmann 
+            constant multiplied by temperature)
         ab; float
             Bohr radius/localization radius
+        R; float
+            The average distance between acceptors. This is evaluated
+            by R = N^(-1/dim), where N is the acceptor density
+        I_0; float
+            The interaction energy for two acceptors separated by a 
+            distance R, i.e. I_0 = e**2/(4*pi*eps) * 1/R
         U; interaction energy for double occupancy (EXPERIMENTAL/UNIMPLEMENTED)
 
         Chemical potential related attributes
@@ -538,6 +652,12 @@ class kmc_dn():
             self.electrodes = np.zeros((0, 4))
             self.P = 0
 
+        if('static_electrodes' in kwargs):
+            self.static_electrodes = kwargs['static_electrodes'].copy()
+        else:
+            self.static_electrodes = np.zeros((0, 4))
+
+
         if('res' in kwargs):
             self.res = kwargs['res']
         else:
@@ -578,14 +698,17 @@ class kmc_dn():
         # Initialize sim object
         self.initialize()
 
-    def initialize(self, dopant_placement = True, charge_placement = True, distances = True,
-                   V = True, E_constant = True):
+    def initialize(self, dopant_placement = True, charge_placement = True, 
+                   distances = True, V = True, E_constant = True):
         '''
         Wrapper function which:
-        - places acceptors/donors
-        - calculates distances
-        - calculates V (electrostatic potential profile)
-        - calculates E_constant
+        - Initializes various attributes
+        - Places acceptors/donors
+        - Places charges
+        - Calculates distances
+        - Calculates constant part of transitions
+        - Calculates V (electrostatic potential profile)
+        - Calculates E_constant
         These are all methods that determine the starting position of a kmc
         simulation.
         All methods are toggleable by boolean values.
@@ -631,6 +754,9 @@ class kmc_dn():
         a simulation step by step (useful for e.g. boltzmann validation)
         prehops can be used to perform hops before measuring any current,
         and can be used to bring the system in 'equilibrium' first.
+        This function is used in combination with callback functions at
+        each hopping event. Which callback functions are used is set
+        upon initializing the kmc object.
         '''
         if(reset):
             self.reset()  # Reset all relevant trackers before running a simulation
@@ -687,10 +813,14 @@ class kmc_dn():
 
             self.counter += 1
 
-    def simulate_discrete_fast(self, hops = 0, reset = True, prehops = 0):
+        self.current = self.electrode_occupation/self.time
+
+    def simulate_discrete_fast(self, hops = 0, reset = True, prehops = 0,
+                                record_current = False):
         '''
         Simple wrapper function for running a simulation that performs
         hops hops with prehops hops before tracking current.
+        It uses the numba compiled _simulate_discrete.
         '''
         if(hops == 0 and prehops == 0):
             print('Specify either hops or prehops')
@@ -720,10 +850,14 @@ class kmc_dn():
                                                            self.electrode_occupation,
                                                            prehops)
             self.reset()
+
         # Hops
-        (self.time,
-         self.occupation,
-         self.electrode_occupation) = _simulate_discrete(self.N,
+
+        if record_current:
+            (self.time,
+             self.occupation,
+             self.electrode_occupation,
+             self.traffic) = _simulate_discrete_record(self.N,
                                                            self.P,
                                                            self.nu,
                                                            self.kT,
@@ -738,7 +872,26 @@ class kmc_dn():
                                                            self.transitions,
                                                            self.problist,
                                                            self.electrode_occupation,
-                                                       hops)
+                                                           hops)
+        else:
+            (self.time,
+             self.occupation,
+             self.electrode_occupation) = _simulate_discrete(self.N,
+                                                           self.P,
+                                                           self.nu,
+                                                           self.kT,
+                                                           self.I_0,
+                                                           self.R,
+                                                           self.time,
+                                                           self.occupation,
+                                                           self.distances,
+                                                           self.E_constant,
+                                                           self.site_energies,
+                                                           self.transitions_constant,
+                                                           self.transitions,
+                                                           self.problist,
+                                                           self.electrode_occupation,
+                                                           hops)
 
         self.current = self.electrode_occupation/self.time
 
@@ -941,12 +1094,23 @@ class kmc_dn():
 
     def reset(self):
         '''
-        Resets all relevant trackers before running a simulation
+        Resets all relevant trackers before running a simulation.
+        In particular it resets:
+        - Simulation time and hop counter
+        - Simulation current, i.e. electrode_occupation
+        - Any callback attributes if applicable
+
+        Importantly, this function does NOT reset the occupation of
+        acceptors. This is important if you want to run e.g. 10 
+        simulations of the same system, but want them to be physically
+        sequential. It would not make sense to randomize the placement
+        then, since the equilibrium amount of charge carriers could
+        be different.
         '''
         self.time = 0
         self.old_current = 0
         self.counter = 0
-        self.electrode_occupation[:] = 0  # Reset current
+        self.electrode_occupation = np.zeros(self.P, dtype=int)
 
         # Callback quantities
         if(self.callback_traffic):
@@ -958,11 +1122,10 @@ class kmc_dn():
     def place_dopants_random(self):
         '''
         Place dopants and charges on a 3D hyperrectangular domain (xdim, ydim, zdim).
-        Place N acceptors and M donors. Place N-M charges.
+        Place N acceptors and M donors. 
         Returns acceptors (Nx4 array) and donors (Mx3 array). The first three columns
         of each represent the x, y and z coordinates, respectively, of the acceptors
-        and donors. The fourth column of acceptors denotes charge occupancy, with
-        0 being an unoccupied acceptor and 1 being an occupied acceptor
+        and donors. 
         '''
         # Initialization
         self.acceptors = np.random.rand(self.N, 3)
@@ -978,7 +1141,8 @@ class kmc_dn():
 
     def place_charges_random(self):
         '''
-        Places N-M holes
+        Places N-M holes on the acceptor sites.
+        This is done purely randomly.
         '''
         # Empty charges
         self.occupation = np.zeros(self.N, dtype=bool)
@@ -1054,12 +1218,20 @@ class kmc_dn():
             if(self.dim > 1):
                 self.fn_electrodes[f'e{i}_y'] = self.electrodes[i, 1]
             self.fn_electrodes[f'e{i}'] = self.electrodes[i, 3]
+        for i in range(self.static_electrodes.shape[0]):
+            self.fn_electrodes[f'es{i}_x'] = self.static_electrodes[i, 0]
+            if(self.dim > 1):
+                self.fn_electrodes[f'es{i}_y'] = self.static_electrodes[i, 1]
+            self.fn_electrodes[f'es{i}'] = self.static_electrodes[i, 3]
+
 
         # Define boundary expression string
         self.fn_expression = ''
         if(self.dim == 1):
             for i in range(self.P):
                 self.fn_expression += (f'x[0] == e{i}_x ? e{i} : ')
+            for i in range(self.static_electrodes.shape[0]):
+                self.fn_expression += (f'x[0] == es{i}_x ? es{i} : ')
 
         if(self.dim == 2):
             surplus = self.xdim/10  # Electrode modelled as point +/- surplus
@@ -1073,6 +1245,16 @@ class kmc_dn():
                     self.fn_expression += (f'x[0] >= e{i}_x - {surplus} && '
                                            f'x[0] <= e{i}_x + {surplus} && '
                                            f'x[1] == e{i}_y ? e{i} : ')
+            for i in range(self.static_electrodes.shape[0]):
+                if(self.static_electrodes[i, 0] == 0 or self.static_electrodes[i, 0] == self.xdim):
+                    self.fn_expression += (f'x[0] == es{i}_x && '
+                                           f'x[1] >= es{i}_y - {surplus} && '
+                                           f'x[1] <= es{i}_y + {surplus} ? es{i} : ')
+                else:
+                    self.fn_expression += (f'x[0] >= es{i}_x - {surplus} && '
+                                           f'x[0] <= es{i}_x + {surplus} && '
+                                           f'x[1] == es{i}_y ? es{i} : ')
+
         self.fn_expression += f'{self.mu}'  # Add constant chemical potential
 
         # Define boundary expression
@@ -1116,6 +1298,8 @@ class kmc_dn():
         # Update electrode values in fn_electrodes
         for i in range(self.P):
             self.fn_electrodes[f'e{i}'] = self.electrodes[i, 3]
+        for i in range(self.static_electrodes.shape[0]):
+            self.fn_electrodes[f'es{i}'] = self.static_electrodes[i, 3]
 
         # Update boundary condition
         self.fn_boundary = fn.Expression(self.fn_expression,
@@ -1225,8 +1409,14 @@ class kmc_dn():
             self.previous_occupation = self.occupation
 
     def pick_event_tsigankov(self):
-        '''Pick a hopping event based on t_dist and accept/reject it based on
-        the energy dependent rate'''
+        '''
+        UNIMPLEMENTED: This is previous work on the algorithm described
+        by Tsikgankov. Might be revisited at some point, but is left
+        here for refecence.
+
+        Pick a hopping event based on t_dist and accept/reject it based on
+        the energy dependent rate
+        '''
         # Randomly determine event
         event = np.random.rand()
 
@@ -1260,7 +1450,10 @@ class kmc_dn():
     #%% Load methods
     def load_acceptors(self, acceptors):
         '''
-        This function allows loading an acceptor layout.
+        This function loads an acceptor layout.
+        It also recalculates R, as the number of acceptors might have 
+        changed and it sets ab/R to 1. This is important, because you
+        might have to re set it afterwards.
         '''
         # Overwrite acceptors array
         self.acceptors = acceptors
@@ -1293,8 +1486,14 @@ class kmc_dn():
 
     #%% Miscellaneous methods
     def calc_t_dist(self):
-        '''Calculates the transition rate matrix t_dist, which is based only
-        on the distances between sites (as defined in Tsigankov2003)'''
+        '''
+        UNIMPLEMENTED: This is previous work on the algorithm described
+        by Tsikgankov. Might be revisited at some point, but is left
+        here for refecence.
+
+        Calculates the transition rate matrix t_dist, which is based only
+        on the distances between sites (as defined in Tsigankov2003)
+        '''
         # Initialization
         self.t_dist = np.zeros((self.N + P,
                                 self.N + P))
@@ -1321,7 +1520,11 @@ class kmc_dn():
 
 
     def total_energy(self):
-        '''Calculates the hamiltonian for the full system.'''
+        '''
+        #TODO: Include donor-acceptor terms.
+
+        Calculates the hamiltonian for the full system.
+        '''
         H = 0  # Initialize
 
         # Coulomb interaction sum
@@ -1336,9 +1539,6 @@ class kmc_dn():
             H = H - (1 - self.occupation[i]) * self.eV_constant[i]
 
         return H
-
-
-
 
     @staticmethod
     def dist(ri, rj):

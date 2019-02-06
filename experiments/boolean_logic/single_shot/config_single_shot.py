@@ -66,23 +66,24 @@ class experiment_config(config_class):
         ################################################
         ######### SPECIFY PARAMETERS ###################
         ################################################
+        # Gene to test
+        self.gene = [0.42216254, 0.47363607, 0.06674828, 0.5311083 , 0.91418949]
+
         # Model parameters
         self.kT = 1
-        self.I_0 = 50*self.kT
-        self.ab_R = 0.5
+        self.I_0 = 15*self.kT
+        self.ab_R = 0.22
         self.layout = 0
-        self.prehops = 10000
-        self.hops = 100000
+        self.prehops = 100000
+        self.hops = 1000000
 
         # Define experiment
-        self.generations = 50
-        self.generange = [[0, 1]]*5
-        self.avg = 2
+        self.avg = 10
         self.P = 0
         self.Q = 1
         self.output = 2
         self.controls = [3, 4, 5, 6, 7]
-        self.controlrange = np.array([-2000, 2000])*self.kT
+        self.controlrange = np.array([-1000, 1000])*self.kT
         self.inputrange = 1000*self.kT
 
         # Define targets
@@ -107,12 +108,8 @@ class experiment_config(config_class):
             self.XNOR[i*self.avg:(i+1)*self.avg] = self.XNOR_discrete[i]
 
         # Set target
-        self.target = self.XOR
+        self.target = self.NOR
         self.Fitness = self.FitnessCorr
-
-        # Specify either partition or genomes
-        self.partition = [5, 5, 5, 5, 5]
-        #self.genomes = 20
 
         # Save settings
         self.filepath = ''#Important: end path with double backslash
