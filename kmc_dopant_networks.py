@@ -25,6 +25,7 @@ import numpy as np
 from numba import jit
 import fenics as fn
 import logging
+import pickle
 
 # Method definitions outside class (for numba support)
 @jit
@@ -1544,3 +1545,23 @@ class kmc_dn():
     def dist(ri, rj):
         '''Calculate cartesian distance between 3D vectors ri and rj'''
         return np.sqrt((ri[0] - rj[0])**2 + (ri[1] - rj[1])**2 + (ri[2] - rj[2])**2)
+
+
+    #Saving and loading functionality for a single network. This includes also the results of possible simulations.
+   
+    def saveSelf(self, fileName):
+        with open(fileName, "wb") as f:
+            d = {}
+            for key in dir(self):
+                attr = getattr(self, key)
+                if isinstance(attr, (list, tuple, int, float, np.ndarray)):
+                    d[key] = getattr(self, key)
+            pickle.dump(d, f)
+    
+    def loadSelf(self, fileName):
+        with open(fileName, "rb") as f:
+            d = pickle.load(f)
+            for key in d:
+                setattr(self, key, d[key])
+                
+                
