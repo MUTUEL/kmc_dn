@@ -74,4 +74,4 @@ and the example files are not enough, please do not hesitate to contact
 any of the authors below.
 
 ### Authors
-Bram de Wilde (brambozz); b.dewilde-1@student.utwente.nl
+Bram de Wilde [brambozz](https://github.com/brambozz); b.dewilde-1@student.utwente.nl
