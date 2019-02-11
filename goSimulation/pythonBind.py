@@ -4,7 +4,6 @@ import numpy as np
 import timeit
 
 def flattenDouble(arr2):
-    print (arr2)
     d = len(arr2[0])
     arr = []
     for row in arr2:
@@ -12,6 +11,7 @@ def flattenDouble(arr2):
             arr.append(c_double(float64(ele).item()))
         if len(row) != d:
             raise Exception("array dimensions not uniform!")
+            occupation = np.array([[]])
     return (c_double * len(arr))(*arr), d, len(arr)
 
 def getGoSlice(arr):
@@ -35,22 +35,25 @@ def getSliceValues(slice):
 def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
 		distances , E_constant, transitions_constant, electrode_occupation, site_energies, hops):
     newDistances, d, s = flattenDouble(distances)
+    newTransConstants, _, tcs = flattenDouble(transitions_constant)
     print ("d is %d and s is %d"%(d, s))
     newDistances = GoSlice(newDistances, s, s)
+    newTransConstants = GoSlice(newTransConstants, tcs, tcs)
     newOccupation = getGoSlice(occupation)
     newE_constant = getGoSlice(E_constant)
     newSite_energies = getGoSlice(site_energies)
     newElectrode_occupation = getGoSlice(electrode_occupation)
     lib = cdll.LoadLibrary("./libSimulation.so")
     lib.simulateWrapper.argtypes = [c_longlong, c_longlong, c_double, c_double, c_double, c_double, c_double,
-        GoSlice, GoSlice, GoSlice, c_double, GoSlice, GoSlice, c_int]
+        GoSlice, GoSlice, GoSlice, GoSlice, GoSlice, GoSlice, c_int]
     lib.simulateWrapper.restype = c_double
-    print (newElectrode_occupation.data[0])
+    print (electrode_occupation)
     #printSlice(newElectrode_occupation)
     time = lib.simulateWrapper(NSites, NElectrodes, nu, kT, I_0, R, time, newOccupation, 
-		newDistances , newE_constant, 1.0, newElectrode_occupation, newSite_energies, hops)
+		newDistances , newE_constant, newTransConstants, newElectrode_occupation, newSite_energies, hops)
     #printSlice (newElectrode_occupation)
     rElectrode_occupation = np.array([[int(i) for i in getSliceValues(newElectrode_occupation)]])
-    print (rElectrode_occupation)    
+    occupation = np.array([[int(i) for i in getSliceValues(newOccupation)]])
+    print (rElectrode_occupation)
 
     return (time, occupation, rElectrode_occupation)

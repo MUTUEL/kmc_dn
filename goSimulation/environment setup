@@ -37,4 +37,4 @@ from goSimulation.pythonBind import callSimulation
                                                        self.site_energies,
                                                        hops)
 
-go build -o libSimulation.so -buildmode=c-shared simulationWrapper.go simulation.go
+go build -o libSimulation.so -buildmode=c-shared simulationWrapper.go simulation.go probabilitySimulation.go
