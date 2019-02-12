@@ -58,7 +58,6 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         }
         site_energies[i] = E_constant[i] - I_0*R*acceptor_interaction
     }
-    fmt.Printf("Site energies after: %v", site_energies)
 
     for i := 0; i < NElectrodes; i++ {
 		electrode_occupation[i] = 0.0
@@ -117,8 +116,8 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
 
         if hop % showStep == 0 {
             showStep*=4
-            current := electrode_occupation[0] / time
-            fmt.Printf("Hop: %d, current: %.3f, time: %.2f\n", hop, current, time)
+            //current := electrode_occupation[0] / time
+            //fmt.Printf("Hop: %d, current: %.3f, time: %.2f\n", hop, current, time)
             /*fmt.Printf("Site energies at hop: %v\n", site_energies)
             fmt.Printf("Occupation at hop: %v\n", occupation)
             fmt.Printf("Transitions at hop: %.4v\n", transitions)
@@ -156,10 +155,10 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
     for i := 0; i < NSites; i++ {
         occupation_time[i]/=time
     }
-    fmt.Printf("Time: %.2f\n", time)
-    fmt.Printf("Occupation percentage: %.3v", occupation_time)
+    //fmt.Printf("Time: %.2f\n", time)
+    //fmt.Printf("Occupation percentage: %.3v", occupation_time)
 
-    fmt.Println(electrode_occupation)
+    //fmt.Println(electrode_occupation)
     return time
 }
 
