@@ -68,7 +68,7 @@ class experiment_config(config_class):
         ################################################
         # Model parameters
         self.kT = 1
-        self.I_0 = 50*self.kT
+        self.I_0 = 15*self.kT
         self.ab_R = 0.5
         self.layout = 0
         self.prehops = 10000

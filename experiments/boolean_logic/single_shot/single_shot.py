@@ -13,7 +13,7 @@ saveDirectory = SaveLib.createSaveDirectory(cf.filepath, cf.name)
 #%% System setup
 xdim = 1
 ydim = 1
-layout = 0
+layout = cf.layout 
 
 # Load layouts
 acceptor_layouts = np.load('acceptor_layouts.npy')
@@ -50,7 +50,7 @@ for index, control in enumerate(cf.controls):
                                  + cf.gene[index]*cf.controlrange[1]
 
 # Obtain device response
-output = np.zeros(4*cf.avg)
+output = np.zeros((8, 4*cf.avg))
 for k in range(4):
     # Set input voltages
     kmc.electrodes[cf.P] = P[k]*cf.inputrange
@@ -62,7 +62,7 @@ for k in range(4):
 
     for l in range(cf.avg):
         kmc.simulate_discrete(hops = cf.hops)
-        output[k*cf.avg + l] = kmc.current[cf.output]
+        output[:, k*cf.avg + l] = kmc.current
 
 SaveLib.saveExperiment(saveDirectory, 
                        output = output)

@@ -182,6 +182,134 @@ def visualize_current_density(kmc_dn, res = None, title = None,
 
     return fig, current_map
 
+def visualize_current_density_new(acceptors, electrodes, traffic, 
+                                  xdim = 1, ydim = 1, res = None, 
+                                  title = None, normalize = True,
+                                  ax = None):
+    '''
+    Returns a figure of the domain where the colors indicate the current
+    density and arrow the current direction at dopant sites. It uses only
+    the during simulation tracked traffic array.
+    res is the resolution in which the domain is split up.
+    '''
+    # Some useful constants
+    N = acceptors.shape[0]
+    P = electrodes.shape[0]
+
+    # Set resolution to V grid resolution if unspecified
+    if(res == None):
+        res = xdim/10
+
+    # Set up grid
+    x = np.linspace(0, xdim, xdim/res + 1)
+    y = np.linspace(0, ydim, ydim/res + 1)
+    current_map = np.zeros((len(x) - 1, len(y) - 1))
+
+    # Calculate unit vectors
+    vectors = np.zeros((N+P, N+P, 3))
+    for i in range(N+P):
+        for j in range(N+P):
+            if(i is not j):
+                # Distance electrode -> electrode
+                if(i >= N and j >= N):
+                    d = np.linalg.norm((electrodes[j - N, :3]
+                                      - electrodes[i - N, :3]), 2)
+                    vectors[i, j] = ((electrodes[j - N, :3]
+                                      - electrodes[i - N, :3])
+                                      /d)
+
+                # Distance electrodes -> acceptor
+                elif(i >= N and j < N):
+                    d = np.linalg.norm((acceptors[j]
+                                      - electrodes[i - N, :3]), 2)
+                    vectors[i, j] = ((acceptors[j]
+                                      - electrodes[i - N, :3])
+                                      /d)
+                # Distance acceptor -> electrode
+                elif(i < N and j >= N):
+                    d = np.linalg.norm((electrodes[j - N, :3]
+                                      - acceptors[i]), 2)
+                    vectors[i, j] = ((electrodes[j - N, :3]
+                                      - acceptors[i])
+                                      /d)
+                # Distance acceptor -> acceptor
+                elif(i < N and j < N):
+                    d = np.linalg.norm((acceptors[j]
+                                      - acceptors[i]), 2)
+                    vectors[i, j] = ((acceptors[j]
+                                      - acceptors[i])
+                                      /d)
+
+    # Calculate current_vectors from traffic
+    current_vectors = np.zeros((traffic.shape[0], 3))
+    for i in range(current_vectors.shape[0]):
+        for j in range(current_vectors.shape[0]):
+            if(j is not i):
+                # Arriving hops
+                current_vectors[i] += traffic[j, i] * vectors[j, i]
+
+                # Departing hops
+                current_vectors[i] += traffic[i, j] * vectors[i, j]
+
+    norm = np.linalg.norm(current_vectors, axis = 1)  # Vector lengths
+
+
+    # Loop over all squares in the domain
+    # Square index is bottom left corner
+    for i in range(len(x) -1):
+        for j in range(len(y) - 1):
+            acc_in_box = []  # indices of acceptors in box
+            for k in range(N):
+                if( (x[i] <= acceptors[k, 0] <= x[i+1])
+                    and (y[j] <= acceptors[k, 1] <= y[j+1])):
+                    acc_in_box.append(k)
+
+            net_box_current = 0
+            for k in acc_in_box:
+                net_box_current += current_vectors[k]
+            
+            current_map[i, j] = np.linalg.norm(net_box_current)
+
+    if(normalize):
+        current_map = current_map/np.max(current_map)
+
+    interp = 'none'
+    interp = 'gaussian'
+
+    # Only create figure if no axes is given
+    if(ax == None):
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+    margins = 0.1
+    ax.set_xlim(left=-margins*xdim, right=(1+margins)*xdim)
+    ax.set_ylim(bottom=-margins*ydim, top=(1+margins)*ydim)
+    ax.set_aspect('equal')
+    im = ax.imshow(current_map.transpose(), interpolation = interp,
+           origin='lower', extent=(0, xdim, 0, ydim), cmap=plt.cm.plasma)
+    # Overlay dopants
+    ax.scatter(acceptors[:, 0], acceptors[:, 1], color = 'black', marker='o')
+    # Overlay dopant vectors
+    x_dopants = acceptors[:, 0]
+    y_dopants = acceptors[:, 1]
+    u = current_vectors[:, 0]/norm
+    v = current_vectors[:, 1]/norm
+    #ax.quiver(x_dopants, y_dopants, u, v, norm, cmap=plt.cm.inferno)
+    ax.quiver(x_dopants, y_dopants, u[:N], v[:N])
+    # Overlay electrodes as dots
+    ax.quiver(electrodes[:, 0], electrodes[:, 1],
+              current_vectors[N:, 0], current_vectors[N:, 1], pivot='mid', color='red',
+              alpha=0.8)
+
+    # Add colorbar
+    #fig.colorbar(im, label = 'Current density (a.u.)')
+
+    ax.set_xlabel('x (a.u.)')
+    ax.set_ylabel('y (a.u.)')
+    if(title != None):
+        ax.set_title(title)
+
+    return im, current_map
+
 def visualize_dwelltime(kmc_dn, show_V = True):
     '''
     Returns a figure which shows the domain with potential profile.

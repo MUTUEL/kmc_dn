@@ -67,15 +67,15 @@ class experiment_config(config_class):
         ######### SPECIFY PARAMETERS ###################
         ################################################
         # Gene to test
-        self.gene = [0.42216254, 0.47363607, 0.06674828, 0.5311083 , 0.91418949]
+        self.gene = [0.3763969 , 0.67772248, 0.48191528, 0.85741376, 0.38276771]
 
         # Model parameters
         self.kT = 1
         self.I_0 = 15*self.kT
-        self.ab_R = 0.22
+        self.ab_R = 0.5
         self.layout = 0
         self.prehops = 100000
-        self.hops = 1000000
+        self.hops = 100000
 
         # Define experiment
         self.avg = 10
@@ -83,7 +83,7 @@ class experiment_config(config_class):
         self.Q = 1
         self.output = 2
         self.controls = [3, 4, 5, 6, 7]
-        self.controlrange = np.array([-1000, 1000])*self.kT
+        self.controlrange = np.array([-2000, 2000])*self.kT
         self.inputrange = 1000*self.kT
 
         # Define targets
@@ -125,6 +125,8 @@ class experiment_config(config_class):
             self.name = 'XOR'
         if(np.array_equal(self.target, self.XNOR)):
             self.name = 'XNOR'
+
+        self.name = f'XOR'
 
         ################################################
         ################# OFF-LIMITS ###################
