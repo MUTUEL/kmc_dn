@@ -47,6 +47,7 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
     transitions := make([][]float64, N)
     occupation_time := make([]float64, NSites)
     allProbs := make(map[uint64]*probabilities)
+    countProbs := make(map[uint64]int)
 
     //fmt.Printf("Site energies at start: %v\n", site_energies)
     for i := 0; i < NSites; i++ {
@@ -68,6 +69,9 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         transitions[i] = make([]float64, NSites+NElectrodes)
     }
     countReuses := uint64(0)
+    countStorage := uint64(0)
+    reuseThreshold := 1
+    reuseThresholdIncrease := uint64(100000)
     showStep := 1
     for hop := 0; hop < hops; hop++ {
         var probList []float64
@@ -97,8 +101,22 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
                 }
             }
             if record_problist {
-                newProbability := probabilities{probList}
-                allProbs[key64] = &newProbability
+                val, ok := countProbs[key64]
+                if ok {
+
+                    countProbs[key64]+=1
+                    if val >= reuseThreshold {
+                        newProbability := probabilities{probList}
+                        allProbs[key64] = &newProbability
+                        countStorage++
+                        if countStorage > reuseThresholdIncrease {
+                            reuseThreshold++
+                            reuseThresholdIncrease+=100000
+                        }
+                    }
+                } else {
+                    countProbs[key64] = 1
+                }
             }
         }
         time_step := rand.ExpFloat64() / (probList[len(probList)-1])
@@ -117,32 +135,7 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         if hop % showStep == 0 {
             showStep*=2
             current := electrode_occupation[0] / time
-            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d\n", hop, current, time, countReuses)
-            /*fmt.Printf("Site energies at hop: %v\n", site_energies)
-            fmt.Printf("Occupation at hop: %v\n", occupation)
-            fmt.Printf("Transitions at hop: %.4v\n", transitions)
-            fmt.Printf("Problist at hop: %.4v\n", probList)
-            fmt.Printf("from:%d, to:%d\n", from, to)
-            fmt.Printf("Nu:%.3f, kT:%.3f, trConst:%.4f", nu, kT, transitions_constant)
-            for i := 0; i < len(transitions); i++ {
-                for j := 0; j < len(transitions[i]); j++{
-                    //fmt.Printf("i:%d, j:%d, val:%.4f\n", i, j, transitions[i][j])
-                    var dE float64
-                    if !transition_possible(i, j, NSites, occupation){
-                        continue
-                    }
-                    if i < NSites && j < NSites {
-                        dE = site_energies[j] - site_energies[i] - I_0*R/distances[i][j]
-                    } else {
-                        dE = site_energies[j] - site_energies[i]
-                    }
-                    if dE > 0 {
-                        fmt.Printf("i:%d, j:%d, val:%.4f,dE:%.4f\n", i, j, nu * math.Exp(-dE/kT), dE)
-                    } else {
-                        fmt.Printf("i:%d, j:%d, val:%.4f,dE:%.4f\n", i, j, nu, dE)
-                    }
-                }
-            }*/
+            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d, storage: %d\n", hop, current, time, countReuses, countStorage)
         }
         makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
             NSites, from, to)
@@ -155,10 +148,6 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
     for i := 0; i < NSites; i++ {
         occupation_time[i]/=time
     }
-    //fmt.Printf("Time: %.2f\n", time)
-    //fmt.Printf("Occupation percentage: %.3v", occupation_time)
-
-    //fmt.Println(electrode_occupation)
     return time
 }
 
