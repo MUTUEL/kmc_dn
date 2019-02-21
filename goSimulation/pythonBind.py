@@ -32,8 +32,10 @@ def getSliceValues(slice):
         r.append(slice.data[i])
     return r
 
+
+
 def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
-		distances , E_constant, transitions_constant, electrode_occupation, site_energies, hops):
+		distances , E_constant, site_energies, transitions_constant, transitions, problist, electrode_occupation, hops, record):
     newDistances, d, s = flattenDouble(distances)
     newTransConstants, _, tcs = flattenDouble(transitions_constant)
     #print ("d is %d and s is %d"%(d, s))
@@ -52,8 +54,8 @@ def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation,
     time = lib.simulateWrapper(NSites, NElectrodes, nu, kT, I_0, R, time, newOccupation, 
 		newDistances , newE_constant, newTransConstants, newElectrode_occupation, newSite_energies, hops)
     #printSlice (newElectrode_occupation)
-    rElectrode_occupation = np.array([[int(i) for i in getSliceValues(newElectrode_occupation)]])
-    occupation = np.array([[int(i) for i in getSliceValues(newOccupation)]])
+    rElectrode_occupation = np.array([int(i) for i in getSliceValues(newElectrode_occupation)])
+    occupation = np.array([int(i) for i in getSliceValues(newOccupation)])
     #print (rElectrode_occupation)
 
     return (time, occupation, rElectrode_occupation)

@@ -30,8 +30,8 @@ for i in range(200):
     abs_file_path = os.path.join(script_dir, rel_path)
     #%% Profile code
     kmc.loadSelf(abs_file_path)
-    kmc.simulate(hops=hops)
-    kmc.current = kmc.current[0]
+    kmc.go_simulation(hops=hops)
+    #kmc.current = kmc.current[0]
     diff_sum = 0.0
     curr_sum = 0.0
     print (kmc.current)

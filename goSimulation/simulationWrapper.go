@@ -51,12 +51,12 @@ func simulateWrapper(NSites int64, NElectrodes int64, nu float64, kT float64, I_
 	//Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
 	newDistances := deFlattenFloat64(distances, NSites+NElectrodes, NSites+NElectrodes)
 	newConstants := deFlattenFloat64(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
-	record_problist := false
-	if NSites > 20 {
+	record_problist := true
+	/*if NSites > 30 {
 		record_problist = false
 	} else if 2^NSites > int64(hops) / 2 {
 		record_problist = false
-	}
+	}*/
 	bool_occupation := make([]bool, NSites)
 	//printAverageExpRandom();
 	time = simulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, time, bool_occupation, 

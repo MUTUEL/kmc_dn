@@ -115,9 +115,9 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         to := event%N
 
         if hop % showStep == 0 {
-            showStep*=4
-            //current := electrode_occupation[0] / time
-            //fmt.Printf("Hop: %d, current: %.3f, time: %.2f\n", hop, current, time)
+            showStep*=2
+            current := electrode_occupation[0] / time
+            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d\n", hop, current, time, countReuses)
             /*fmt.Printf("Site energies at hop: %v\n", site_energies)
             fmt.Printf("Occupation at hop: %v\n", occupation)
             fmt.Printf("Transitions at hop: %.4v\n", transitions)

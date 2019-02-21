@@ -38,5 +38,8 @@ for i in range(200):
     rel_path = "tests/rnd/test"+str(i)+".kmc"
     abs_file_path = os.path.join(script_dir, rel_path)
     #%% Profile code
-    kmc.simulate_discrete(hops=hops)
+    kmc.python_simulation(hops=hops)
+    print (kmc.time)
+    print (kmc.electrode_occupation)
+    print (kmc.current)
     kmc.saveSelf(abs_file_path)
