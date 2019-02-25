@@ -32,10 +32,8 @@ def getSliceValues(slice):
         r.append(slice.data[i])
     return r
 
-
-
 def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
-		distances , E_constant, site_energies, transitions_constant, transitions, problist, electrode_occupation, hops, record):
+		distances , E_constant, site_energies, transitions_constant, transitions, problist, electrode_occupation, hops, record, goSpecificFunction):
     newDistances, d, s = flattenDouble(distances)
     newTransConstants, _, tcs = flattenDouble(transitions_constant)
     #print ("d is %d and s is %d"%(d, s))
@@ -46,12 +44,12 @@ def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation,
     newSite_energies = getGoSlice(site_energies)
     newElectrode_occupation = getGoSlice(electrode_occupation)
     lib = cdll.LoadLibrary("./libSimulation.so")
-    lib.simulateWrapper.argtypes = [c_longlong, c_longlong, c_double, c_double, c_double, c_double, c_double,
+    getattr(lib, goSpecificFunction).argtypes = [c_longlong, c_longlong, c_double, c_double, c_double, c_double, c_double,
         GoSlice, GoSlice, GoSlice, GoSlice, GoSlice, GoSlice, c_int]
-    lib.simulateWrapper.restype = c_double
+    getattr(lib, goSpecificFunction).restype = c_double
     #print (electrode_occupation)
     #printSlice(newElectrode_occupation)
-    time = lib.simulateWrapper(NSites, NElectrodes, nu, kT, I_0, R, time, newOccupation, 
+    time = getattr(lib, goSpecificFunction)(NSites, NElectrodes, nu, kT, I_0, R, time, newOccupation, 
 		newDistances , newE_constant, newTransConstants, newElectrode_occupation, newSite_energies, hops)
     #printSlice (newElectrode_occupation)
     rElectrode_occupation = np.array([int(i) for i in getSliceValues(newElectrode_occupation)])

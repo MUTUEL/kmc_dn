@@ -33,25 +33,89 @@ func getKey(boolAr []bool) uint64 {
     return r
 }
 
+func transition_possible(i int, j int, NSites int, occupation []bool) bool {
+    if i >= NSites && j >= NSites {
+        return false
+    } else if i>= NSites && occupation[j]{
+        return false
+    } else if j>= NSites && !occupation[i] {
+        return false
+    }
+    if i < NSites && j < NSites && (!occupation[i] || occupation[j]){
+        return false
+    }
+    return true
+}
+
+func calcTransitions(transitions [][]float32, distances [][]float32, occupation []bool, 
+    site_energies []float32, R float32, I_0 float32, kT float32, nu float32, NSites int, 
+    N int, transitions_constant [][]float32) {
+    for i := 0; i < N; i++ {
+        for j := 0; j < N; j++ {
+            if !transition_possible(i, j, NSites, occupation){
+                transitions[i][j] = 0
+            } else {
+                var dE float32
+                if i < NSites && j < NSites {
+                    dE = site_energies[j] - site_energies[i] - I_0*R/distances[i][j]
+                } else {
+                    dE = site_energies[j] - site_energies[i]
+                }
+                if dE > 0 {
+                    transitions[i][j] = nu * float32(math.Exp(float64(-dE/kT)))
+                } else {
+                    transitions[i][j] = 1
+                }
+                transitions[i][j]*=transitions_constant[i][j]
+            }
+        }
+    }
+}
+
+func makeJump(occupation []bool, electrode_occupation []float64, site_energies []float32, 
+    distances [][]float32, R float32, I_0 float32, NSites int, from int, to int) {
+    if from < NSites {
+        occupation[from] = false
+        for j := 0; j < NSites; j++ {
+            if j != from {
+                site_energies[j] -= I_0*R*(1/distances[j][from])
+            }
+            
+        }
+    } else {
+        electrode_occupation[from-NSites]-=1.0
+    }
+    if to < NSites {
+        occupation[to] = true
+        for j := 0; j < NSites; j++ {
+            if j != to {
+                site_energies[j] += I_0*R*(1/distances[j][to])
+            }
+        }
+    } else {
+        electrode_occupation[to-NSites]+=1.0
+    }
+}
+
 type probabilities struct {
-    probList []float64
+    probList []float32
 }
 
 
 
 
-func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64, time float64,
-        occupation []bool, distances [][]float64, E_constant []float64, transitions_constant [][]float64,
-        electrode_occupation []float64, site_energies []float64, hops int, record_problist bool) float64 {
+func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32, time float64,
+        occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
+        electrode_occupation []float64, site_energies []float32, hops int, record_problist bool) float64 {
     N := NSites + NElectrodes
-    transitions := make([][]float64, N)
-    occupation_time := make([]float64, NSites)
+    transitions := make([][]float32, N)
+    //occupation_time := make([]float64, NSites)
     allProbs := make(map[uint64]*probabilities)
-    countProbs := make(map[uint64]int)
+    countProbs := make(map[uint64]uint16)
 
     //fmt.Printf("Site energies at start: %v\n", site_energies)
     for i := 0; i < NSites; i++ {
-        acceptor_interaction := float64(0)
+        acceptor_interaction := float32(0)
         for j := 0; j < NSites; j++ {
             if j != i && !occupation[j] {
                 acceptor_interaction+= 1/distances[i][j]
@@ -66,11 +130,285 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
     time = 0
 
     for i := 0; i < N; i++ {
-        transitions[i] = make([]float64, NSites+NElectrodes)
+        transitions[i] = make([]float32, NSites+NElectrodes)
     }
     countReuses := uint64(0)
     countStorage := uint64(0)
-    reuseThreshold := 1
+    reuseThreshold := uint16(1)
+    reuseThresholdIncrease := uint64(100000)
+    //showStep := 1
+    for hop := 0; hop < hops; hop++ {
+        var probList []float32
+        ok := false
+        var key64 uint64
+        if record_problist {
+            var val *probabilities
+            key64 = getKey(occupation)
+            val, ok = allProbs[key64]
+            if ok {
+                probList = val.probList
+                countReuses++
+            }
+        }
+        if !ok {
+            calcTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant)
+    
+            probList = make([]float32, N*N)
+
+            for i := 0; i < N; i++ {
+                for j := 0; j < N; j++ {
+                    if i==0 && j==0 {
+                        probList[0] = transitions[i][j]
+                    } else {
+                        probList[N*i+j] = probList[N*i+j-1] + transitions[i][j]
+                    }
+                }
+            }
+            if record_problist {
+                val, ok := countProbs[key64]
+                if ok {
+
+                    countProbs[key64]+=1
+                    if val >= reuseThreshold {
+                        newProbability := probabilities{probList}
+                        allProbs[key64] = &newProbability
+                        countStorage++
+                        if countStorage > reuseThresholdIncrease {
+                            reuseThreshold++
+                            reuseThresholdIncrease+=100000
+                        }
+                    }
+                } else {
+                    countProbs[key64] = 1
+                }
+            }
+        }
+        time_step := rand.ExpFloat64() / float64(probList[len(probList)-1])
+        time += time_step
+        eventRand := rand.Float32() * probList[len(probList)-1]
+        event := 0
+        for i := 0; i < len(probList); i++ {
+            if probList[i] >= eventRand {
+                event = i
+                break
+            }
+        }
+        from := event/N
+        to := event%N
+
+        /*if hop % showStep == 0 {
+            showStep*=2
+            current := electrode_occupation[0] / time
+            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d, storage: %d\n", hop, current, time, countReuses, countStorage)
+        }*/
+        makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
+            NSites, from, to)
+        /*for i := 0; i < NSites; i++ {
+            if occupation[i] {
+                occupation_time[i]+=time_step
+            }
+        }*/
+    }
+    /*for i := 0; i < NSites; i++ {
+        occupation_time[i]/=time
+    }*/
+    return time
+}
+
+type transition struct {
+    from int;
+    to int;
+    rate float32;
+    prunedList []*transition;
+    count int;
+}
+
+func simulatePrunedTransitions(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32, time float64,
+    occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
+    electrode_occupation []float64, site_energies []float32, hops int, record_problist bool) float64 {
+
+    N := NSites + NElectrodes
+    transitions := make([][]float32, N)
+
+    for i := 0; i < NSites; i++ {
+        acceptor_interaction := float32(0)
+        for j := 0; j < NSites; j++ {
+            if j != i && !occupation[j] {
+                acceptor_interaction+= 1/distances[i][j]
+            }
+        }
+        site_energies[i] = E_constant[i] - I_0*R*acceptor_interaction
+    }
+
+    for i := 0; i < NElectrodes; i++ {
+        electrode_occupation[i] = 0.0
+    }
+    time = 0
+    total_transitions := NSites*(NSites-1) + NSites * 2 * NElectrodes
+    allTransitions := make([]transition, total_transitions)
+    count := 0
+    var total_rate float32 = 0
+    for i:= 0; i < N; i++ {
+        transitions[i] = make([]float32, N)
+        for j := 0; j < N; j++ {
+            transitions[i][j] = 0
+            if i == j || (i >= NSites && j >= NSites) {
+                continue
+            }
+            new_trans := transition{i, j, 0.0, make([]*transition, total_transitions), 0}
+            allTransitions[count] = new_trans
+            count++
+        }
+    }
+
+    for i := 0; i < len(allTransitions); i++ {
+        for j := 0; j < len(allTransitions); j++ {
+            if allTransitions[i].from < NSites && allTransitions[j].from == allTransitions[i].from {
+                continue
+            }
+            if allTransitions[i].to < NSites && allTransitions[j].to == allTransitions[i].to {
+                continue
+            }
+            allTransitions[i].prunedList[allTransitions[i].count] = &allTransitions[j]
+            allTransitions[i].count++
+        }
+    }
+
+    var next_transitions *([]transition) = &allTransitions
+    var last_transition *transition = &transition{0, 0, 0.0, make([]*transition, 0), len(allTransitions)}
+    //showStep := 1
+    for hop := 0; hop < hops; hop++ {
+
+        prune_list := make([]int, 0)
+
+        for i := 0; i < (*last_transition).count; i++ {
+            trans := &(*next_transitions)[i]
+            from := trans.from
+            to := trans.to
+            if !transition_possible(from, to, NSites, occupation){
+                trans.rate = 0
+            } else {
+                var dE float32
+                if trans.from < NSites && trans.to < NSites {
+                    dE = site_energies[to] - site_energies[from] - I_0*R/distances[from][to]
+                } else {
+                    dE = site_energies[to] - site_energies[from]
+                }
+                var newRate float32
+                if dE > 0 {
+                    newRate = float32(nu * float32(math.Exp(float64(-dE/kT))))*float32(transitions_constant[from][to])
+                    diff := trans.rate / newRate
+                    if diff > 0.99 && diff < 1.01 {
+                        prune_list = append(prune_list, i)
+                    }
+                } else {
+                    newRate = float32(transitions_constant[from][to])
+                }
+                total_rate += newRate - transitions[from][to]
+                transitions[from][to] = newRate
+                trans.rate = newRate
+            }
+        }
+        for i := 0; i < len(prune_list); i++ {
+            (*last_transition).count--
+            (*next_transitions)[prune_list[i]] = (*next_transitions)[(*last_transition).count]
+        }
+
+        eventRand := rand.Float32() * total_rate
+        found := false
+        var eventTot float32 = 0
+        from := 0
+        to := 0
+        for i := 0; i < N && !found; i++ {
+            for j := 0; j < N; j++ {
+                eventTot+=transitions[i][j]
+                if eventTot > eventRand {
+                    found = true
+                    from = i
+                    to = j
+                    break
+                }
+            }
+        }
+        
+        time_step := rand.ExpFloat64() / float64(total_rate)
+        time += time_step
+
+
+        /*if hop % showStep == 0 {
+            showStep*=2
+            current := electrode_occupation[0] / time
+            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d, storage: %d\n", hop, current, time, countReuses, countStorage)
+        }*/
+        makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
+            NSites, from, to)
+        /*for i := 0; i < NSites; i++ {
+            if occupation[i] {
+                occupation_time[i]+=time_step
+            }
+        }*/
+    }
+    /*for i := 0; i < NSites; i++ {
+        occupation_time[i]/=time
+    }*/
+    return time
+}
+
+/*type transitionBucket struct {
+    transitions []transition;
+    currentCount int;
+}
+
+func simulatePruned(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64, time float64,
+    occupation []bool, distances [][]float64, E_constant []float64, transitions_constant [][]float64,
+    electrode_occupation []float64, site_energies []float64, hops int, record_problist bool) float64 {
+    N := NSites + NElectrodes
+    occupation_time := make([]float64, NSites)
+
+
+    //fmt.Printf("Site energies at start: %v\n", site_energies)
+    for i := 0; i < NSites; i++ {
+        acceptor_interaction := float64(0)
+        for j := 0; j < NSites; j++ {
+            if j != i && !occupation[j] {
+                acceptor_interaction+= 1/distances[i][j]
+            }
+        }
+        site_energies[i] = E_constant[i] - I_0*R*acceptor_interaction
+    }
+
+    for i := 0; i < NElectrodes; i++ {
+        electrode_occupation[i] = 0.0
+    }
+    time = 0
+    number_of_buckets := 2
+
+    buckets := make([]transitionBucket, 2)
+    total_transitions := NSites*(NSites-1) + NSites * 2 * NElectrodes
+    transitions_per_bucket := total_transitions / number_of_buckets +1
+    for i := 0; i < number_of_buckets; i++ {
+        buckets[i].transitions = make([]transition, transitions_per_bucket)
+        buckets[i].currentCount = 0
+    }
+
+    for i:= 0; i < N; i++ {
+        for j := 0; j < N; j++ {
+            if i == j || (i >= NSites && j >= NSites) {
+                continue
+            }
+            rnd := rand.Intn(number_of_buckets)
+            while (buckets[rnd].currentCount >= transitions_per_bucket) {
+                rnd = rand.Intn(number_of_buckets)
+            }
+            new_trans = transition{i, j, 0.0}
+            buckets[rnd].transitions[buckets[rnd].currentCount] = new_trans
+            buckets[rnd].currentCount++
+        }
+    }
+
+    countReuses := uint64(0)
+    countStorage := uint64(0)
+    reuseThreshold := uint16(1)
     reuseThresholdIncrease := uint64(100000)
     showStep := 1
     for hop := 0; hop < hops; hop++ {
@@ -88,7 +426,7 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         }
         if !ok {
             calcTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant)
-    
+
             probList = make([]float64, N*N)
 
             for i := 0; i < N; i++ {
@@ -149,71 +487,9 @@ func simulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, 
         occupation_time[i]/=time
     }
     return time
-}
+}*/
 
-func transition_possible(i int, j int, NSites int, occupation []bool) bool {
-    if i >= NSites && j >= NSites {
-        return false
-    } else if i>= NSites && occupation[j]{
-        return false
-    } else if j>= NSites && !occupation[i] {
-        return false
-    }
-    if i < NSites && j < NSites && (!occupation[i] || occupation[j]){
-        return false
-    }
-    return true
-}
 
-func calcTransitions(transitions [][]float64, distances [][]float64, occupation []bool, 
-    site_energies []float64, R float64, I_0 float64, kT float64, nu float64, NSites int, 
-    N int, transitions_constant [][]float64) {
-    for i := 0; i < N; i++ {
-        for j := 0; j < N; j++ {
-            if !transition_possible(i, j, NSites, occupation){
-                transitions[i][j] = 0
-            } else {
-                var dE float64
-                if i < NSites && j < NSites {
-                    dE = site_energies[j] - site_energies[i] - I_0*R/distances[i][j]
-                } else {
-                    dE = site_energies[j] - site_energies[i]
-                }
-                if dE > 0 {
-                    transitions[i][j] = nu * math.Exp(-dE/kT)
-                } else {
-                    transitions[i][j] = 1
-                }
-                transitions[i][j]*=transitions_constant[i][j]
-            }
-        }
-    }
-}
-
-func makeJump(occupation []bool, electrode_occupation []float64, site_energies []float64, 
-    distances [][]float64, R float64, I_0 float64, NSites int, from int, to int) {
-    if from < NSites {
-        occupation[from] = false
-        for j := 0; j < NSites; j++ {
-            if j != from {
-                site_energies[j] -= I_0*R*(1/distances[j][from])
-            }
-            
-        }
-    } else {
-        electrode_occupation[from-NSites]-=1.0
-    }
-    if to < NSites {
-        occupation[to] = true
-        for j := 0; j < NSites; j++ {
-            if j != to {
-                site_energies[j] += I_0*R*(1/distances[j][to])
-            }
-        }
-    } else {
-        electrode_occupation[to-NSites]+=1.0
-    }
-}
 
 func main() {
     fmt.Println("hello world")

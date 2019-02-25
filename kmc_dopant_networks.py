@@ -29,7 +29,7 @@ import pickle
 
 
 @jit
-def _simulate_discrete_record(N, P, nu, kT, I_0, R, time, occupation, 
+def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
                               distances,
                                E_constant, site_energies, transitions_constant,
                                transitions, problist, electrode_occupation,
@@ -47,27 +47,28 @@ def _simulate_discrete_record(N, P, nu, kT, I_0, R, time, occupation,
     t_array = np.zeros(hops)
     traffic = np.zeros(transitions_constant.shape)
     electrode_occupation_array = np.zeros((len(electrode_occupation), hops))
+    NAll = NSites+NElectrodes
 
     for hh in range(hops):
         # Append current time
 
         # Calculate site_energies
-        for i in range(N):
+        for i in range(NSites):
             acceptor_interaction = 0
             site_energies[i] = E_constant[i]
-            for j in range(N):
+            for j in range(NSites):
                 if j is not i:
                     acceptor_interaction += (1 - occupation[j])/distances[i, j]
 
             site_energies[i] += -I_0*R*acceptor_interaction
 
         # Calculate transitions
-        for i in range(N+P):
-            for j in range(N+P):
-                if(not _transition_possible(i, j, N, occupation)):
+        for i in range(NAll):
+            for j in range(NAll):
+                if(not _transition_possible(i, j, NSites, occupation)):
                     transitions[i, j] = 0
                 else:
-                    if(i < N and j < N):
+                    if(i < NSites and j < NSites):
                         dE = (site_energies[j] - site_energies[i]
                               - I_0*R/distances[i, j])
                     else:
@@ -84,13 +85,13 @@ def _simulate_discrete_record(N, P, nu, kT, I_0, R, time, occupation,
 
         # pick_event
         # Transform transitions matrix into cumulative sum
-        for i in range(N+P):
-            for j in range(N+P):
+        for i in range(NAll):
+            for j in range(NAll):
                 if(i == 0 and j == 0):
                     problist[0] = transitions[i, j]
                 else:
-                    problist[(N+P)*i + j] = (transitions[i, j]
-                                             + problist[(N+P)*i + j-1])
+                    problist[(NSites+NElectrodes)*i + j] = (transitions[i, j]
+                                             + problist[(NSites+NElectrodes)*i + j-1])
 
         # Calculate hopping time
         hop_time = np.random.exponential(scale=1/problist[-1])
@@ -100,24 +101,24 @@ def _simulate_discrete_record(N, P, nu, kT, I_0, R, time, occupation,
 
         # Find transition index of random event
         event = np.random.rand()
-        for i in range((N+P)**2):
+        for i in range((NAll)**2):
             if(problist[i] >= event):
                 event = i
                 break
         #TODO: implement binary tree search algorithm
 
         # Convert event to acceptor/electrode indices
-        transition = [int(event/(N+P)), int(event%(N+P))]
+        transition = [int(event/(NAll)), int(event%(NAll))]
 
         # Perform hop
-        if(transition[0] < N):  # Hop from acceptor
+        if(transition[0] < NSites):  # Hop from acceptor
             occupation[transition[0]] = False
         else:  # Hop from electrode
-            electrode_occupation[transition[0] - N] -= 1
-        if(transition[1] < N):  # Hop to acceptor
+            electrode_occupation[transition[0] - NSites] -= 1
+        if(transition[1] < NSites):  # Hop to acceptor
             occupation[transition[1]] = True
         else:  # Hop to electrode
-            electrode_occupation[transition[1] - N] += 1
+            electrode_occupation[transition[1] - NSites] += 1
 
         # Update record
         if record: 
@@ -461,18 +462,18 @@ class kmc_dn():
     def simulate_fast(self, tol = 1E-2, interval = 1000, prehops = 0, maxhops = 1E6):
         self.python_simulation(maxhops, True, prehops, False)
 
-    def go_simulation(self, hops = 1E5, reset = True, prehops = 0):
+    def go_simulation(self, hops = 1E5, reset = True, prehops = 0, goSpecificFunction="wrapperSimulateRecord"):
         '''
         Simple wrapper function for running a simulation that performs
         hops hops with prehops hops before tracking current.
         '''
-        self.makeSimulation(simulateFunction = callGoSimulation, preHopFunction = callGoSimulation, hops = hops, prehops = prehops)
+        self.makeSimulation(simulateFunction = callGoSimulation, preHopFunction = callGoSimulation, hops = hops, prehops = prehops, goSpecificFunction=goSpecificFunction)
     
     def python_simulation(self, hops = 1E5, reset = True, prehops = 0, record = False):
         self.makeSimulation(simulateFunction=_simulate_discrete_record, preHopFunction=_simulate_discrete_record, hops=hops, prehops=prehops, record=record)
 
     def makeSimulation(self, simulateFunction = None, preHopFunction = None, prehops = 0,
-                      hops = 1E5, record = False):
+                      hops = 1E5, record = False, goSpecificFunction = None):
         '''
         Wrapper function that performs a simulation until the all electrode
         currents have converged with tolerance tol. The function checks
@@ -486,70 +487,29 @@ class kmc_dn():
         if preHopFunction != None:
             self.simulate_prehop = preHopFunction
         self.reset()  # Reset all relevant trackers before running a simulation
+        args = {"NSites":self.N, "NElectrodes":self.P, "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
+            "R":self.R, "time":self.time, "occupation":self.occupation, "distances":self.distances,
+            "E_constant":self.E_constant, "site_energies":self.site_energies, "transitions_constant":self.transitions_constant,
+            "transitions":self.transitions, "problist":self.problist, "electrode_occupation":self.electrode_occupation, "record":False}
 
+        if goSpecificFunction != None:
+            args["goSpecificFunction"] = goSpecificFunction
         # Prehops
         if(prehops != 0):
-            self.simulate_prehop(self.N,
-                               self.P,
-                               self.nu,
-                               self.kT,
-                               self.I_0,
-                               self.R,
-                               self.time,
-                               self.occupation,
-                               self.distances,
-                               self.E_constant,
-                               self.site_energies,
-                               self.transitions_constant,
-                               self.transitions,
-                               self.problist,
-                               self.electrode_occupation,
-                               prehops,
-                               False)
+            args["hops"] = prehops
+            self.simulate_prehop(**args)
             self.reset()
-
+        args["hops"] = hops
         # Simulate until convergence
         if record:
-            (times, self.occupation, self.electrode_occupation, self.traffic) = self.simulate_func(self.N,
-                                                self.P,
-                                                self.nu,
-                                                self.kT,
-                                                self.I_0,
-                                                self.R,
-                                                self.time,
-                                                self.occupation,
-                                                self.distances,
-                                                self.E_constant,
-                                                self.site_energies,
-                                                self.transitions_constant,
-                                                self.transitions,
-                                                self.problist,
-                                                self.electrode_occupation,
-                                                hops,
-                                                record)
-            self.current = self.electrode_occupation/times[-1]
+            args["record"] = True
+            (times, self.occupation, self.electrode_occupation, self.traffic) = self.simulate_func(**args)
+            self.time = times[-1]
+            self.current = self.electrode_occupation/self.time
             return (times, self.traffic)
         else:
-            (self.time, self.occupation, self.electrode_occupation) = self.simulate_func(self.N,
-                                                self.P,
-                                                self.nu,
-                                                self.kT,
-                                                self.I_0,
-                                                self.R,
-                                                self.time,
-                                                self.occupation,
-                                                self.distances,
-                                                self.E_constant,
-                                                self.site_energies,
-                                                self.transitions_constant,
-                                                self.transitions,
-                                                self.problist,
-                                                self.electrode_occupation,
-                                                hops,
-                                                record)
-
-            self.current = self.electrode_occupation/self.time
-
+            (self.time, self.occupation, self.electrode_occupation) = self.simulate_func(**args)
+        self.current = self.electrode_occupation/self.time
         
 
     def reset(self):

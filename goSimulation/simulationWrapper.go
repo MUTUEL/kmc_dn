@@ -31,6 +31,27 @@ func deFlattenFloat64(m []float64, x int64, y int64) [][]float64 {
 	return r
 }
 
+func deFlattenFloatTo32(m []float64, x int64, y int64) [][]float32 {
+	r := make([][]float32, x)
+	c := 0
+	for i := int64(0); i < x; i+=1 {
+		r[i] = make([]float32, y)
+		for j := int64(0); j < y; j+=1 {
+			r[i][j] = float32(m[c])
+			c += 1
+		}
+	}
+	return r
+}
+
+func toFloat32(m []float64) []float32{
+	r := make([]float32, len(m))
+	for i := 0; i < len(m); i++ {
+		r[i] = float32(m[i])
+	}
+	return r
+}
+
 func printAverageExpRandom(){
 	sum := 0.0
 	for i := 0; i < 1000; i++ {
@@ -44,31 +65,63 @@ func printAverageExpRandom(){
 	fmt.Printf("Ln 1/random average is: %.3fn", sum/1000)
 }
 
-//export simulateWrapper
-func simulateWrapper(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
+//export wrapperSimulate
+func wrapperSimulate(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
 		occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
 		electrode_occupation []float64, site_energies []float64, hops int) float64 {
 	//Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
-	newDistances := deFlattenFloat64(distances, NSites+NElectrodes, NSites+NElectrodes)
-	newConstants := deFlattenFloat64(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
-	record_problist := true
-	/*if NSites > 30 {
-		record_problist = false
-	} else if 2^NSites > int64(hops) / 2 {
-		record_problist = false
-	}*/
+	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
+	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
 	bool_occupation := make([]bool, NSites)
 	//printAverageExpRandom();
-	time = simulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, time, bool_occupation, 
-		newDistances , E_constant, newConstants, electrode_occupation, site_energies, hops, record_problist)
+	time = simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), time, bool_occupation, 
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false)
+
+	return time
+}
+
+//export wrapperSimulatePrunedTransitions
+func wrapperSimulatePrunedTransitions(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
+	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
+	electrode_occupation []float64, site_energies []float64, hops int) float64 {
+	//Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
+	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
+	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
+	bool_occupation := make([]bool, NSites)
+	//printAverageExpRandom();
+	time = simulatePrunedTransitions(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), time, bool_occupation, 
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false)
+
+	return time
+}
+
+//export wrapperSimulateRecord
+func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
+	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
+	electrode_occupation []float64, site_energies []float64, hops int) float64 {
+	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
+	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
+
+	bool_occupation := make([]bool, NSites)
+	time = simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), time, bool_occupation, 
+	newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true)
+
+return time
+}
+
+//export wrapperSimulateProbability
+func wrapperSimulateProbability(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
+	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
+	electrode_occupation []float64, site_energies []float64, hops int) float64 {
+
+	newDistances := deFlattenFloat64(distances, NSites+NElectrodes, NSites+NElectrodes)
+	newConstants := deFlattenFloat64(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
 	
-	for i := 0; i < 0; i++ {
-		for j := 0; j < int(NSites); j++ {
-			occupation[j] = rand.Float64()
-		}
-		time = probSimulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, 0, occupation, 
-			newDistances , E_constant, newConstants, electrode_occupation, site_energies, hops, record_problist)
+	for j := 0; j < int(NSites); j++ {
+		occupation[j] = rand.Float64()
 	}
+	time = probSimulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, 0, occupation, 
+			newDistances , E_constant, newConstants, electrode_occupation, site_energies, hops)
 
 	return time
 }

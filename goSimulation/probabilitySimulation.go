@@ -52,13 +52,13 @@ func probTransitionPossible(i int, j int, NSites int, occupation []float64) floa
 
 func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64, time float64,
     	occupation []float64, distances [][]float64, E_constant []float64, transitions_constant [][]float64,
-    	electrode_occupation []float64, site_energies []float64, hops int, record_problist bool) float64 {
+    	electrode_occupation []float64, site_energies []float64, hops int) float64 {
 	N := NSites + NElectrodes
 	transitions := make([][]float64, N)
 	difference := make([]float64, NSites)
 	eoDifference := make([]float64, NElectrodes)
 	
-	fmt.Println(occupation)
+	//fmt.Println(occupation)
 
 	for i := 0; i < NElectrodes; i++ {
 		electrode_occupation[i] = 0.0
@@ -132,26 +132,26 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 		if hop % showStep == 0 {
 			showStep*=8
 			allowed_change*=2
-			current := electrode_occupation[0] / time
-			fmt.Printf("Hop: %d, max_rate: %.3f, tot_rates: %.2f, current: %.2f, time: %.2f\n", hop, max_rate, tot_rates, current, time)
+			//current := electrode_occupation[0] / time
+			//fmt.Printf("Hop: %d, max_rate: %.3f, tot_rates: %.2f, current: %.2f, time: %.2f\n", hop, max_rate, tot_rates, current, time)
 			//fmt.Printf("Occupation at hop: %v\n", occupation)
 			
-			ave_time := 0.98 / (tot_rates)
+			/*ave_time := 0.98 / (tot_rates)
 			for i:=0; i < NElectrodes; i++ {
 				fmt.Printf("The expected average current for %d is %.3f\n", i, eoDifference[i]/ave_time)
-			}
+			}*/
 		}
 	}
-	fmt.Printf("Occupation: %.4v\n", occupation)
+	/*fmt.Printf("Occupation: %.4v\n", occupation)
 	fmt.Printf("Last difference: %.4v\n", difference)
 	fmt.Printf("Site energies: %.4v\n", site_energies)
-	//fmt.Printf("Constants: %.4v\n", transitions_constant)
+	fmt.Printf("Constants: %.4v\n", transitions_constant)
 
 	fmt.Println(time)
 	fmt.Println(electrode_occupation)
 	for i := 0; i < len(electrode_occupation); i++ {
 		fmt.Println(electrode_occupation[i]/time)
-	}
+	}*/
 	
 	return time
 }
