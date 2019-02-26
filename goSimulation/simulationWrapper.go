@@ -68,29 +68,14 @@ func printAverageExpRandom(){
 //export wrapperSimulate
 func wrapperSimulate(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
 		occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
-		electrode_occupation []float64, site_energies []float64, hops int) float64 {
+		electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, average_occupation []float64) float64 {
 	//Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
 	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
 	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
 	bool_occupation := make([]bool, NSites)
 	//printAverageExpRandom();
 	time = simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), time, bool_occupation, 
-		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false)
-
-	return time
-}
-
-//export wrapperSimulatePrunedTransitions
-func wrapperSimulatePrunedTransitions(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
-	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
-	electrode_occupation []float64, site_energies []float64, hops int) float64 {
-	//Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
-	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
-	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
-	bool_occupation := make([]bool, NSites)
-	//printAverageExpRandom();
-	time = simulatePrunedTransitions(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), time, bool_occupation, 
-		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false)
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false, record, traffic, average_occupation)
 
 	return time
 }
@@ -98,13 +83,13 @@ func wrapperSimulatePrunedTransitions(NSites int64, NElectrodes int64, nu float6
 //export wrapperSimulateRecord
 func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
 	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
-	electrode_occupation []float64, site_energies []float64, hops int) float64 {
+	electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, average_occupation []float64) float64 {
 	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
 	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
 
 	bool_occupation := make([]bool, NSites)
 	time = simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), time, bool_occupation, 
-	newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true)
+	newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true, record, traffic, average_occupation)
 
 return time
 }
@@ -112,7 +97,7 @@ return time
 //export wrapperSimulateProbability
 func wrapperSimulateProbability(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
 	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
-	electrode_occupation []float64, site_energies []float64, hops int) float64 {
+	electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, average_occupation []float64) float64 {
 
 	newDistances := deFlattenFloat64(distances, NSites+NElectrodes, NSites+NElectrodes)
 	newConstants := deFlattenFloat64(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
@@ -121,7 +106,7 @@ func wrapperSimulateProbability(NSites int64, NElectrodes int64, nu float64, kT 
 		occupation[j] = rand.Float64()
 	}
 	time = probSimulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, 0, occupation, 
-			newDistances , E_constant, newConstants, electrode_occupation, site_energies, hops)
+			newDistances , E_constant, newConstants, electrode_occupation, site_energies, hops, record, traffic, average_occupation)
 
 	return time
 }

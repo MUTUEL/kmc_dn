@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import itertools
 import fenics as fn
 import time
+import math
 
 plt.ioff()
 
@@ -93,6 +94,11 @@ def visualize_current(kmc_dn):
     fig.colorbar(quiv)
 
     return fig
+
+
+
+
+
 
 def visualize_current_density(kmc_dn, res = None, title = None,
                               normalize = True):
@@ -224,6 +230,55 @@ def visualize_dwelltime(kmc_dn, show_V = True):
         cbar.set_label('Chemical potential (V)')
 
     return fig
+
+def visualize_traffic(kmc_dn):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlim(right=kmc_dn.xdim)
+    ax.set_ylim(top=kmc_dn.ydim)
+
+    acceptorColors = []
+    for i in range(len(kmc_dn.acceptors)):
+        h = hex(math.floor((1-kmc_dn.average_occupation[i])*255))
+        h = h[2:]
+        colorStr = "#%s%s%s"%(h, h, h)
+        acceptorColors.append(colorStr)
+
+    ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = 'k', marker='o', s=64)
+    ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = acceptorColors, marker='o', s=48)
+    ax.scatter(kmc_dn.electrodes[:,0], kmc_dn.electrodes[:,1], c = 'r', marker='o')
+    ax.scatter(kmc_dn.donors[:, 0], kmc_dn.donors[:, 1], marker='x')
+    largest = 0
+    for row in kmc_dn.traffic:
+        for ele in row:
+            if largest < ele:
+                largest =  ele
+    
+    NSites = len(kmc_dn.acceptors)
+    NElectrodes = len(kmc_dn.electrodes)
+    N = NSites + NElectrodes
+    arrowLength = kmc_dn.xdim/20
+    for i in range(N):
+        for j in range(N):
+            traffic = kmc_dn.traffic[i][j]
+            if traffic <= 0:
+                continue
+            
+            intensity = traffic / 1.0 / largest
+            if intensity < 0.01:
+                continue
+            print ("i: %d, j: %d, intensity: %.3f, largest: %d"%(i, j, intensity, largest))
+            startPos = getPosition(kmc_dn, i)
+            endPos = getPosition(kmc_dn, j)
+            distance = getDistance(startPos, endPos)
+            arrows = max(1, math.floor(distance / (arrowLength*1.5)))
+            arrowVector = ((endPos[0]-startPos[0])/distance*arrowLength, 
+                (endPos[1]-startPos[1])/distance*arrowLength)
+            for a in range(arrows):
+                x = startPos[0]+a*(arrowVector[0])*1.5+arrowVector[0]*0.25
+                y = startPos[1]+a*arrowVector[1]*1.5+arrowVector[1]*0.25
+                width = 0.004
+                plt.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity))
 
 
 def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
@@ -372,3 +427,15 @@ def IV(kmc_dn, electrode, voltagelist,
         if(i == 1):
             print(f'Estimated time for IV curve: {(time.time()-tic)*voltages} seconds')
     return currentlist
+
+def getPosition(kmc_dn, index):
+    if index < len(kmc_dn.acceptors):
+        return (kmc_dn.acceptors[index][0], kmc_dn.acceptors[index][1])
+    else:
+        return (kmc_dn.electrodes[index-len(kmc_dn.acceptors)][0], 
+            kmc_dn.electrodes[index-len(kmc_dn.acceptors)][1])
+
+def getDistance(coord1, coord2):
+    x = coord2[0] - coord1[0]
+    y = coord2[1] - coord1[1]
+    return math.sqrt((x*x)+(y*y))

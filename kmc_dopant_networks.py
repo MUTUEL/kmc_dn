@@ -46,8 +46,8 @@ def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupat
     # Initialize time, current and traffic array
     t_array = np.zeros(hops)
     traffic = np.zeros(transitions_constant.shape)
-    electrode_occupation_array = np.zeros((len(electrode_occupation), hops))
     NAll = NSites+NElectrodes
+    occupations_in_time = np.zeros(len(occupation))
 
     for hh in range(hops):
         # Append current time
@@ -123,15 +123,17 @@ def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupat
         # Update record
         if record: 
             traffic[transition[0], transition[1]] += 1
-            t_array[hh] = time
+            for i in range(len(occupation)):
+                if occupation[i]:
+                    occupations_in_time+=hop_time
 
         # Append current electrode occupation
-        electrode_occupation_array[:, hh] = electrode_occupation
 
         # Increment time
+
         time += hop_time
     if record:
-        return t_array, occupation, electrode_occupation_array, traffic
+        return time, occupation, electrode_occupation, traffic, occupations_in_time
     else:
         return time, occupation, electrode_occupation
 
@@ -462,12 +464,12 @@ class kmc_dn():
     def simulate_fast(self, tol = 1E-2, interval = 1000, prehops = 0, maxhops = 1E6):
         self.python_simulation(maxhops, True, prehops, False)
 
-    def go_simulation(self, hops = 1E5, reset = True, prehops = 0, goSpecificFunction="wrapperSimulateRecord"):
+    def go_simulation(self, hops = 1E5, reset = True, prehops = 0, goSpecificFunction="wrapperSimulateRecord", record=False):
         '''
         Simple wrapper function for running a simulation that performs
         hops hops with prehops hops before tracking current.
         '''
-        self.makeSimulation(simulateFunction = callGoSimulation, preHopFunction = callGoSimulation, hops = hops, prehops = prehops, goSpecificFunction=goSpecificFunction)
+        return self.makeSimulation(simulateFunction = callGoSimulation, preHopFunction = callGoSimulation, hops = hops, prehops = prehops, goSpecificFunction=goSpecificFunction, record=record)
     
     def python_simulation(self, hops = 1E5, reset = True, prehops = 0, record = False):
         self.makeSimulation(simulateFunction=_simulate_discrete_record, preHopFunction=_simulate_discrete_record, hops=hops, prehops=prehops, record=record)
@@ -503,13 +505,14 @@ class kmc_dn():
         # Simulate until convergence
         if record:
             args["record"] = True
-            (times, self.occupation, self.electrode_occupation, self.traffic) = self.simulate_func(**args)
-            self.time = times[-1]
+            (self.time, self.occupation, self.electrode_occupation, self.traffic, occupations_in_time) = self.simulate_func(**args)
+            self.average_occupation= [x / self.time for x in occupations_in_time]
             self.current = self.electrode_occupation/self.time
-            return (times, self.traffic)
+            return self.time, self.traffic, self.average_occupation
         else:
             (self.time, self.occupation, self.electrode_occupation) = self.simulate_func(**args)
-        self.current = self.electrode_occupation/self.time
+            self.current = self.electrode_occupation/self.time
+        
         
 
     def reset(self):

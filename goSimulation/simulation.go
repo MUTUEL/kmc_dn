@@ -106,7 +106,8 @@ type probabilities struct {
 
 func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32, time float64,
         occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
-        electrode_occupation []float64, site_energies []float32, hops int, record_problist bool) float64 {
+        electrode_occupation []float64, site_energies []float32, hops int, record_problist bool, record bool, 
+        traffic []float64, average_occupation []float64) float64 {
     N := NSites + NElectrodes
     transitions := make([][]float32, N)
     //occupation_time := make([]float64, NSites)
@@ -196,6 +197,16 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
         from := event/N
         to := event%N
 
+        if record {
+            traffic[event]+=1
+            traffic[to*N+from]-=1
+            for i := 0; i < NSites; i++ {
+                if occupation[i] {
+                    average_occupation[i]+=time_step
+                }
+            }
+        }
+
         /*if hop % showStep == 0 {
             showStep*=2
             current := electrode_occupation[0] / time
@@ -221,137 +232,6 @@ type transition struct {
     rate float32;
     prunedList []*transition;
     count int;
-}
-
-func simulatePrunedTransitions(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32, time float64,
-    occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
-    electrode_occupation []float64, site_energies []float32, hops int, record_problist bool) float64 {
-
-    N := NSites + NElectrodes
-    transitions := make([][]float32, N)
-
-    for i := 0; i < NSites; i++ {
-        acceptor_interaction := float32(0)
-        for j := 0; j < NSites; j++ {
-            if j != i && !occupation[j] {
-                acceptor_interaction+= 1/distances[i][j]
-            }
-        }
-        site_energies[i] = E_constant[i] - I_0*R*acceptor_interaction
-    }
-
-    for i := 0; i < NElectrodes; i++ {
-        electrode_occupation[i] = 0.0
-    }
-    time = 0
-    total_transitions := NSites*(NSites-1) + NSites * 2 * NElectrodes
-    allTransitions := make([]transition, total_transitions)
-    count := 0
-    var total_rate float32 = 0
-    for i:= 0; i < N; i++ {
-        transitions[i] = make([]float32, N)
-        for j := 0; j < N; j++ {
-            transitions[i][j] = 0
-            if i == j || (i >= NSites && j >= NSites) {
-                continue
-            }
-            new_trans := transition{i, j, 0.0, make([]*transition, total_transitions), 0}
-            allTransitions[count] = new_trans
-            count++
-        }
-    }
-
-    for i := 0; i < len(allTransitions); i++ {
-        for j := 0; j < len(allTransitions); j++ {
-            if allTransitions[i].from < NSites && allTransitions[j].from == allTransitions[i].from {
-                continue
-            }
-            if allTransitions[i].to < NSites && allTransitions[j].to == allTransitions[i].to {
-                continue
-            }
-            allTransitions[i].prunedList[allTransitions[i].count] = &allTransitions[j]
-            allTransitions[i].count++
-        }
-    }
-
-    var next_transitions *([]transition) = &allTransitions
-    var last_transition *transition = &transition{0, 0, 0.0, make([]*transition, 0), len(allTransitions)}
-    //showStep := 1
-    for hop := 0; hop < hops; hop++ {
-
-        prune_list := make([]int, 0)
-
-        for i := 0; i < (*last_transition).count; i++ {
-            trans := &(*next_transitions)[i]
-            from := trans.from
-            to := trans.to
-            if !transition_possible(from, to, NSites, occupation){
-                trans.rate = 0
-            } else {
-                var dE float32
-                if trans.from < NSites && trans.to < NSites {
-                    dE = site_energies[to] - site_energies[from] - I_0*R/distances[from][to]
-                } else {
-                    dE = site_energies[to] - site_energies[from]
-                }
-                var newRate float32
-                if dE > 0 {
-                    newRate = float32(nu * float32(math.Exp(float64(-dE/kT))))*float32(transitions_constant[from][to])
-                    diff := trans.rate / newRate
-                    if diff > 0.99 && diff < 1.01 {
-                        prune_list = append(prune_list, i)
-                    }
-                } else {
-                    newRate = float32(transitions_constant[from][to])
-                }
-                total_rate += newRate - transitions[from][to]
-                transitions[from][to] = newRate
-                trans.rate = newRate
-            }
-        }
-        for i := 0; i < len(prune_list); i++ {
-            (*last_transition).count--
-            (*next_transitions)[prune_list[i]] = (*next_transitions)[(*last_transition).count]
-        }
-
-        eventRand := rand.Float32() * total_rate
-        found := false
-        var eventTot float32 = 0
-        from := 0
-        to := 0
-        for i := 0; i < N && !found; i++ {
-            for j := 0; j < N; j++ {
-                eventTot+=transitions[i][j]
-                if eventTot > eventRand {
-                    found = true
-                    from = i
-                    to = j
-                    break
-                }
-            }
-        }
-        
-        time_step := rand.ExpFloat64() / float64(total_rate)
-        time += time_step
-
-
-        /*if hop % showStep == 0 {
-            showStep*=2
-            current := electrode_occupation[0] / time
-            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d, storage: %d\n", hop, current, time, countReuses, countStorage)
-        }*/
-        makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
-            NSites, from, to)
-        /*for i := 0; i < NSites; i++ {
-            if occupation[i] {
-                occupation_time[i]+=time_step
-            }
-        }*/
-    }
-    /*for i := 0; i < NSites; i++ {
-        occupation_time[i]/=time
-    }*/
-    return time
 }
 
 /*type transitionBucket struct {
