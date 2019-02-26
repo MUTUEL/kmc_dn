@@ -52,7 +52,8 @@ func probTransitionPossible(i int, j int, NSites int, occupation []float64) floa
 
 func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64, time float64,
     	occupation []float64, distances [][]float64, E_constant []float64, transitions_constant [][]float64,
-    	electrode_occupation []float64, site_energies []float64, hops int) float64 {
+		electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, 
+		average_occupation []float64) float64 {
 	N := NSites + NElectrodes
 	transitions := make([][]float64, N)
 	difference := make([]float64, NSites)
@@ -63,6 +64,7 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 	for i := 0; i < NElectrodes; i++ {
 		electrode_occupation[i] = 0.0
 	}
+	time = 0
 
 	for i := 0; i < N; i++ {
 		transitions[i] = make([]float64, N)
@@ -72,8 +74,8 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 			}
 		}
 	}
-    allowed_change := 1.0
-
+    allowed_change := 2.0
+	tot_rates := float64(0)
 	showStep := 4
 	for hop := 0; hop < hops; hop++ {
 		for i := 0; i < NSites; i++ {
@@ -90,7 +92,7 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 			eoDifference[i] = 0
 		}
 
-		tot_rates := calcProbTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant, difference)
+		tot_rates = calcProbTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant, difference)
 		var max_rate float64 = math.Max(1.0, 1/tot_rates)
 		for i := 0; i < NSites; i++ {
 			newVal := occupation[i] + max_rate*difference[i]
@@ -101,10 +103,13 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 				max_rate = (1-occupation[i])/difference[i]/allowed_change
 			}
 		}
-		
-		time += rand.ExpFloat64() * (max_rate)
-
-
+		time_step := rand.ExpFloat64() * (max_rate)
+		time += time_step
+		if record {
+			for i := 0; i < NSites; i++ {
+				average_occupation[i]+=occupation[i]*time_step
+			}
+		}
 
 		for i := 0; i < N; i++ {
 			for j := 0; j < N; j++ {
@@ -123,15 +128,18 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 				}
 				if j < NSites {
 					occupation[j]+=rate
-				} else {
+				} else  {
 					electrode_occupation[j-NSites]+=rate
 					eoDifference[j-NSites]+=transitions[i][j]/tot_rates
+				}
+				if record {
+					traffic[i*N+j]+=rate
+					traffic[j*N+i]-=rate
 				}
 			}
 		}
 		if hop % showStep == 0 {
 			showStep*=8
-			allowed_change*=2
 			//current := electrode_occupation[0] / time
 			//fmt.Printf("Hop: %d, max_rate: %.3f, tot_rates: %.2f, current: %.2f, time: %.2f\n", hop, max_rate, tot_rates, current, time)
 			//fmt.Printf("Occupation at hop: %v\n", occupation)
@@ -146,6 +154,7 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 	fmt.Printf("Last difference: %.4v\n", difference)
 	fmt.Printf("Site energies: %.4v\n", site_energies)
 	fmt.Printf("Constants: %.4v\n", transitions_constant)
+	
 
 	fmt.Println(time)
 	fmt.Println(electrode_occupation)
