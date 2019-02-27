@@ -231,16 +231,26 @@ def visualize_dwelltime(kmc_dn, show_V = True):
 
     return fig
 
-def visualize_traffic(kmc_dn):
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
+def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
+    if figure:
+        fig = figure
+    else:
+        fig = plt.figure()
+
+    ax = fig.add_subplot(pos)
     ax.set_xlim(right=kmc_dn.xdim)
     ax.set_ylim(top=kmc_dn.ydim)
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    if len(title) > 0:
+        ax.set_title(title)
 
     acceptorColors = []
     for i in range(len(kmc_dn.acceptors)):
         h = hex(math.floor((1-kmc_dn.average_occupation[i])*255))
         h = h[2:]
+        if len(h)==1:
+            h = "0%s"%(h)
         colorStr = "#%s%s%s"%(h, h, h)
         acceptorColors.append(colorStr)
 
@@ -267,7 +277,7 @@ def visualize_traffic(kmc_dn):
             intensity = traffic / 1.0 / largest
             if intensity < 0.01:
                 continue
-            print ("i: %d, j: %d, intensity: %.3f, largest: %d"%(i, j, intensity, largest))
+            #print ("i: %d, j: %d, intensity: %.3f, largest: %d"%(i, j, intensity, largest))
             startPos = getPosition(kmc_dn, i)
             endPos = getPosition(kmc_dn, j)
             distance = getDistance(startPos, endPos)
@@ -278,7 +288,14 @@ def visualize_traffic(kmc_dn):
                 x = startPos[0]+a*(arrowVector[0])*1.5+arrowVector[0]*0.25
                 y = startPos[1]+a*arrowVector[1]*1.5+arrowVector[1]*0.25
                 width = 0.004
-                plt.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity))
+                ax.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity))
+    center = (kmc_dn.xdim/2, kmc_dn.ydim/2)
+    for i in range(NElectrodes):
+        ele = kmc_dn.electrodes[i]
+        x = (ele[0] - center[0])*0.1 + ele[0]
+        y = (ele[1] - center[1])*0.1 + ele[1]
+        ax.text(x, y, "V:%.2f\nCurrent: %.3f"%(ele[3], kmc_dn.current[i]))
+    return fig
 
 
 def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,

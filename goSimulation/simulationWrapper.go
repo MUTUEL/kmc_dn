@@ -103,7 +103,7 @@ func wrapperSimulateProbability(NSites int64, NElectrodes int64, nu float64, kT 
 	newConstants := deFlattenFloat64(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
 	
 	for j := 0; j < int(NSites); j++ {
-		occupation[j] = rand.Float64()
+		occupation[j] = float64(0.5)
 	}
 	time = probSimulate(int(NSites), int(NElectrodes), nu, kT, I_0, R, 0, occupation, 
 			newDistances , E_constant, newConstants, electrode_occupation, site_energies, hops, record, traffic, average_occupation)
