@@ -27,6 +27,7 @@ suggested workflow (based on conda) is given afterwards.
 + numba
 + fenics, installation notes are [here](https://fenics.readthedocs.io/en/latest/installation.html)
 + logging
++ go
 
 ## Recommended installation procedure
 
@@ -66,6 +67,12 @@ look for the system path that looks like this:
 
 Then make a new file `kmc.pth` which contains the absolute path to the 
 repo.
+
+To use go functionalities you have to compile and build a library accessible by python inside the goSimulation folder.
+
+```
+go build -o libSimulation.so -buildmode=c-shared simulationWrapper.go simulation.go probabilitySimulation.go
+```
 
 ## Get help
 

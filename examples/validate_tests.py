@@ -69,7 +69,7 @@ def test(kmcs, func, title):
         func(kmc)
     end = time.time()
     print ("Took time: %.3f"%(end-start))
-    extreme_errors = evaluate(kmcs, 0.5)
+    extreme_errors = evaluate(kmcs, 0.7)
     return extreme_errors
 
 
@@ -101,9 +101,9 @@ def visualize(kmc, func):
 
 
 def compareVisualize(kmc, funcs, titles, fileName):
-    prefixes = [11, 21, 22, 22, 32, 32]
+    prefixes = [11, 21, 22, 22, 32, 32, 33, 33, 33]
     plt.clf()
-    fig = plt.figure(figsize=(30, 20))
+    fig = plt.figure(figsize=((prefixes[len(funcs)]/10*10), (prefixes[len(funcs)]%10)*10))
     for i in range(len(funcs)):
         funcs[i](kmc, True)
         sub_plot_number = prefixes[len(funcs)]*10+i+1
@@ -114,8 +114,10 @@ def testSet(prefix, amount):
     tests = getTests(prefix, amount)
     print ("finished reading testSet %s"%(prefix))
     extreme_errors = {}
-    for func, title in [(testKMC5000, "KMC 5000 hops"), (testKMC50000, "KMC 50000 hops"), (testKMC1E6, "KMC 1E6 hops")
-        (testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
+    for func, title in [
+        #(testKMC5000, "KMC 5000 hops"), (testKMC50000, "KMC 50000 hops"), 
+        #(testKMC1E6, "KMC 1E6 hops"), 
+        #(testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
         (testProb5000, "Probability 5000 hops")]:
         extreme_errors[title] = (func, test(tests, func, title))
     for i in range(amount):
@@ -127,7 +129,7 @@ def testSet(prefix, amount):
                     funcs.append(extreme_errors[title][0])
                     titles.append("%s %s"%(title, error))
         if len(funcs) > 1:
-            compareVisualize(tests[i], funcs, titles, "ExtremeVisualization%d.png"%(i))
+            compareVisualize(tests[i], funcs, titles, "EV%s%d.png"%(prefix, i))
+testSet("set", 101)
 testSet("xor", 100)
-#testSet("set", 101)
-#testSet("rnd", 200)
+testSet("rnd", 200)

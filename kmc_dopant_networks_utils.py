@@ -238,8 +238,8 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
         fig = plt.figure()
 
     ax = fig.add_subplot(pos)
-    ax.set_xlim(right=kmc_dn.xdim)
-    ax.set_ylim(top=kmc_dn.ydim)
+    ax.set_xlim(right=max(1, kmc_dn.xdim))
+    ax.set_ylim(top=max(1, kmc_dn.ydim))
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
     if len(title) > 0:

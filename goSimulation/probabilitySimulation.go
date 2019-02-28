@@ -74,9 +74,8 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 			}
 		}
 	}
-    allowed_change := 2.0
+	wierdness := float64(0)
 	tot_rates := float64(0)
-	showStep := 4
 	for hop := 0; hop < hops; hop++ {
 		for i := 0; i < NSites; i++ {
 			difference[i] = 0
@@ -93,17 +92,17 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 		}
 
 		tot_rates = calcProbTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant, difference)
-		var max_rate float64 = math.Max(1.0, 1/tot_rates)
+		var max_rate float64 = 1.0
 		for i := 0; i < NSites; i++ {
-			newVal := occupation[i] + max_rate*difference[i]
+			newVal := occupation[i] + max_rate*difference[i]/tot_rates
 			if newVal < 0 {
-				max_rate = occupation[i]/-difference[i]/allowed_change
+				max_rate = occupation[i]/-difference[i]
 			}
 			if newVal > 1 {
-				max_rate = (1-occupation[i])/difference[i]/allowed_change
+				max_rate = (1-occupation[i])/difference[i]
 			}
 		}
-		time_step := rand.ExpFloat64() * (max_rate)
+		time_step := rand.ExpFloat64() * (max_rate) / tot_rates
 		time += time_step
 		if record {
 			for i := 0; i < NSites; i++ {
@@ -116,11 +115,8 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 				if i >= NSites && j >= NSites {
 					break
 				}
-				rate := transitions[i][j]*max_rate
+				rate := transitions[i][j]*max_rate/tot_rates
 				if i < NSites {
-					if occupation[i] < rate {
-						rate = occupation[i]
-					}
 					occupation[i]-=rate
 				} else {
 					electrode_occupation[i-NSites]-=rate
@@ -138,29 +134,18 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 				}
 			}
 		}
-		if hop % showStep == 0 {
-			showStep*=8
-			//current := electrode_occupation[0] / time
-			//fmt.Printf("Hop: %d, max_rate: %.3f, tot_rates: %.2f, current: %.2f, time: %.2f\n", hop, max_rate, tot_rates, current, time)
-			//fmt.Printf("Occupation at hop: %v\n", occupation)
-			
-			/*ave_time := 0.98 / (tot_rates)
-			for i:=0; i < NElectrodes; i++ {
-				fmt.Printf("The expected average current for %d is %.3f\n", i, eoDifference[i]/ave_time)
-			}*/
+		for i := 0; i < NSites; i++ {
+			if occupation[i] < 0 {
+				wierdness+=-occupation[i]
+				occupation[i] = 0
+			}
+			if occupation[i] > 1 {
+				wierdness+= occupation[i]-1
+				occupation[i]=1
+			}
 		}
 	}
-	/*fmt.Printf("Occupation: %.4v\n", occupation)
-	fmt.Printf("Last difference: %.4v\n", difference)
-	fmt.Printf("Site energies: %.4v\n", site_energies)
-	fmt.Printf("Constants: %.4v\n", transitions_constant)
-	
-
-	fmt.Println(time)
-	fmt.Println(electrode_occupation)
-	for i := 0; i < len(electrode_occupation); i++ {
-		fmt.Println(electrode_occupation[i]/time)
-	}*/
+	//fmt.Printf("Wierdness: %.4f\n", wierdness)
 	
 	return time
 }
