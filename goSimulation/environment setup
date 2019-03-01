@@ -18,23 +18,4 @@ Install necessary packages
 conda install numpy matplotlib
 conda install -c conda-forge/label/gcc7 numba fenics
 
-sys.path.insert(0,'./goSimulation')
-from goSimulation.pythonBind import callSimulation
-
-        (self.time,
-         self.electrode_occupation) = callSimulation(self.N,
-                                                       self.P,
-                                                       self.nu,
-                                                       self.kT,
-                                                       self.I_0,
-                                                       self.R,
-                                                       self.time,
-                                                       self.occupation,
-                                                       self.distances,
-                                                       self.E_constant,
-                                                       self.transitions_constant,
-                                                       self.electrode_occupation,
-                                                       self.site_energies,
-                                                       hops)
-
 go build -o libSimulation.so -buildmode=c-shared simulationWrapper.go simulation.go probabilitySimulation.go

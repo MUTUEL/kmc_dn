@@ -94,6 +94,9 @@ def testProb500(kmc, record=False):
 def testProb5000(kmc, record=False):
     kmc.go_simulation(hops=5000, goSpecificFunction="wrapperSimulateProbability", record = record)
 
+def testCombined10K(kmc, record=True):
+    kmc.go_simulation(hops=10000, goSpecificFunction="wrapperSimulateCombined", record = True)
+
 def visualize(kmc, func):
     func(kmc, True)
     kmc_utils.visualize_traffic(kmc)
@@ -110,6 +113,21 @@ def compareVisualize(kmc, funcs, titles, fileName):
         fig = kmc_utils.visualize_traffic(kmc, sub_plot_number, titles[i], fig)
     plt.savefig(fileName)
 
+def compareVisualizeSwipe(data, fileName):
+    prefixes = [11, 21, 22, 22, 32, 32, 33, 33, 33]
+    plt.clf()
+    size = len(data)
+    i = 1
+    fig = plt.figure(figsize=((prefixes[size]/10*10), (prefixes[size]%10)*10))
+
+    for key in data:
+        sub_plot_number = prefixes[size]*10+i
+
+        kmc_utils.plot_swipe(data[key], pos=sub_plot_number, figure=fig, title=key)
+        i+=1
+    plt.savefig(fileName)
+
+
 def testSet(prefix, amount):
     tests = getTests(prefix, amount)
     print ("finished reading testSet %s"%(prefix))
@@ -118,7 +136,8 @@ def testSet(prefix, amount):
         #(testKMC5000, "KMC 5000 hops"), (testKMC50000, "KMC 50000 hops"), 
         #(testKMC1E6, "KMC 1E6 hops"), 
         #(testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
-        (testProb5000, "Probability 5000 hops")]:
+        #(testProb5000, "Probability 5000 hops"),
+        (testCombined10K, "Combined 10K hops")]:
         extreme_errors[title] = (func, test(tests, func, title))
     for i in range(amount):
         funcs = [testKMC1E6]
@@ -130,6 +149,28 @@ def testSet(prefix, amount):
                     titles.append("%s %s"%(title, error))
         if len(funcs) > 1:
             compareVisualize(tests[i], funcs, titles, "EV%s%d.png"%(prefix, i))
+
+def measureSwipe(prefix, amount, inputVoltage, outPutCurrent, funcs):
+    tests = getTests(prefix, amount)
+    print("Finished reading %s\n"%(prefix))
+    data = {}
+    for _, title in funcs:
+        data[title] = []
+    for func, title in funcs:
+        for kmc in tests:
+            func(kmc)
+            data[title].append((kmc.electrodes[inputVoltage][3], kmc.current[outPutCurrent]))
+        print ("Finished simulating on %s\n"%(title))
+    compareVisualizeSwipe(data, "Swipe%s.png"%(prefix))
+
 testSet("set", 101)
 testSet("xor", 100)
 testSet("rnd", 200)
+"""measureSwipe("xor", 100, 1, 2, [
+        (testKMC5000, "KMC 5000 hops"), 
+        #(testKMC50000, "KMC 50000 hops"), 
+        #(testKMC1E6, "KMC 1E6 hops"), 
+        #(testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
+        #(testProb5000, "Probability 5000 hops"),
+        (testCombined10K, "Combined 10K hops")]
+        )"""

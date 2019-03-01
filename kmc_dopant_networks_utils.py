@@ -298,6 +298,97 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
     return fig
 
 
+def visualize_traffic_substraction(kmc1, kmc2, pos=111, title="", figure=None):
+    if figure:
+        fig = figure
+    else:
+        fig = plt.figure()
+
+    ax = fig.add_subplot(pos)
+    ax.set_xlim(right=max(1, kmc1.xdim))
+    ax.set_ylim(top=max(1, kmc1.ydim))
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    if len(title) > 0:
+        ax.set_title(title)
+
+    acceptorColors = []
+    for i in range(len(kmc1.acceptors)):
+        print (kmc1.average_occupation[i])
+        print (kmc2.average_occupation[i])
+        diff = kmc1.average_occupation[i] - kmc2.average_occupation[i]
+        print (diff)
+        r, g, b = 255, 255, 255
+        if diff < 0:
+            g, b = 255+(diff*255), 255+(diff*255)
+        else :
+            r, b = 255-(diff*255), 255+(diff*255)
+        colorStr = getColorHex(r, g, b)
+        print (colorStr)
+        acceptorColors.append(colorStr)
+
+    ax.scatter(kmc1.acceptors[:, 0], kmc1.acceptors[:, 1], c = 'k', marker='o', s=64)
+    ax.scatter(kmc1.acceptors[:, 0], kmc1.acceptors[:, 1], c = acceptorColors, marker='o', s=48)
+    ax.scatter(kmc1.electrodes[:,0], kmc1.electrodes[:,1], c = 'r', marker='o')
+    ax.scatter(kmc1.donors[:, 0], kmc1.donors[:, 1], marker='x')
+    largest = 0
+    for i in range(len(kmc1.traffic)):
+        for j in range(len(kmc1.traffic[i])):
+            curr = kmc1.traffic[i][j]/kmc1.time
+            
+            if largest < curr:
+                largest =  curr
+    
+    NSites = len(kmc1.acceptors)
+    NElectrodes = len(kmc1.electrodes)
+    N = NSites + NElectrodes
+    arrowLength = kmc1.xdim/20
+    for i in range(N):
+        for j in range(N):
+            traffic = kmc2.traffic[i][j]/kmc2.time -kmc1.traffic[i][j]/kmc1.time
+            if traffic <= 0:
+                continue
+            
+            intensity = traffic / largest
+            if intensity < 0.01:
+                continue
+            #print ("i: %d, j: %d, intensity: %.3f, largest: %d"%(i, j, intensity, largest))
+            startPos = getPosition(kmc1, i)
+            endPos = getPosition(kmc1, j)
+            distance = getDistance(startPos, endPos)
+            arrows = max(1, math.floor(distance / (arrowLength*1.5)))
+            arrowVector = ((endPos[0]-startPos[0])/distance*arrowLength, 
+                (endPos[1]-startPos[1])/distance*arrowLength)
+            for a in range(arrows):
+                x = startPos[0]+a*(arrowVector[0])*1.5+arrowVector[0]*0.25
+                y = startPos[1]+a*arrowVector[1]*1.5+arrowVector[1]*0.25
+                width = 0.004
+                ax.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity))
+    center = (kmc1.xdim/2, kmc1.ydim/2)
+    for i in range(NElectrodes):
+        ele = kmc1.electrodes[i]
+        x = (ele[0] - center[0])*0.06 + ele[0]
+        y = (ele[1] - center[1])*0.06 + ele[1]
+        ax.text(x, y, "V:%.2f\nCurrent difference: %.3f"%(ele[3], kmc2.current[i] - kmc1.current[i]))
+    return fig
+
+def plot_swipe(data, pos=111, figure=None, title=""):
+    if figure:
+        fig = figure
+    else:
+        fig = plt.figure()
+
+    ax = fig.add_subplot(pos)
+    voltages = []
+    currents = []
+    for vol, curr in data:
+        voltages.append(vol)
+        currents.append(curr)
+    ax.plot(voltages, currents)
+
+    if len(title) > 0:
+        ax.set_title(title)
+
 def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
                        standalone = True):
     '''
@@ -456,3 +547,17 @@ def getDistance(coord1, coord2):
     x = coord2[0] - coord1[0]
     y = coord2[1] - coord1[1]
     return math.sqrt((x*x)+(y*y))
+
+def getColorHex(r, g, b):
+    colorStr = "#%s%s%s"%(singleHex(r), singleHex(g), singleHex(b))
+    return colorStr
+
+def singleHex(val):
+    if val > 255:
+        val = 255
+    if val < 0:
+        val = 0
+    r = hex(math.floor(val))[2:]
+    if len(r)==1:
+        r = "0%s"%(r)
+    return r
