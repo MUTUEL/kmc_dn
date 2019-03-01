@@ -34,7 +34,7 @@ M = 3  # Number of donors
 xdim = 1  # Length along x dimension
 ydim = 1  # Length along y dimension
 zdim = 0  # Length along z dimension
-hops = int(2E5)
+hops = int(1E5)
 #res = 1  # Resolution of laplace grid
 
 # Define electrodes
@@ -50,7 +50,7 @@ kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes)
 #%% Profile code
 
 # Prerun discrete simulation for honest timing
-#kmc.simulate_discrete(hops=hops)
+kmc.python_simulation(hops=hops)
 
-a = cProfile.run('kmc.simulate_discrete(hops = hops)')
+a = cProfile.run('kmc.python_simulation(hops = hops)')
 

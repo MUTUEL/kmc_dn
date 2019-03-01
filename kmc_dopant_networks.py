@@ -1,6 +1,6 @@
 '''
 ================================================
-kinetic Monte Carlo for dopant networks (kmc_dn)
+Kinetic Monte Carlo for dopant networks (kmc_dn)
 ================================================
 This file defines a class, kmc_dn, that is an implementation of
 a kinetic Monte Carlo simulation algorithm for dopant networks.
@@ -8,13 +8,14 @@ In particular, simulations on an acceptor-doped material with
 compensating donors can be performed on a domain surrounded by an
 arbitrary number of electrodes. Documentation is available both
 in docstrings in this file, as well as on GitHub
-(LINK).
+(https://github.com/brambozz/kmc_dn).
 
 TODO list
 =========
 #TODO: Implement Tsigankov mixed algorithm and perform validation
 
 @author: Bram de Wilde (b.dewilde-1@student.utwente.nl)
+@author: Indrek Klanberg ((i.klanberg@student.utwente.nl)
 '''
 
 # Imports
@@ -28,12 +29,12 @@ import logging
 import pickle
 
 
-@jit
-def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
-                              distances,
-                               E_constant, site_energies, transitions_constant,
-                               transitions, problist, electrode_occupation,
-                               hops, record=False):
+@jit(nopython=True, cache=True)
+def _simulate_discrete_record(N_acceptors, N_electrodes, nu, kT, I_0, R, 
+                              time, occupation, distances, E_constant, 
+                              site_energies, transitions_constant,
+                              transitions, problist, electrode_occupation,
+                              hops, record=False):
     '''
     This function performs hops hopping events, meaning:
     - Calculate site energies; this is done by adding the acceptor-
@@ -41,36 +42,40 @@ def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupat
     - Calculate transition matrix; uses site_energies and
         transitions_constant and implements the MA rate.
     - Pick and perform event; uses the transition matrix
-    And repeat this hops times.
+        and repeat this hops times.
+
+    Input arguments
+    ---------------
+
+    Returns
+    -------
+
     '''
-    # Initialize time, current and traffic array
-    t_array = np.zeros(hops)
+    # Initialize current and traffic array
+    N_sites = N_acceptors+N_electrodes
     traffic = np.zeros(transitions_constant.shape)
-    NAll = NSites+NElectrodes
     occupations_in_time = np.zeros(len(occupation))
 
     for hh in range(hops):
-        # Append current time
-
         # Calculate site_energies
-        for i in range(NSites):
+        for i in range(N_acceptors):
             acceptor_interaction = 0
             site_energies[i] = E_constant[i]
-            for j in range(NSites):
+            for j in range(N_acceptors):
                 if j is not i:
                     acceptor_interaction += (1 - occupation[j])/distances[i, j]
 
             site_energies[i] += -I_0*R*acceptor_interaction
 
         # Calculate transitions
-        for i in range(NAll):
-            for j in range(NAll):
-                if(not _transition_possible(i, j, NSites, occupation)):
+        for i in range(N_sites):
+            for j in range(N_sites):
+                if(not _transition_possible(i, j, N_acceptors, occupation)):
                     transitions[i, j] = 0
                 else:
-                    if(i < NSites and j < NSites):
-                        dE = (site_energies[j] - site_energies[i]
-                              - I_0*R/distances[i, j])
+                    if(i < N_acceptors and j < N_acceptors):
+                        dE = site_energies[j] - site_energies[i] \
+                             - I_0*R/distances[i, j]
                     else:
                         dE = site_energies[j] - site_energies[i]
 
@@ -79,19 +84,19 @@ def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupat
                         transitions[i, j] = nu*np.exp(-dE/kT)
                     else:
                         transitions[i, j] = nu
-        #TODO: Fix nu handling
 
+        # Add constant part of transitions
         transitions = transitions_constant*transitions
 
         # pick_event
         # Transform transitions matrix into cumulative sum
-        for i in range(NAll):
-            for j in range(NAll):
+        for i in range(N_sites):
+            for j in range(N_sites):
                 if(i == 0 and j == 0):
                     problist[0] = transitions[i, j]
                 else:
-                    problist[(NSites+NElectrodes)*i + j] = (transitions[i, j]
-                                             + problist[(NSites+NElectrodes)*i + j-1])
+                    problist[(N_sites)*i + j] = transitions[i, j] \
+                                                + problist[(N_sites)*i + j-1]
 
         # Calculate hopping time
         hop_time = np.random.exponential(scale=1/problist[-1])
@@ -101,24 +106,23 @@ def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupat
 
         # Find transition index of random event
         event = np.random.rand()
-        for i in range((NAll)**2):
+        for i in range((N_sites)**2):
             if(problist[i] >= event):
                 event = i
                 break
-        #TODO: implement binary tree search algorithm
 
         # Convert event to acceptor/electrode indices
-        transition = [int(event/(NAll)), int(event%(NAll))]
+        transition = [int(event/(N_sites)), int(event%(N_sites))]
 
         # Perform hop
-        if(transition[0] < NSites):  # Hop from acceptor
+        if(transition[0] < N_acceptors):  # Hop from acceptor
             occupation[transition[0]] = False
         else:  # Hop from electrode
-            electrode_occupation[transition[0] - NSites] -= 1
-        if(transition[1] < NSites):  # Hop to acceptor
+            electrode_occupation[transition[0] - N_acceptors] -= 1
+        if(transition[1] < N_acceptors):  # Hop to acceptor
             occupation[transition[1]] = True
         else:  # Hop to electrode
-            electrode_occupation[transition[1] - NSites] += 1
+            electrode_occupation[transition[1] - N_acceptors] += 1
 
         # Update record
         if record: 
@@ -127,15 +131,10 @@ def _simulate_discrete_record(NSites, NElectrodes, nu, kT, I_0, R, time, occupat
                 if occupation[i]:
                     occupations_in_time+=hop_time
 
-        # Append current electrode occupation
-
         # Increment time
-
         time += hop_time
-    if record:
-        return time, occupation, electrode_occupation, traffic, occupations_in_time
-    else:
-        return time, occupation, electrode_occupation
+
+    return time, occupation, electrode_occupation, traffic, occupations_in_time
 
 @jit
 def _transition_possible(i, j, N, occupation):
@@ -224,14 +223,6 @@ class kmc_dn():
             'calc_E_constant_V_comp'; include local chemical potential
                 and compensation sites.
             default: calc_E_constant_V_comp
-        callback_traffic; bool
-            If set to True, all hopping events are stored in matrix
-            traffic
-            default: False
-        callback_dwelltime; bool
-            If set to True, total occupation time of each acceptor is
-            track in array dwelltime
-            default: False
 
         Class attributes
         ================
@@ -248,15 +239,15 @@ class kmc_dn():
         kT; float
             Energy corresponding to the temperature (i.e. Boltzmann 
             constant multiplied by temperature)
+        I_0; float
+            The interaction energy for two acceptors separated by a 
+            distance R, i.e. I_0 = e**2/(4*pi*eps) * 1/R
+        U; interaction energy for double occupancy (EXPERIMENTAL/UNIMPLEMENTED)
         ab; float
             Bohr radius/localization radius
         R; float
             The average distance between acceptors. This is evaluated
             by R = N^(-1/dim), where N is the acceptor density
-        I_0; float
-            The interaction energy for two acceptors separated by a 
-            distance R, i.e. I_0 = e**2/(4*pi*eps) * 1/R
-        U; interaction energy for double occupancy (EXPERIMENTAL/UNIMPLEMENTED)
 
         Chemical potential related attributes
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -324,11 +315,12 @@ class kmc_dn():
         current; (P,) float np.array
             Contains the current, i.e. electrode_occupation/time, for
             each electrode.
-        old_current; (P,) float np.array
-            Contains the current for the previous interval, used
-            to check for convergence.
-        avg_current; tracks the current each interval
-        avg_carriers; tracks the average number of carriers in the system.
+        traffic; (N+P)x(N+P) int np.array
+            Contains for each possible transition i->j the amount of
+            hops that occured during simulation in traffic[i, j]
+        average_occupation; (N,) float np.array
+            Contains for each hopping site the average occupation as a
+            fraction of the simulation time
 
         Class methods
         =============
@@ -397,16 +389,6 @@ class kmc_dn():
                 self.calc_E_constant = self.calc_E_constant_V_comp
         else:
             self.calc_E_constant = self.calc_E_constant_V_comp
-
-        # Initialize callback kwargs
-        if('callback_traffic' in kwargs):
-            self.callback_traffic = kwargs['callback_traffic']
-        else:
-            self.callback_traffic = False
-        if('callback_dwelltime' in kwargs):
-            self.callback_dwelltime = kwargs['callback_dwelltime']
-        else:
-            self.callback_dwelltime = False
             
         # Initialize sim object
         self.initialize()
@@ -457,71 +439,12 @@ class kmc_dn():
         if(E_constant):
             self.calc_E_constant()
 
-    #Function interfaces for existing functions in Bram's work.
-    def simulate_discrete_fast(self, hops = 0, reset = True, prehops = 0, record_current = False):
-        self.python_simulation(hops, reset, prehops, record_current)
-
-    def simulate_fast(self, tol = 1E-2, interval = 1000, prehops = 0, maxhops = 1E6):
-        self.python_simulation(maxhops, True, prehops, False)
-
-    def go_simulation(self, hops = 1E5, reset = True, prehops = 0, goSpecificFunction="wrapperSimulateRecord", record=False):
-        '''
-        Simple wrapper function for running a simulation that performs
-        hops hops with prehops hops before tracking current.
-        '''
-        return self.makeSimulation(simulateFunction = callGoSimulation, preHopFunction = callGoSimulation, hops = hops, prehops = prehops, goSpecificFunction=goSpecificFunction, record=record)
-    
-    def python_simulation(self, hops = 1E5, reset = True, prehops = 0, record = False):
-        self.makeSimulation(simulateFunction=_simulate_discrete_record, preHopFunction=_simulate_discrete_record, hops=hops, prehops=prehops, record=record)
-
-    def makeSimulation(self, simulateFunction = None, preHopFunction = None, prehops = 0,
-                      hops = 1E5, record = False, goSpecificFunction = None):
-        '''
-        Wrapper function that performs a simulation until the all electrode
-        currents have converged with tolerance tol. The function checks
-        for convergence every interval hops.
-        prehops indicates the amount of hops performed before calculating
-        currents for convergence. This can be used to first bring the system
-        into 'equilibrium'.
-        '''
-        if simulateFunction != None:
-            self.simulate_func = simulateFunction
-        if preHopFunction != None:
-            self.simulate_prehop = preHopFunction
-        self.reset()  # Reset all relevant trackers before running a simulation
-        args = {"NSites":self.N, "NElectrodes":self.P, "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
-            "R":self.R, "time":self.time, "occupation":self.occupation, "distances":self.distances,
-            "E_constant":self.E_constant, "site_energies":self.site_energies, "transitions_constant":self.transitions_constant,
-            "transitions":self.transitions, "problist":self.problist, "electrode_occupation":self.electrode_occupation, "record":False}
-
-        if goSpecificFunction != None:
-            args["goSpecificFunction"] = goSpecificFunction
-        # Prehops
-        if(prehops != 0):
-            args["hops"] = prehops
-            self.simulate_prehop(**args)
-            self.reset()
-        args["hops"] = hops
-        # Simulate until convergence
-        if record:
-            args["record"] = True
-            (self.time, self.occupation, self.electrode_occupation, self.traffic, occupations_in_time) = self.simulate_func(**args)
-            self.average_occupation= [x / self.time for x in occupations_in_time]
-            self.current = self.electrode_occupation/self.time
-            return self.time, self.traffic, self.average_occupation
-        else:
-            (self.time, self.occupation, self.electrode_occupation) = self.simulate_func(**args)
-            self.current = self.electrode_occupation/self.time
-        
-        
-
     def reset(self):
         '''
         Resets all relevant trackers before running a simulation.
         In particular it resets:
         - Simulation time and hop counter
         - Simulation current, i.e. electrode_occupation
-        - Any callback attributes if applicable
 
         Importantly, this function does NOT reset the occupation of
         acceptors. This is important if you want to run e.g. 10 
@@ -535,12 +458,139 @@ class kmc_dn():
         self.counter = 0
         self.electrode_occupation = np.zeros(self.P, dtype=int)
 
-        # Callback quantities
-        if(self.callback_traffic):
-            self.traffic = np.zeros(self.transitions.shape)
-        if(self.callback_dwelltime):
-            self.dwelltime = np.zeros(self.N)
-            self.previous_occupation = self.occupation
+    def go_simulation(self, hops = 1E5, prehops = 0, 
+                      goSpecificFunction="wrapperSimulateRecord", 
+                      record=False):
+        '''
+        Perform a simulation with the go implementation.
+        
+        Input arguments
+        ---------------
+        prehops; int
+            The amount of hops performed before tracking the current.
+            This can be used to bring the system closer to equilibrium
+            before actual simulation.
+        hops; int
+            The amount of hops performed to simulate.
+        goSpecificFunction; string
+            Specify the specific go function that is used to simulate.
+        record; bool
+            If True, the simulation will also keep track of traffic
+            and the time each site is occupied.
+
+        Output arguments (see main docstring for definition)
+        ----------------
+        kmc_dn.time
+        kmc_dn.occupation
+        kmc_dn.electrode_occupation
+        kmc_dn.current
+        if(record):
+            kmc_dn.traffic
+            kmc_dn.average_occupation
+        '''
+        self.makeSimulation(simulateFunction = callGoSimulation, 
+                            preHopFunction = callGoSimulation, 
+                            hops = hops, prehops = prehops, 
+                            goSpecificFunction=goSpecificFunction, 
+                            record=record)
+    
+    def python_simulation(self, hops = 1E5, prehops = 0, 
+                          record = False):
+        '''
+        Perform a simulation with the python implementation.
+        
+        Input arguments
+        ---------------
+        prehops; int
+            The amount of hops performed before tracking the current.
+            This can be used to bring the system closer to equilibrium
+            before actual simulation.
+        hops; int
+            The amount of hops performed to simulate.
+        record; bool
+            If True, the simulation will also keep track of traffic
+            and the time each site is occupied.
+
+        Output arguments (see main docstring for definition)
+        ----------------
+        kmc_dn.time
+        kmc_dn.occupation
+        kmc_dn.electrode_occupation
+        kmc_dn.current
+        if(record):
+            kmc_dn.traffic
+            kmc_dn.average_occupation
+        '''
+        self.makeSimulation(simulateFunction=_simulate_discrete_record, 
+                            preHopFunction=_simulate_discrete_record, 
+                            hops=hops, prehops=prehops, record=record)
+
+    def makeSimulation(self, simulateFunction = None, preHopFunction = None, 
+                       prehops = 0, hops = 1E5, record = False, 
+                       goSpecificFunction = None):
+        '''
+        A wrapper function that allows the user to simulate with either
+        python or go. Examples can be found in self.python_simulation()
+        and self.go_simulation()
+        '''
+        # Initialize simulation methods
+        if simulateFunction != None:
+            self.simulate_func = simulateFunction
+        if preHopFunction != None:
+            self.simulate_prehop = preHopFunction
+        if goSpecificFunction != None:
+            args["goSpecificFunction"] = goSpecificFunction
+
+        # Initialize simulation arguments
+        args = {"N_acceptors":self.N, "N_electrodes":self.P, 
+                "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
+                "R":self.R, "time":self.time, "occupation":self.occupation, 
+                "distances":self.distances,
+                "E_constant":self.E_constant, 
+                "site_energies":self.site_energies, 
+                "transitions_constant":self.transitions_constant,
+                "transitions":self.transitions, "problist":self.problist, 
+                "electrode_occupation":self.electrode_occupation, 
+                "record":False}
+
+        # Reset current and time
+        self.reset()          
+
+        # Simulate prehops
+        if(prehops != 0):
+            args["hops"] = prehops
+            self.simulate_prehop(**args)
+            self.reset()
+        args["hops"] = hops
+
+        # Simulate hops
+        if record:
+            args["record"] = True
+
+            # Simulate
+            (self.time, self.occupation, 
+             self.electrode_occupation, 
+             self.traffic, occupations_in_time) = self.simulate_func(**args)
+
+            # Calculate quantities
+            self.average_occupation= [x / self.time for x in occupations_in_time]
+            self.current = self.electrode_occupation/self.time
+        else:
+            if(self.simulate_func == _simulate_discrete_record):
+                (self.time, 
+                 self.occupation, 
+                 self.electrode_occupation,
+                 _,
+                 _) = self.simulate_func(**args)
+                print('here')
+            else:
+                (self.time, 
+                 self.occupation, 
+                 self.electrode_occupation) = self.simulate_func(**args)
+
+            # Calculate quantities
+            self.current = self.electrode_occupation/self.time
+        
 
     def place_dopants_random(self):
         '''
@@ -816,20 +866,132 @@ class kmc_dn():
         # Calculate electrode energies
         self.site_energies[self.N:] = self.electrodes[:, 3]
 
-    def callback(self, traffic = False, dwelltime = False):
+
+    #%% Load methods
+    def load_acceptors(self, acceptors):
         '''
-        This function is called after every hop and is used to track
-        certain quantities. The various options are tuned by keywords.
-        if traffic = True; the traffic is tracked, i.e. all hopping
-            events are stored in the matrix traffic.
-        if dwelltime = True; the total time that an acceptor is occupied
-            by a hole is tracked for each acceptor.
+        This function loads an acceptor layout.
+        It also recalculates R, as the number of acceptors might have 
+        changed and it sets ab/R to 1. This is important, because you
+        might have to re set it afterwards.
         '''
-        if(traffic):
-            self.traffic[self.transition[0], self.transition[1]] += 1
-        if(dwelltime):
-            self.dwelltime += self.hop_time * self.previous_occupation
-            self.previous_occupation = self.occupation
+        # Overwrite acceptors array
+        self.acceptors = acceptors
+        self.N = self.acceptors.shape[0]
+
+        # Re-initialize dimensionless constants (R may have changed)
+        if(self.ydim == 0 and self.zdim == 0):
+            self.R = (self.N/self.xdim)**(-1)
+        elif(self.zdim == 0):
+            self.R = (self.N/(self.xdim*self.ydim))**(-1/2)
+        else:
+            self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
+
+        # Set dimensonless variables to 1
+        self.ab = self.R
+
+        # Re-initialize everything but placement and V
+        self.initialize(V = False, dopant_placement = False)
+
+    def load_donors(self, donors):
+        '''
+        This function loads a donor layout.
+        '''
+        # Overwrite donors array
+        self.donors = donors
+        self.M = self.donors.shape[0]
+
+        # Re-initialize everything but placement and V
+        self.initialize(V=False, dopant_placement=False)
+
+    def saveSelf(self, fileName):
+        '''
+        Save the entire class object as a .kmc file. Also saves
+        the current value as the attribute expected_current.
+        This function can be used to generate test cases, or simply
+        to save a simulation object for future reference.
+        '''
+        setattr(self, "expected_current", self.current)
+        with open(fileName, "wb") as f:
+            d = {}
+            for key in dir(self):
+                attr = getattr(self, key)
+                if isinstance(attr, (list, tuple, int, float, np.ndarray)):
+                    d[key] = getattr(self, key)
+            pickle.dump(d, f)
+    
+    def loadSelf(self, fileName):
+        '''
+        Load a .kmc object save with self.saveSelf()
+        '''
+        with open(fileName, "rb") as f:
+            d = pickle.load(f)
+            for key in d:
+                setattr(self, key, d[key])
+
+    #%% Miscellaneous methods
+
+    def total_energy(self):
+        '''
+        #TODO: Include donor-acceptor terms.
+
+        Calculates the hamiltonian for the full system.
+        '''
+        H = 0  # Initialize
+
+        # Coulomb interaction sum
+        for i in range(self.N-1):
+            for j in range(i+1, self.N):
+                H += ((1 - self.occupation[i]) * (1 - self.occupation[j])
+                      /self.distances[i, j])
+        H *= self.I_0 * self.R
+
+        # Add electrostatic contribution
+        for i in range(self.N):
+            H = H - (1 - self.occupation[i]) * self.eV_constant[i]
+
+        return H
+
+    @staticmethod
+    def dist(ri, rj):
+        '''Calculate cartesian distance between 3D vectors ri and rj'''
+        return np.sqrt((ri[0] - rj[0])**2 + (ri[1] - rj[1])**2 + (ri[2] - rj[2])**2)
+
+
+
+    #%% Unimplemented/unsupported section
+    def calc_t_dist(self):
+        '''
+        UNIMPLEMENTED: This is previous work on the algorithm described
+        by Tsikgankov. Might be revisited at some point, but is left
+        here for refecence.
+
+        Calculates the transition rate matrix t_dist, which is based only
+        on the distances between sites (as defined in Tsigankov2003)
+        '''
+        # Initialization
+        self.t_dist = np.zeros((self.N + P,
+                                self.N + P))
+        self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
+
+        # Loop over possible transitions site i -> site j
+        for i in range(self.t_dist.shape[0]):
+            for j in range(self.t_dist.shape[0]):
+                self.t_dist[i, j] = self.rate(i, j, 0)
+
+        # Calculate cumulative transition rate (partial sums)
+        for i in range(self.t_dist.shape[0]):
+            for j in range(self.t_dist.shape[0]):
+                if(i == 0 and j == 0):
+                    self.P[i*self.t_dist.shape[0] + j] = self.t_dist[i, j]
+                else:
+                    self.P[i*self.t_dist.shape[0] + j] = self.P[i*self.t_dist.shape[0] + j - 1] + self.t_dist[i, j]
+
+        # Pre-calculate constant timestep
+        self.timestep = 1/self.P[-1]
+
+        # Normalization
+        self.P = self.P/self.P[-1]
 
     def pick_event_tsigankov(self):
         '''
@@ -869,122 +1031,5 @@ class kmc_dn():
 
         # Increment time
         self.time += self.timestep
-
-    #%% Load methods
-    def load_acceptors(self, acceptors):
-        '''
-        This function loads an acceptor layout.
-        It also recalculates R, as the number of acceptors might have 
-        changed and it sets ab/R to 1. This is important, because you
-        might have to re set it afterwards.
-        '''
-        # Overwrite acceptors array
-        self.acceptors = acceptors
-        self.N = self.acceptors.shape[0]
-
-        # Re-initialize dimensionless constants (R may have changed)
-        if(self.ydim == 0 and self.zdim == 0):
-            self.R = (self.N/self.xdim)**(-1)
-        elif(self.zdim == 0):
-            self.R = (self.N/(self.xdim*self.ydim))**(-1/2)
-        else:
-            self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
-
-        # Set dimensonless variables to 1
-        self.ab = self.R
-
-        # Re-initialize everything but placement and V
-        self.initialize(V = False, dopant_placement = False)
-
-    def load_donors(self, donors):
-        '''
-        This function loads a donor layout.
-        '''
-        # Overwrite donors array
-        self.donors = donors
-        self.M = self.donors.shape[0]
-
-        # Re-initialize everything but placement and V
-        self.initialize(V=False, dopant_placement=False)
-
-    #%% Miscellaneous methods
-    def calc_t_dist(self):
-        '''
-        UNIMPLEMENTED: This is previous work on the algorithm described
-        by Tsikgankov. Might be revisited at some point, but is left
-        here for refecence.
-
-        Calculates the transition rate matrix t_dist, which is based only
-        on the distances between sites (as defined in Tsigankov2003)
-        '''
-        # Initialization
-        self.t_dist = np.zeros((self.N + P,
-                                self.N + P))
-        self.P = np.zeros((self.transitions.shape[0]**2))  # Probability list
-
-        # Loop over possible transitions site i -> site j
-        for i in range(self.t_dist.shape[0]):
-            for j in range(self.t_dist.shape[0]):
-                self.t_dist[i, j] = self.rate(i, j, 0)
-
-        # Calculate cumulative transition rate (partial sums)
-        for i in range(self.t_dist.shape[0]):
-            for j in range(self.t_dist.shape[0]):
-                if(i == 0 and j == 0):
-                    self.P[i*self.t_dist.shape[0] + j] = self.t_dist[i, j]
-                else:
-                    self.P[i*self.t_dist.shape[0] + j] = self.P[i*self.t_dist.shape[0] + j - 1] + self.t_dist[i, j]
-
-        # Pre-calculate constant timestep
-        self.timestep = 1/self.P[-1]
-
-        # Normalization
-        self.P = self.P/self.P[-1]
-
-
-    def total_energy(self):
-        '''
-        #TODO: Include donor-acceptor terms.
-
-        Calculates the hamiltonian for the full system.
-        '''
-        H = 0  # Initialize
-
-        # Coulomb interaction sum
-        for i in range(self.N-1):
-            for j in range(i+1, self.N):
-                H += ((1 - self.occupation[i]) * (1 - self.occupation[j])
-                      /self.distances[i, j])
-        H *= self.I_0 * self.R
-
-        # Add electrostatic contribution
-        for i in range(self.N):
-            H = H - (1 - self.occupation[i]) * self.eV_constant[i]
-
-        return H
-
-    @staticmethod
-    def dist(ri, rj):
-        '''Calculate cartesian distance between 3D vectors ri and rj'''
-        return np.sqrt((ri[0] - rj[0])**2 + (ri[1] - rj[1])**2 + (ri[2] - rj[2])**2)
-
-
-    #Saving and loading functionality for a single network. This includes also the results of possible simulations.
-   
-    def saveSelf(self, fileName):
-        setattr(self, "expected_current", self.current)
-        with open(fileName, "wb") as f:
-            d = {}
-            for key in dir(self):
-                attr = getattr(self, key)
-                if isinstance(attr, (list, tuple, int, float, np.ndarray)):
-                    d[key] = getattr(self, key)
-            pickle.dump(d, f)
-    
-    def loadSelf(self, fileName):
-        with open(fileName, "rb") as f:
-            d = pickle.load(f)
-            for key in d:
-                setattr(self, key, d[key])
                 
                 
