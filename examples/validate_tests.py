@@ -72,6 +72,8 @@ def test(kmcs, func, title):
     extreme_errors = evaluate(kmcs, 0.7)
     return extreme_errors
 
+def testPython5K(kmc, record=False):
+    kmc.python_simulation(hops=5000)
 
 def testKMC5000(kmc, record=False):
     kmc.go_simulation(hops=5000, record = record)
@@ -133,11 +135,14 @@ def testSet(prefix, amount):
     print ("finished reading testSet %s"%(prefix))
     extreme_errors = {}
     for func, title in [
-        #(testKMC5000, "KMC 5000 hops"), (testKMC50000, "KMC 50000 hops"), 
+        (testKMC5000, "KMC 5000 hops"), 
+        (testPython5K, "Python KMC 5000 hops"),
+        #(testKMC50000, "KMC 50000 hops"), 
         #(testKMC1E6, "KMC 1E6 hops"), 
         #(testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
         #(testProb5000, "Probability 5000 hops"),
-        (testCombined10K, "Combined 10K hops")]:
+        #(testCombined10K, "Combined 10K hops")
+        ]:
         extreme_errors[title] = (func, test(tests, func, title))
     for i in range(amount):
         funcs = [testKMC1E6]

@@ -42,10 +42,10 @@ def getDeflattenedSliceValues(slice, d1, d2):
             count+=1
     return r
 
-def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation, 
+def callGoSimulation(N_acceptors, N_electrodes, nu, kT, I_0, R, time, occupation, 
 		distances , E_constant, site_energies, transitions_constant, transitions, problist, electrode_occupation, hops, record, goSpecificFunction):
     newDistances, d, s = flattenDouble(distances)
-    N = NSites + NElectrodes
+    N = N_acceptors + N_electrodes
     newTransConstants, _, tcs = flattenDouble(transitions_constant)
     #print ("d is %d and s is %d"%(d, s))
     newDistances = GoSlice(newDistances, s, s)
@@ -54,7 +54,7 @@ def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation,
     newE_constant = getGoSlice(E_constant)
     newSite_energies = getGoSlice(site_energies)
     traffic = getGoSlice(np.zeros(N*N))
-    average_occupation = getGoSlice(np.zeros(NSites))
+    average_occupation = getGoSlice(np.zeros(N_acceptors))
     newElectrode_occupation = getGoSlice(electrode_occupation)
     lib = cdll.LoadLibrary("./libSimulation.so")
     getattr(lib, goSpecificFunction).argtypes = [c_longlong, c_longlong, c_double, c_double, c_double, c_double, c_double,
@@ -62,7 +62,7 @@ def callGoSimulation(NSites, NElectrodes, nu, kT, I_0, R, time, occupation,
     getattr(lib, goSpecificFunction).restype = c_double
     #print (electrode_occupation)
     #printSlice(newElectrode_occupation)
-    time = getattr(lib, goSpecificFunction)(NSites, NElectrodes, nu, kT, I_0, R, time, newOccupation, 
+    time = getattr(lib, goSpecificFunction)(N_acceptors, N_electrodes, nu, kT, I_0, R, time, newOccupation, 
 		newDistances , newE_constant, newTransConstants, newElectrode_occupation, newSite_energies, hops, record, traffic, average_occupation)
     #printSlice (newElectrode_occupation)
     rElectrode_occupation = np.array([int(i) for i in getSliceValues(newElectrode_occupation)])
