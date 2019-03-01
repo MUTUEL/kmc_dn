@@ -80,6 +80,21 @@ func wrapperSimulate(NSites int64, NElectrodes int64, nu float64, kT float64, I_
 	return time
 }
 
+//export wrapperSimulateCombined
+func wrapperSimulateCombined(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
+	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
+	electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, average_occupation []float64) float64 {
+//Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
+newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
+newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
+bool_occupation := make([]bool, NSites)
+//printAverageExpRandom();
+time = simulateCombined(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), time, bool_occupation, 
+	newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, traffic, average_occupation)
+
+return time
+}
+
 //export wrapperSimulateRecord
 func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, time float64,
 	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,

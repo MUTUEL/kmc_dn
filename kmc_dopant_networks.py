@@ -129,7 +129,7 @@ def _simulate_discrete_record(N_acceptors, N_electrodes, nu, kT, I_0, R,
             traffic[transition[0], transition[1]] += 1
             for i in range(len(occupation)):
                 if occupation[i]:
-                    occupations_in_time+=hop_time
+                    occupations_in_time[i]+=hop_time
 
         # Increment time
         time += hop_time

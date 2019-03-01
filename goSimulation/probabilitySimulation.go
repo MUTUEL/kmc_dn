@@ -5,6 +5,7 @@ import "math"
 import "math/rand"
 
 
+
 func calcProbTransitions(transitions [][]float64, distances [][]float64, occupation []float64, 
     site_energies []float64, R float64, I_0 float64, kT float64, nu float64, NSites int, 
     N int, transitions_constant [][]float64, difference []float64) float64 {

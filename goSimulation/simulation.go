@@ -207,48 +207,24 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             }
         }
 
-        /*if hop % showStep == 0 {
-            showStep*=2
-            current := electrode_occupation[0] / time
-            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d, storage: %d\n", hop, current, time, countReuses, countStorage)
-        }*/
         makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
             NSites, from, to)
-        /*for i := 0; i < NSites; i++ {
-            if occupation[i] {
-                occupation_time[i]+=time_step
-            }
-        }*/
+
     }
-    /*for i := 0; i < NSites; i++ {
-        occupation_time[i]/=time
-    }*/
+
     return time
 }
 
-type transition struct {
-    from int;
-    to int;
-    rate float32;
-    prunedList []*transition;
-    count int;
-}
-
-/*type transitionBucket struct {
-    transitions []transition;
-    currentCount int;
-}
-
-func simulatePruned(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64, time float64,
-    occupation []bool, distances [][]float64, E_constant []float64, transitions_constant [][]float64,
-    electrode_occupation []float64, site_energies []float64, hops int, record_problist bool) float64 {
+func simulateCombined(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32, time float64,
+    occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
+    electrode_occupation []float64, site_energies []float32, hops int, traffic []float64, average_occupation []float64) float64 {
     N := NSites + NElectrodes
-    occupation_time := make([]float64, NSites)
-
+    transitions := make([][]float32, N)
+    //occupation_time := make([]float64, NSites)
 
     //fmt.Printf("Site energies at start: %v\n", site_energies)
     for i := 0; i < NSites; i++ {
-        acceptor_interaction := float64(0)
+        acceptor_interaction := float32(0)
         for j := 0; j < NSites; j++ {
             if j != i && !occupation[j] {
                 acceptor_interaction+= 1/distances[i][j]
@@ -261,85 +237,29 @@ func simulatePruned(NSites int, NElectrodes int, nu float64, kT float64, I_0 flo
         electrode_occupation[i] = 0.0
     }
     time = 0
-    number_of_buckets := 2
 
-    buckets := make([]transitionBucket, 2)
-    total_transitions := NSites*(NSites-1) + NSites * 2 * NElectrodes
-    transitions_per_bucket := total_transitions / number_of_buckets +1
-    for i := 0; i < number_of_buckets; i++ {
-        buckets[i].transitions = make([]transition, transitions_per_bucket)
-        buckets[i].currentCount = 0
+    for i := 0; i < N; i++ {
+        transitions[i] = make([]float32, NSites+NElectrodes)
     }
-
-    for i:= 0; i < N; i++ {
-        for j := 0; j < N; j++ {
-            if i == j || (i >= NSites && j >= NSites) {
-                continue
-            }
-            rnd := rand.Intn(number_of_buckets)
-            while (buckets[rnd].currentCount >= transitions_per_bucket) {
-                rnd = rand.Intn(number_of_buckets)
-            }
-            new_trans = transition{i, j, 0.0}
-            buckets[rnd].transitions[buckets[rnd].currentCount] = new_trans
-            buckets[rnd].currentCount++
-        }
-    }
-
-    countReuses := uint64(0)
-    countStorage := uint64(0)
-    reuseThreshold := uint16(1)
-    reuseThresholdIncrease := uint64(100000)
-    showStep := 1
+    
+    var probList []float32
+    probList = make([]float32, N*N)
+    
     for hop := 0; hop < hops; hop++ {
-        var probList []float64
-        ok := false
-        var key64 uint64
-        if record_problist {
-            var val *probabilities
-            key64 = getKey(occupation)
-            val, ok = allProbs[key64]
-            if ok {
-                probList = val.probList
-                countReuses++
-            }
-        }
-        if !ok {
-            calcTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant)
+        calcTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant)
 
-            probList = make([]float64, N*N)
-
-            for i := 0; i < N; i++ {
-                for j := 0; j < N; j++ {
-                    if i==0 && j==0 {
-                        probList[0] = transitions[i][j]
-                    } else {
-                        probList[N*i+j] = probList[N*i+j-1] + transitions[i][j]
-                    }
-                }
-            }
-            if record_problist {
-                val, ok := countProbs[key64]
-                if ok {
-
-                    countProbs[key64]+=1
-                    if val >= reuseThreshold {
-                        newProbability := probabilities{probList}
-                        allProbs[key64] = &newProbability
-                        countStorage++
-                        if countStorage > reuseThresholdIncrease {
-                            reuseThreshold++
-                            reuseThresholdIncrease+=100000
-                        }
-                    }
+        for i := 0; i < N; i++ {
+            for j := 0; j < N; j++ {
+                if i==0 && j==0 {
+                    probList[0] = transitions[i][j]
                 } else {
-                    countProbs[key64] = 1
+                    probList[N*i+j] = probList[N*i+j-1] + transitions[i][j]
                 }
             }
         }
-        time_step := rand.ExpFloat64() / (probList[len(probList)-1])
+        time_step := rand.ExpFloat64() / float64(probList[len(probList)-1])
         time += time_step
-        eventRand := rand.Float64() * probList[len(probList)-1]
+        eventRand := rand.Float32() * probList[len(probList)-1]
         event := 0
         for i := 0; i < len(probList); i++ {
             if probList[i] >= eventRand {
@@ -350,24 +270,96 @@ func simulatePruned(NSites int, NElectrodes int, nu float64, kT float64, I_0 flo
         from := event/N
         to := event%N
 
-        if hop % showStep == 0 {
-            showStep*=2
-            current := electrode_occupation[0] / time
-            fmt.Printf("Hop: %d, current: %.3f, time: %.2f, reuse: %d, storage: %d\n", hop, current, time, countReuses, countStorage)
-        }
-        makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
-            NSites, from, to)
+        traffic[event]+=1
+        traffic[to*N+from]-=1
         for i := 0; i < NSites; i++ {
             if occupation[i] {
-                occupation_time[i]+=time_step
+                average_occupation[i]+=time_step
+            }
+        }
+
+        makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
+            NSites, from, to)
+    }
+
+    ave_occupation := make([]float64, len(occupation))
+    for i:= 0; i < len(occupation); i++ {
+        ave_occupation[i] = average_occupation[i]/time
+    }
+
+    electrode_currents := calcAverageCurrent(NSites, NElectrodes, nu, kT, I_0, R, 
+        time, ave_occupation, distances, E_constant, transitions_constant, site_energies)
+    for i:= 0; i < NElectrodes; i++ {
+        electrode_occupation[i] = electrode_currents[i]*time
+    }
+
+    return time
+}
+
+func calcAverageCurrent(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
+        R float32, time float64, occupation []float64, distances [][]float32, 
+        E_constant []float32, transitions_constant [][]float32, site_energies []float32) []float64 {
+    N := NSites + NElectrodes
+    transitions := make([][]float64, N)
+    for i := 0; i < N; i++{
+        transitions[i] = make([]float64, N)
+    }
+    eoDifference := make([]float64, NElectrodes)
+
+    for i := 0; i < NSites; i++ {
+        acceptor_interaction := float64(0)
+        for j := 0; j < NSites; j++ {
+            if j != i {
+                acceptor_interaction+= (1-occupation[j])/float64(distances[i][j])
+            }
+        }
+        site_energies[i] = E_constant[i] - I_0*R*float32(acceptor_interaction)
+    }
+    for i:= 0; i < NElectrodes; i++ {
+        eoDifference[i] = 0
+    }
+
+	tot_rates := 0.0
+    for i := 0; i < N; i++ {
+        for j := 0; j < N; j++ {
+            base_prob := probTransitionPossible(i, j, NSites, occupation)
+			var dE float32
+			if i < NSites && j < NSites {
+				dE = site_energies[j] - site_energies[i] - I_0*R/distances[i][j]
+			} else {
+				dE = site_energies[j] - site_energies[i]
+			}
+			
+			if dE > 0 {
+				transitions[i][j] = base_prob * float64(nu) * math.Exp(float64(-dE/kT))
+			} else {
+				transitions[i][j] = base_prob * float64(nu)
+			}
+			transitions[i][j]*=float64(transitions_constant[i][j])
+			tot_rates+=transitions[i][j]
+        }
+    }
+    time_step := 0.98 / tot_rates
+    for i := 0; i < N; i++ {
+        for j := 0; j < N; j++ {
+            if i >= NSites && j >= NSites {
+                break
+            }
+            rate := float64(transitions[i][j]/tot_rates)
+            if i >= NSites {
+                eoDifference[i-NSites] -= rate
+            }
+            if j >= NSites {
+                eoDifference[j-NSites]+= rate
             }
         }
     }
-    for i := 0; i < NSites; i++ {
-        occupation_time[i]/=time
+    electrode_currents := make([]float64, NElectrodes)
+    for i:= 0; i < NElectrodes; i++ {
+        electrode_currents[i] = eoDifference[i]/time_step
     }
-    return time
-}*/
+    return electrode_currents
+}
 
 
 
