@@ -525,9 +525,9 @@ def IV(kmc_dn, electrode, voltagelist,
             kmc_dn.update_V()
 
         if(discrete):
-            kmc_dn.simulate_discrete(hops = hops, prehops = prehops)
+            kmc_dn.python_simulation(hops = hops, prehops = prehops)
         else:
-            kmc_dn.simulate(tol = tol, interval = interval, prehops = prehops)
+            kmc_dn.python_simulation(tol = tol, interval = interval, prehops = prehops)
 
         currentlist[:, i] = kmc_dn.current
 
