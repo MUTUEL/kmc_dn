@@ -16,15 +16,15 @@ class experiment_config(config_class):
         self.I_0 = 50*self.kT
         self.ab_R = 0.5
         self.layout = 0
-        self.prehops = 0
-        self.hops = 100000
+        self.prehops = int(5E4)
+        self.hops = int(5E4)
 
         # Define experiment
         self.generations = 40
         self.generange = [[0.1, 100], [0.01, 10]]
         self.avg = 1
 
-        self.Fitness = self.FitnessCorr
+        self.Fitness = self.FitnessFix
 
         # Specify either partition or genomes
         self.partition = [2, 2, 2, 2, 2]
@@ -80,28 +80,14 @@ class experiment_config(config_class):
 
 
     	#fit x = m * target + c to minimize res
-        A = np.vstack([target_weighed, np.ones(len(indices))]).T  #write x = m*target + c as x = A*(m, c)
-        m, c = np.linalg.lstsq(A, x_weighed)[0]
+        A = np.zeros((len(target_weighed), 1))
+        A[:, 0] = target_weighed 
+        m = np.linalg.lstsq(A, x_weighed)[0]
+        m = m[0]
         res = np.linalg.lstsq(A, x_weighed)[1]
         res = res[0]
 
-        #determine fitness quality
-        indices1 = np.argwhere(target_weighed)  #all indices where target is nonzero
-        x0 = np.empty(0)  #list of values where x should be 0
-        x1 = np.empty(0)  #list of values where x should be 1
-        for i in range(len(target_weighed)):
-            if(i in indices1):
-                x1 = np.append(x1, x_weighed[i])
-            else:
-                x0 = np.append(x0, x_weighed[i])
-        if(min(x1) < max(x0)):
-            Q = 0
-        else:
-            Q = (min(x1) - max(x0)) / (max(x1) - min(x0) + abs(min(x0)))
-
-        F = self.fitnessparameters[0] * m / (res**(.5) + self.fitnessparameters[3] * abs(c)) + self.fitnessparameters[1] / res + self.fitnessparameters[2] * Q
-
-        return F
+        return 1/res
 
     def FitnessQuality(self, x, target):
         max1 = np.max(x[target==1])
