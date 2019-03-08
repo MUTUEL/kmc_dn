@@ -539,6 +539,9 @@ class kmc_dn():
         if preHopFunction != None:
             self.simulate_prehop = preHopFunction
 
+        # Reset current and time
+        self.reset()          
+
         # Initialize simulation arguments
         args = {"N_acceptors":self.N, "N_electrodes":self.P, 
                 "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
@@ -553,9 +556,6 @@ class kmc_dn():
 
         if goSpecificFunction != None:
             args["goSpecificFunction"] = goSpecificFunction
-
-        # Reset current and time
-        self.reset()          
 
         # Simulate prehops
         if(prehops != 0):
