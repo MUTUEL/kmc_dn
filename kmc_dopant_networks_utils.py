@@ -294,7 +294,7 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
         ele = kmc_dn.electrodes[i]
         x = (ele[0] - center[0])*0.1 + ele[0]
         y = (ele[1] - center[1])*0.1 + ele[1]
-        ax.text(x, y, "V:%.2f\nCurrent: %.3f"%(ele[3], kmc_dn.current[i]))
+        ax.text(x, y, "V:%.2f\nC: %.3f"%(ele[3], kmc_dn.current[i]))
     return fig
 
 
@@ -320,9 +320,9 @@ def visualize_traffic_substraction(kmc1, kmc2, pos=111, title="", figure=None):
         print (diff)
         r, g, b = 255, 255, 255
         if diff < 0:
-            g, b = 255+(diff*255), 255+(diff*255)
+            r, g = 255+(diff*255), 255+(diff*255)
         else :
-            r, b = 255-(diff*255), 255+(diff*255)
+            r, b = 255-(diff*255), 255-(diff*255)
         colorStr = getColorHex(r, g, b)
         print (colorStr)
         acceptorColors.append(colorStr)
@@ -369,16 +369,18 @@ def visualize_traffic_substraction(kmc1, kmc2, pos=111, title="", figure=None):
         ele = kmc1.electrodes[i]
         x = (ele[0] - center[0])*0.06 + ele[0]
         y = (ele[1] - center[1])*0.06 + ele[1]
-        ax.text(x, y, "V:%.2f\nCurrent difference: %.3f"%(ele[3], kmc2.current[i] - kmc1.current[i]))
+        ax.text(x, y, "V:%.2f\nCD: %.3f"%(ele[3], kmc2.current[i] - kmc1.current[i]))
     return fig
 
-def plot_swipe(data, pos=111, figure=None, title=""):
+def plot_swipe(data, pos=111, figure=None, title="", xlim=None):
     if figure:
         fig = figure
     else:
         fig = plt.figure()
 
     ax = fig.add_subplot(pos)
+    if xlim is not None:
+        ax.set_xlim(right=xlim)
     voltages = []
     currents = []
     for vol, curr in data:

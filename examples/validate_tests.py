@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import cProfile
 import time
 import kmc_dopant_networks_utils as kmc_utils
+import seaborn as sns
 
 def getMeanAndStandardDeviation(arr):
     sum = 0
@@ -45,21 +46,23 @@ def evaluate(kmcs, printThreshold):
     for kmc in kmcs:
         direction_sum = 0.0
         for i in range(len(kmc.current)):
-            diff = (math.fabs(kmc.current[i]-kmc.expected_current[i])/math.fabs(kmc.expected_current[i]))
+            diff = math.fabs(kmc.current[i]-kmc.expected_current[i])
             if diff > printThreshold:
                 if len(extreme_errors) == 0 or extreme_errors[-1][0]!= j:
                     extreme_errors.append((j, "Expected current: %.3f, simulated current: %.3f, electrode is %d"%(kmc.expected_current[i], kmc.current[i], i)))
-                    print("Extreme error")
-            diffs.append(diff)
+            
+            
             direction = math.fabs(kmc.current[i]) - math.fabs(kmc.expected_current[i])
             direction_sum+=direction
+            #if math.fabs(kmc.expected_current[i]) >= 0.1:
+            diffs.append(diff)
         if direction_sum < 0:
             count_negative_directions+=1
         sum_direction_sums+=direction_sum
         j+=1
     average_error, error_SD = getMeanAndStandardDeviation(diffs)
     print("Average error: %.2f, Standard deviation: %.2f, direction sum: %.2f"%(average_error, error_SD, sum_direction_sums/len(kmcs)))
-    return extreme_errors
+    return extreme_errors, diffs
 
 def test(kmcs, func, title):
     print ("Starting testing with function: %s"%(title))
@@ -69,8 +72,8 @@ def test(kmcs, func, title):
         func(kmc)
     end = time.time()
     print ("Took time: %.3f"%(end-start))
-    extreme_errors = evaluate(kmcs, 0.7)
-    return extreme_errors
+    extreme_errors, diffs = evaluate(kmcs, 0.7)
+    return extreme_errors, diffs
 
 def testPython5K(kmc, record=False):
     kmc.python_simulation(hops=5000)
@@ -124,9 +127,47 @@ def compareVisualizeSwipe(data, fileName):
 
     for key in data:
         sub_plot_number = prefixes[size]*10+i
-
         kmc_utils.plot_swipe(data[key], pos=sub_plot_number, figure=fig, title=key)
-        i+=1
+        i+=1    
+    plt.savefig(fileName)
+
+def compareVisualizeErrors(diffs, fileName):
+    prefixes = [11, 21, 22, 22, 32, 32, 33, 33, 33]
+    plt.clf()
+    size = len(diffs)
+    index = 1
+    fig = plt.figure(figsize=((prefixes[size]/10*10), (prefixes[size]%10)*10))
+
+    for title in diffs:
+        sub_plot_number = prefixes[size]*10+index
+        diffs[title].sort()
+        ordered_tuple = []
+        i = len(diffs[title])
+        for ele in diffs[title]:
+            ordered_tuple.append((ele, i))
+            i-=1
+        kmc_utils.plot_swipe(ordered_tuple, sub_plot_number, fig, title, xlim=0.15)
+        index+=1
+    plt.savefig(fileName)
+
+def compareVisualizeErrorDistribution(diffs, fileName):
+    prefixes = [11, 21, 22, 22, 32, 32, 33, 33, 33]
+    plt.clf()
+    size = len(diffs)
+    index = 1
+    fig = plt.figure(figsize=((prefixes[size]/10*10), (prefixes[size]%10)*10))
+
+    for title in diffs:
+        sub_plot_number = prefixes[size]*10+index
+        diffs[title].sort()
+        ax = fig.add_subplot(sub_plot_number)
+        ax.set_xlim(right=0.15)
+        ax.set_title(title)
+        sns.distplot(diffs[title], kde=True, ax=ax, bins=int(diffs[title][-1]/0.001),
+             color = 'darkblue',
+             norm_hist=True,
+             kde_kws={'linewidth': 4})
+        index+=1
     plt.savefig(fileName)
 
 
@@ -134,16 +175,21 @@ def testSet(prefix, amount):
     tests = getTests(prefix, amount)
     print ("finished reading testSet %s"%(prefix))
     extreme_errors = {}
+    diffs = {}
     for func, title in [
         (testKMC5000, "KMC 5000 hops"), 
         (testPython5K, "Python KMC 5000 hops"),
-        #(testKMC50000, "KMC 50000 hops"), 
-        #(testKMC1E6, "KMC 1E6 hops"), 
-        #(testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
-        #(testProb5000, "Probability 5000 hops"),
-        #(testCombined10K, "Combined 10K hops")
+        (testKMC50000, "KMC 50000 hops"), 
+        (testKMC1E6, "KMC 1E6 hops"), 
+        (testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
+        (testProb5000, "Probability 5000 hops"),
+        (testCombined10K, "Combined 10K hops")
         ]:
         extreme_errors[title] = (func, test(tests, func, title))
+        diffs[title] = extreme_errors[title][1][1]
+        extreme_errors[title] = (func, extreme_errors[title][1][0])
+    compareVisualizeErrors(diffs, "Errors%s.png"%(prefix))
+    compareVisualizeErrorDistribution(diffs, "Kernel%s.png"%(prefix))
     for i in range(amount):
         funcs = [testKMC1E6]
         titles = ["BaseLine"]
@@ -152,8 +198,8 @@ def testSet(prefix, amount):
                 if j == i:
                     funcs.append(extreme_errors[title][0])
                     titles.append("%s %s"%(title, error))
-        if len(funcs) > 1:
-            compareVisualize(tests[i], funcs, titles, "EV%s%d.png"%(prefix, i))
+        #if len(funcs) > 1:
+        #    compareVisualize(tests[i], funcs, titles, "EV%s%d.png"%(prefix, i))
 
 def measureSwipe(prefix, amount, inputVoltage, outPutCurrent, funcs):
     tests = getTests(prefix, amount)

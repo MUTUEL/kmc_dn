@@ -55,8 +55,9 @@ def _simulate_discrete_record(N_acceptors, N_electrodes, nu, kT, I_0, R,
     N_sites = N_acceptors+N_electrodes
     traffic = np.zeros(transitions_constant.shape)
     occupations_in_time = np.zeros(len(occupation))
+    time = 0
 
-    for hh in range(hops):
+    for _ in range(hops):
         # Calculate site_energies
         for i in range(N_acceptors):
             acceptor_interaction = 0
@@ -365,6 +366,13 @@ class kmc_dn():
             self.electrodes = np.zeros((0, 4))
             self.P = 0
 
+        if 'acceptors' in kwargs:
+            self.acceptors = kwargs['acceptors'].copy()
+        if 'donors' in kwargs:
+            self.donors = kwargs['donors'].copy()
+
+        
+
         if('static_electrodes' in kwargs):
             self.static_electrodes = kwargs['static_electrodes'].copy()
         else:
@@ -391,7 +399,8 @@ class kmc_dn():
             self.calc_E_constant = self.calc_E_constant_V_comp
             
         # Initialize sim object
-        self.initialize()
+        self.initialize(dopant_placement=(not hasattr(self, 'acceptors')), charge_placement=(not hasattr(self, 'donors')))
+
 
     def initialize(self, dopant_placement = True, charge_placement = True, 
                    distances = True, V = True, E_constant = True):
@@ -539,6 +548,10 @@ class kmc_dn():
         if preHopFunction != None:
             self.simulate_prehop = preHopFunction
 
+        
+        # Reset current and time
+        self.reset()     
+
         # Initialize simulation arguments
         args = {"N_acceptors":self.N, "N_electrodes":self.P, 
                 "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
@@ -553,15 +566,14 @@ class kmc_dn():
 
         if goSpecificFunction != None:
             args["goSpecificFunction"] = goSpecificFunction
-
-        # Reset current and time
-        self.reset()          
+    
 
         # Simulate prehops
         if(prehops != 0):
             args["hops"] = prehops
             self.simulate_prehop(**args)
             self.reset()
+            args['electrode_occupation']=self.electrode_occupation
         args["hops"] = hops
 
         # Simulate hops
