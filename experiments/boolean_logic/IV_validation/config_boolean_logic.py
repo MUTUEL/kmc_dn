@@ -119,6 +119,6 @@ class experiment_config(config_class):
         diff = np.sum(np.abs(x)[6:-8])
         norm = x[-1] - x[0]
         if(norm == 0):
-            return -1
+            return -np.inf
         else:
-            return diff/norm
+            return -diff/norm
