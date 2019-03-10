@@ -483,7 +483,8 @@ def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
 
 
 def IV(kmc_dn, electrode, voltagelist,
-       tol = 1E-2, interval = 1000, hops = 0, prehops = 0):
+       tol = 1E-2, interval = 1000, hops = 0, prehops = 0,
+       printETA = False):
     '''
     Performs a simple IV curve measurement, by supplying the
     voltages in voltagelist on electrode electrode.
@@ -532,7 +533,7 @@ def IV(kmc_dn, electrode, voltagelist,
         currentlist[:, i] = kmc_dn.current
 
         # Print estimated remaining time
-        if(i == 1):
+        if(i == 1 and printETA):
             print(f'Estimated time for IV curve: {(time.time()-tic)*voltages} seconds')
     return currentlist
 
