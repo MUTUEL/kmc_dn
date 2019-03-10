@@ -120,5 +120,5 @@ class experiment_config(config_class):
         norm = x[-1] - x[0]
         if(norm == 0):
             return -1
-        else
+        else:
             return diff/norm
