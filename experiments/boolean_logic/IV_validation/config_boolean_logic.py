@@ -16,18 +16,18 @@ class experiment_config(config_class):
         self.I_0 = 50*self.kT
         self.ab_R = 0.5
         self.layout = 0
-        self.prehops = int(5E4)
-        self.hops = int(5E4)
+        self.prehops = int(5E5)
+        self.hops = int(5E5)
 
         # Define experiment
         self.generations = 40
         self.generange = [[0.1, 100], [0.01, 10]]
         self.avg = 1
 
-        self.Fitness = self.FitnessFix
+        self.Fitness = self.FitnessGap
 
         # Specify either partition or genomes
-        self.partition = [2, 2, 2, 2, 2]
+        self.partition = [5, 5, 5, 5, 5]
         #self.genomes = 20
 
         # Save settings
@@ -111,3 +111,14 @@ class experiment_config(config_class):
             return np.corrcoef(x, target)[0, 1] 
         else:
             return -1
+
+    def FitnessGap(self, x, target):
+        '''
+        This fitness tries to force a gap.
+        '''
+        diff = np.sum(np.abs(x)[6:-8])
+        norm = x[-1] - x[0]
+        if(norm == 0):
+            return -1
+        else
+            return diff/norm
