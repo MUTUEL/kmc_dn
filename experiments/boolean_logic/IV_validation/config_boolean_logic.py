@@ -17,7 +17,7 @@ class experiment_config(config_class):
         self.ab_R = 0.5
         self.layout = 0
         self.prehops = int(5E3)
-        self.hops = int(5E3)
+        self.hops = int(2E4)
 
         # Define experiment
         self.generations = 50
@@ -117,7 +117,7 @@ class experiment_config(config_class):
         This fitness tries to force a gap.
         '''
         diff = np.sum(np.abs(x)[6:-8])
-        norm = x[-1] - x[0]
+        norm = x[-4] - x[3]
         if(norm == 0):
             return -np.inf
         else:
