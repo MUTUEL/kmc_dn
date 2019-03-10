@@ -16,11 +16,11 @@ class experiment_config(config_class):
         self.I_0 = 50*self.kT
         self.ab_R = 0.5
         self.layout = 0
-        self.prehops = int(5E5)
-        self.hops = int(5E5)
+        self.prehops = int(5E3)
+        self.hops = int(5E3)
 
         # Define experiment
-        self.generations = 40
+        self.generations = 50
         self.generange = [[0.1, 100], [0.01, 10]]
         self.avg = 1
 
