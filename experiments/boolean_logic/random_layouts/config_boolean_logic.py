@@ -68,16 +68,17 @@ class experiment_config(config_class):
         ################################################
         # Model parameters
         self.kT = 1
-        self.I_0 = 50*self.kT
-        self.ab_R = 0.5
+        self.I_0 = 15*self.kT
+        self.ab_R = 0.22
         self.layout = 0
         self.prehops = 10000
-        self.hops = 100000
+        self.hops = 50000
+        self.layoutsize = 10
 
         # Define experiment
         self.generations = 50
         self.generange = [[0, 1]]*5
-        self.avg = 2
+        self.avg = 4
         self.P = 0
         self.Q = 1
         self.output = 2
