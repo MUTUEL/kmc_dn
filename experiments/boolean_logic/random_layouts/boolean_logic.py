@@ -91,9 +91,9 @@ for i in range(cf.generations):
             kmc.electrodes[cf.P, 3] = P[k]*cf.inputrange
             kmc.electrodes[cf.Q, 3] = Q[k]*cf.inputrange
             kmc.update_V()
-            kmc.simulate_discrete(prehops = prehops)
+            kmc.python_simulation(prehops = prehops)
             for l in range(cf.avg):
-                kmc.simulate_discrete(hops = hops)
+                kmc.python_simulation(hops = hops)
                 output[k*cf.avg + l] = kmc.current[cf.output]
         outputArray[i, j] = output
         fitness_list.append(cf.Fitness(output, cf.target))
