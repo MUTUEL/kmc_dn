@@ -19,10 +19,10 @@ layout = cf.layout
 # Load layouts
 acceptor_layouts = np.load('acceptor_layouts.npy')
 donor_layouts = np.load('donor_layouts.npy')
-if(cf.layoutsize = 10):
+if(cf.layoutsize == 10):
     acceptor_layouts = np.load('acceptor_layouts_10.npy')
     donor_layouts = np.load('donor_layouts_10.npy')
-if(cf.layoutsize = 20):
+if(cf.layoutsize == 20):
     acceptor_layouts = np.load('acceptor_layouts_20.npy')
     donor_layouts = np.load('donor_layouts_20.npy')
 
