@@ -104,7 +104,7 @@ type probabilities struct {
 
 
 
-func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32, time float64,
+func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32,
         occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
         electrode_occupation []float64, site_energies []float32, hops int, record_problist bool, record bool, 
         traffic []float64, average_occupation []float64) float64 {
@@ -128,7 +128,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
     for i := 0; i < NElectrodes; i++ {
 		electrode_occupation[i] = 0.0
     }
-    time = 0
+    time := float64(0)
 
     for i := 0; i < N; i++ {
         transitions[i] = make([]float32, NSites+NElectrodes)
@@ -215,7 +215,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
     return time
 }
 
-func simulateCombined(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32, time float64,
+func simulateCombined(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32,
     occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
     electrode_occupation []float64, site_energies []float32, hops int, traffic []float64, average_occupation []float64) float64 {
     N := NSites + NElectrodes
@@ -236,7 +236,7 @@ func simulateCombined(NSites int, NElectrodes int, nu float32, kT float32, I_0 f
     for i := 0; i < NElectrodes; i++ {
         electrode_occupation[i] = 0.0
     }
-    time = 0
+    time := float64(0)
 
     for i := 0; i < N; i++ {
         transitions[i] = make([]float32, NSites+NElectrodes)

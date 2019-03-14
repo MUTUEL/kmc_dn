@@ -69,15 +69,49 @@ def getRandomDn(N_acceptors, N_donors):
     dn = kmc_dn.kmc_dn(N_acceptors, N_donors, 1, 1, 0, electrodes = electrodes)
     return dn
 
+def genXorTest(fileName, exampleFileName):
+    dn = getRandomDn(10, 1)
+    tests = []
+    for i in range(100):
+        rel_path = "tests/xor/test%d.kmc"%(i)
+        abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
+        dn.loadSelf(abs_file_path)
+        volts = []
+        currents = []
+        for i in range(len(dn.electrodes)):
+            volts.append(dn.electrodes[i][3])
+            currents.append((i, dn.expected_current[i]))
+        tests.append((volts, currents))
+    dn.python_simulation(hops=1000000, record=True)
+    plt.clf()
+    kmc_utils.visualize_traffic(dn, 111, "Example network")
+    plt.savefig(exampleFileName)
+    with open("%s.kmc"%(fileName), "wb") as f:
+        pickle.dump(tests, f)
+
+
+
 def searchBasedOnTest(fileName):
     with open(fileName, 'rb') as f:
         tests = pickle.load(f)
         dn = getRandomDn(20, 2)
         search = dn_search.dn_search(dn, tests, 1, 1, 0.04, 0.04)
-        search.simulatedAnnealingSearch(0.08, 2000)
+        schedule = [
+            (0.4, 5000),
+            (0.2, 7500),
+            (0.1, 10000),
+            (0.02, 15000),
+            (0.01, 20000),
+            (0, 27000),
+        ]
+        search.simulatedAnnealingSearch(0.4, schedule)
 
-    
-rel_path = "search_tests/test_set3"
+
+
+
+rel_path = "search_tests/test_set_3"
 abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
+#genXorTest(abs_file_path, "xor_example.png")
+
 #genAndSaveTest(abs_file_path, 20, 2, 10)
 searchBasedOnTest("%s.kmc"%(abs_file_path))

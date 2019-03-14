@@ -369,7 +369,7 @@ def visualize_traffic_substraction(kmc1, kmc2, pos=111, title="", figure=None):
         ele = kmc1.electrodes[i]
         x = (ele[0] - center[0])*0.06 + ele[0]
         y = (ele[1] - center[1])*0.06 + ele[1]
-        ax.text(x, y, "V:%.2f\nCD: %.3f"%(ele[3], kmc2.current[i] - kmc1.current[i]))
+        ax.text(x, y, "V:%.2f\nCD: %.3f"%(ele[3], kmc2.current[i] - kmc1.current[i]), horizontalalignment='center')
     return fig
 
 def plot_swipe(data, pos=111, figure=None, title="", xlim=None):

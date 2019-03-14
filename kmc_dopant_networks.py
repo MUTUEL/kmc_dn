@@ -21,7 +21,7 @@ TODO list
 # Imports
 import sys
 sys.path.insert(0,'./goSimulation')
-from goSimulation.pythonBind import callGoSimulation
+from goSimulation.pythonBind import callGoSimulation, startGoSimulation, readGoSimulationResult
 import numpy as np
 from numba import jit
 import fenics as fn
@@ -602,7 +602,28 @@ class kmc_dn():
 
             # Calculate quantities
             self.current = self.electrode_occupation/self.time
-        
+    
+    def start_simulation_parallel(self, hops=1000):
+        # Reset current and time
+        self.reset()     
+
+        # Initialize simulation arguments
+        args = {"N_acceptors":self.N, "N_electrodes":self.P, 
+                "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
+                "R":self.R, "time":self.time, "occupation":self.occupation, 
+                "distances":self.distances,
+                "E_constant":self.E_constant, 
+                "site_energies":self.site_energies, 
+                "transitions_constant":self.transitions_constant,
+                "transitions":self.transitions, "problist":self.problist, 
+                "electrode_occupation":self.electrode_occupation, 
+                "record":False, "hops":hops}
+        index, eo_slice = startGoSimulation(**args)
+        return index, eo_slice #Index of the channel where the result is going to be read and pointer to the slice, which is going to have the relevant data on.
+
+    def read_simulation_result(self, index, eo_slice):
+        time, electrode_occupation = readGoSimulationResult(index, eo_slice)
+        self.current = electrode_occupation/time
 
     def place_dopants_random(self):
         '''

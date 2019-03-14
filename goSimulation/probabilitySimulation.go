@@ -51,7 +51,7 @@ func probTransitionPossible(i int, j int, NSites int, occupation []float64) floa
 }
   
 
-func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64, time float64,
+func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64,
     	occupation []float64, distances [][]float64, E_constant []float64, transitions_constant [][]float64,
 		electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, 
 		average_occupation []float64) float64 {
@@ -65,7 +65,7 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 	for i := 0; i < NElectrodes; i++ {
 		electrode_occupation[i] = 0.0
 	}
-	time = 0
+	time := float64(0)
 
 	for i := 0; i < N; i++ {
 		transitions[i] = make([]float64, N)
