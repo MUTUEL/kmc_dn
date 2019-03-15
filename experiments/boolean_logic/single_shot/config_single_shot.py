@@ -67,15 +67,17 @@ class experiment_config(config_class):
         ######### SPECIFY PARAMETERS ###################
         ################################################
         # Gene to test
-        self.gene = [0.42216254, 0.47363607, 0.06674828, 0.5311083 , 0.91418949]
+        self.gene = [0.2837109 , 0.77529775, 0.31398488, 0.36713416, 0.47526523]
+        self.filepath = ''
+        self.name = 'XOR'
 
         # Model parameters
         self.kT = 1
-        self.I_0 = 15*self.kT
-        self.ab_R = 0.22
+        self.I_0 = 100*self.kT
+        self.ab_R = 0.25
         self.layout = 0
-        self.prehops = 100000
-        self.hops = 1000000
+        self.prehops = 10000
+        self.hops = 100000
 
         # Define experiment
         self.avg = 10
@@ -83,8 +85,8 @@ class experiment_config(config_class):
         self.Q = 1
         self.output = 2
         self.controls = [3, 4, 5, 6, 7]
-        self.controlrange = np.array([-1000, 1000])*self.kT
-        self.inputrange = 1000*self.kT
+        self.controlrange = np.array([-150, 150])*self.kT
+        self.inputrange = 75*self.kT
 
         # Define targets
         self.AND_discrete = np.array([0, 0, 0, 1])
@@ -111,6 +113,7 @@ class experiment_config(config_class):
         self.target = self.NOR
         self.Fitness = self.FitnessCorr
 
+        '''
         # Save settings
         self.filepath = ''#Important: end path with double backslash
         if(np.array_equal(self.target, self.AND)):
@@ -125,6 +128,7 @@ class experiment_config(config_class):
             self.name = 'XOR'
         if(np.array_equal(self.target, self.XNOR)):
             self.name = 'XNOR'
+        '''
 
         ################################################
         ################# OFF-LIMITS ###################

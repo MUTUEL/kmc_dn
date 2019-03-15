@@ -53,6 +53,10 @@ kmc.kT = kT
 kmc.I_0 = I_0
 kmc.ab = ab_R*kmc.R
 
+# Update constant quantities that depend on I_0 and ab
+kmc.calc_E_constant()
+kmc.calc_transitions_constant()
+
 # Define input signals
 P = [0, 1, 0, 1]
 Q = [0, 0, 1, 1]

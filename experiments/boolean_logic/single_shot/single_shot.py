@@ -13,7 +13,6 @@ saveDirectory = SaveLib.createSaveDirectory(cf.filepath, cf.name)
 #%% System setup
 xdim = 1
 ydim = 1
-layout = 0
 
 # Load layouts
 acceptor_layouts = np.load('acceptor_layouts.npy')
@@ -31,13 +30,17 @@ electrodes[6] = [xdim/4, ydim, 0, 0]
 electrodes[7] = [3*xdim/4, ydim, 0, 0]
 
 kmc = kmc_dn.kmc_dn(1, 0, xdim, ydim, 0, electrodes=electrodes)
-kmc.load_acceptors(acceptor_layouts[layout])
-kmc.load_donors(donor_layouts[layout])
+kmc.load_acceptors(acceptor_layouts[cf.layout])
+kmc.load_donors(donor_layouts[cf.layout])
 
 # Set parameters
 kmc.kT = cf.kT
 kmc.I_0 = cf.I_0
 kmc.ab = cf.ab_R*kmc.R
+
+# Update constant quantities that depend on I_0 and ab
+kmc.calc_E_constant()
+kmc.calc_transitions_constant()
 
 # Define input signals
 P = [0, 1, 0, 1]
@@ -50,7 +53,7 @@ for index, control in enumerate(cf.controls):
                                  + cf.gene[index]*cf.controlrange[1]
 
 # Obtain device response
-output = np.zeros(4*cf.avg)
+output = np.zeros((8, 4*cf.avg))
 for k in range(4):
     # Set input voltages
     kmc.electrodes[cf.P] = P[k]*cf.inputrange
@@ -58,11 +61,11 @@ for k in range(4):
     kmc.update_V()
 
     # Prestabilize the system
-    kmc.simulate_discrete(hops = cf.prehops)
+    kmc.python_simulation(prehops = cf.prehops)
 
     for l in range(cf.avg):
-        kmc.simulate_discrete(hops = cf.hops)
-        output[k*cf.avg + l] = kmc.current[cf.output]
+        kmc.python_simulation(hops = cf.hops)
+        output[:, k*cf.avg + l] = kmc.current
 
 SaveLib.saveExperiment(saveDirectory, 
                        output = output)
