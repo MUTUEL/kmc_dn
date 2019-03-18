@@ -211,4 +211,13 @@ class experiment_config(config_class):
         return F
 
     def FitnessCorr(self, x, target):
-        return np.corrcoef(x, target)[0, 1] 
+        # Check if x has single value
+        valid = False
+        for i in range(len(x)):
+            if(not x[i] == x[0]):
+                valid = True
+
+        if(valid):
+            return np.corrcoef(x, target)[0, 1] 
+        else:
+            return -1
