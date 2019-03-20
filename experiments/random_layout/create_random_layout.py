@@ -3,8 +3,8 @@
 import numpy as np
 
 layouts = 100
-N = 30
-M = 3
+N = 20
+M = 2
 xdim = 1
 ydim = 1
 zdim = 0
@@ -19,6 +19,6 @@ donor_layouts[:, :, 0] *= xdim
 donor_layouts[:, :, 1] *= ydim
 donor_layouts[:, :, 2] *= zdim 
 
-np.save('acceptor_layouts', acceptor_layouts)
-np.save('donor_layouts', donor_layouts)
+np.save('acceptor_layouts_20', acceptor_layouts)
+np.save('donor_layouts_20', donor_layouts)
 
