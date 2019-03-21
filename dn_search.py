@@ -36,12 +36,13 @@ class dn_search():
 
         self.dn = initial_dn
         self.tests = tests
+        self.use_tests = len(tests)
         sum = 0
         for t in tests:
             for _ in t[1]:
                 sum+=1
         self.N_tests = sum
-        self.use_tests = sum
+        
         self.simulation_strategy = [
             {'func':"go_simulation",
              'args':{'hops':1000, 'goSpecificFunction':"wrapperSimulateProbability"},
@@ -61,8 +62,17 @@ class dn_search():
              'threshold_per_test':0.0},
         ]
         self.setStrategy(0)
-        self.error_func = self.cumulative_error
+        self.error_func = self.average_cumulative_error
         self.initRandomPlacement()
+
+    def setUseTests(self, N):
+        self.use_tests = N
+        sum = 0
+        for i in range(self.use_tests):
+            for _ in self.tests[i]:
+                sum+=1
+        self.N_tests = sum
+        
 
     def setStrategy(self, index):
         self.current_strategy = index
@@ -75,8 +85,8 @@ class dn_search():
         #channel_indexes = []
         #go_slices = []
         diffs = []
-        for i in range(self.use_tests):
-            test = self.tests[i]
+        for j in range(self.use_tests):
+            test = self.tests[j]
             electrodes = test[0]
             
             for i in range(len(electrodes)):
@@ -103,8 +113,8 @@ class dn_search():
 
     def validate_error(self, dn):
         diffs = []
-        for i in range(self.use_tests, self.N_tests):
-            test = self.tests[i]
+        for j in range(self.use_tests, len(self.tests)):
+            test = self.tests[j]
             electrodes = test[0]
             
             for i in range(len(electrodes)):
@@ -115,14 +125,14 @@ class dn_search():
             for index, current in execpted_currents:
                 diff = math.fabs(dn.current[index]-current)
                 diffs.append(diff)
-        return self.error_func(diffs)
+        return self.error_func(diffs) 
         
-    def cumulative_error(self, diffs):
+    def average_cumulative_error(self, diffs):
         error = 0
         for diff in diffs:
             if diff > self.expected_error:
                 error+=diff-self.expected_error
-        return error
+        return error / len(diffs)
 
     def initRandomPlacement(self):
         #Inits random placement but within the given resolution.
@@ -322,7 +332,7 @@ class dn_search():
         plt.savefig("resultDump%s.png"%(file_prefix))
         return best, self.current_strategy
 
-    def genetic_search(self, gen_size, number_of_generations, strategy_switch_threshold, disparity, uniqueness, file_prefix):
+    def genetic_search(self, gen_size, time_available, disparity, uniqueness, file_prefix):
         dns = []
         self.current_strategy = 0
         disparity_step = disparity / (gen_size-1)
@@ -333,7 +343,10 @@ class dn_search():
             setattr(newDn, "genes", self.getGeneList(newDn))
             dns.append(newDn)
         best_dn = dns[0]
-        for gen in range(number_of_generations):
+        start_time = time.time()
+        gen = 0
+        while True:
+            gen += 1
             best_error = 1000
             print ("generation: %d"%(gen))
             results = []
@@ -345,7 +358,10 @@ class dn_search():
                     best_dn = dn
                 total_error+=error
                 results.append((error, dn))
-            if gen == (number_of_generations-1):
+            time_difference = time.time() - start_time
+            average_error = total_error / gen_size
+            print ("average error: %.4f\nbest error: %.3f"%(average_error, best_error))
+            if time_difference > time_available:
                 break
             results = sorted(results, key=lambda x:x[0])
             intermediate_dns = []
@@ -369,16 +385,18 @@ class dn_search():
                 self.getDnFromGenes(gene, dns[i])
                 i+=1
             
-            average_error = total_error / gen_size
-            print ("average error: %.4f\nbest error: %.3f"%(average_error, best_error))
-            if self.current_strategy < len(strategy_switch_threshold)-1 and average_error < strategy_switch_threshold[self.current_strategy]:
+            
+            
+            if self.current_strategy < len(self.simulation_strategy)-1 \
+                    and best_error < self.simulation_strategy[self.current_strategy]['threshold_per_test'] \
+                    and average_error < self.simulation_strategy[self.current_strategy]['threshold_per_test']*3:
                 self.setStrategy(self.current_strategy+1)
         best_dn.saveSelf("GeneticResultDump%s.kmc"%(file_prefix))
         best_dn.go_simulation(hops=1000000, record=True)
         plt.clf()
         kmc_utils.visualize_traffic(best_dn, 111, "Result")
         plt.savefig("GeneticResultDump%s.png"%(file_prefix))
-        return self.validate_error(best_dn), 0
+        return self.validate_error(best_dn), self.current_strategy
             
     def getGeneList(self, dn):
         genes = []

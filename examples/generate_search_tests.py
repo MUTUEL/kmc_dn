@@ -125,9 +125,9 @@ def searchGeneticBasedOnTest(fileName, N_acceptors, N_donors, test_index, use_te
         tests = pickle.load(f)
         dn = getRandomDn(N_acceptors, N_donors)
         search = dn_search.dn_search(dn, tests, 1, 1, 0.04, 0.04)
-        search.use_tests = use_tests
+        search.setUseTests(use_tests)
 
-        return search.genetic_search(10, 10, [], 2, 5000, "10DOP%d"%(test_index))
+        return search.genetic_search(50, 7200, 2, 5000, "10DOP%d"%(test_index))
     return None, None
 
 
@@ -137,7 +137,7 @@ rel_path = "search_tests/test_set_4"
 abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
 #genXorTest(abs_file_path, "xor_example.png")
 
-#genAndSaveTest(abs_file_path, N_acceptors, N_donors, 10)
+genAndSaveTest(abs_file_path, N_acceptors, N_donors, 20)
 """results = {'schedule_1':[], 'schedule_2':[]}
 for i in range(5):
     result, strategy = searchBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 12+i, get_schedule1)
@@ -147,4 +147,5 @@ for i in range(5):
     result, strategy = searchBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 18+i, get_schedule2)
     results['schedule_2'].append((result, strategy))
 print (results)"""
-print (searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 101, 4))
+for i in range(1, 15):
+    print (searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 100+i, i))
