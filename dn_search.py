@@ -41,21 +41,22 @@ class dn_search():
             for _ in t[1]:
                 sum+=1
         self.N_tests = sum
+        self.use_tests = sum
         self.simulation_strategy = [
             {'func':"go_simulation",
              'args':{'hops':1000, 'goSpecificFunction':"wrapperSimulateProbability"},
              'expected_error':0.04,
              'threshold_per_test':0.005},
             {'func':"go_simulation",
-             'args':{'hops':5000},
+             'args':{'hops':5000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.025,
              'threshold_per_test':0.005},
             {'func':"go_simulation",
-             'args':{'hops':50000},
+             'args':{'hops':50000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.01,
              'threshold_per_test':0.002},
             {'func':"go_simulation",
-             'args':{'hops':250000},
+             'args':{'hops':250000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.002,
              'threshold_per_test':0.0},
         ]
@@ -70,11 +71,12 @@ class dn_search():
         self.expected_error =  self.simulation_strategy[index]['expected_error']
         self.threshold_per_test =  self.simulation_strategy[index]['threshold_per_test']
 
-    def validate_error(self, dn):
-        channel_indexes = []
-        go_slices = []
+    def evaluate_error(self, dn):
+        #channel_indexes = []
+        #go_slices = []
         diffs = []
-        for test in self.tests:
+        for i in range(self.use_tests):
+            test = self.tests[i]
             electrodes = test[0]
             
             for i in range(len(electrodes)):
@@ -97,6 +99,22 @@ class dn_search():
         #    dn.read_simulation_result(channel_index, go_slice)
         #    execpted_currents = test[1]
 
+        return self.error_func(diffs)
+
+    def validate_error(self, dn):
+        diffs = []
+        for i in range(self.use_tests, self.N_tests):
+            test = self.tests[i]
+            electrodes = test[0]
+            
+            for i in range(len(electrodes)):
+                dn.electrodes[i][3] = electrodes[i]
+            dn.update_V()
+            execpted_currents = test[1]
+            getattr(dn, self.simulation_func)(**self.simulation_args)
+            for index, current in execpted_currents:
+                diff = math.fabs(dn.current[index]-current)
+                diffs.append(diff)
         return self.error_func(diffs)
         
     def cumulative_error(self, diffs):
@@ -193,7 +211,7 @@ class dn_search():
             return False
 
     def greedySearch(self):
-        best = self.validate_error(self.dn)
+        best = self.evaluate_error(self.dn)
         print ("Best is %.3f"%(best))
         found = True
         while found:
@@ -201,7 +219,7 @@ class dn_search():
             for neighbour, _, _ in self.yieldNeighbours():
                 if best < 0.001:
                     break
-                error = self.validate_error(neighbour)
+                error = self.evaluate_error(neighbour)
                 print ("error %.3f"%(error))
                 if error < best:
                     found = True
@@ -212,7 +230,7 @@ class dn_search():
             if not found and self.x_resolution > self.minimum_resolution:
                 if best < self.threshold_per_test*self.N_tests:
                     self.setStrategy(self.current_strategy+1)
-                    best = self.validate_error(self.dn)
+                    best = self.evaluate_error(self.dn)
                     print("New strategy: %d"%(self.current_strategy))
                 else:
                     self.x_resolution /= 2
@@ -232,7 +250,7 @@ class dn_search():
         annealing_index = 0
         T = annealing_schedule[0][0]
         found = True
-        best = self.validate_error(self.dn)
+        best = self.evaluate_error(self.dn)
         print ("Best is %.3f"%(best))
         print ("strategy threshold is :%.4f"%(self.threshold_per_test*self.N_tests))
         found = True
@@ -267,7 +285,7 @@ class dn_search():
                     print ("time difference: %.1f"%(time_difference))
                     if best < 0.001:
                         break
-                    error = self.validate_error(neighbour)
+                    error = self.evaluate_error(neighbour)
                     print ("error %.3f, strategy: %d"%(error, self.current_strategy))
                     if self.P(error, best, T):
                         found = True
@@ -287,7 +305,7 @@ class dn_search():
                     print ("Best is %.4f and thershold is %.4f"%(best, self.threshold_per_test*self.N_tests))
                     if best < self.threshold_per_test*self.N_tests:
                         self.setStrategy(self.current_strategy+1)
-                        best = self.validate_error(self.dn)
+                        best = self.evaluate_error(self.dn)
                         print ("New strategy best is %.3f"%(best))
                         print("New strategy: %d"%(self.current_strategy))
                     else:
@@ -314,15 +332,22 @@ class dn_search():
             newDn.initialize()
             setattr(newDn, "genes", self.getGeneList(newDn))
             dns.append(newDn)
+        best_dn = dns[0]
         for gen in range(number_of_generations):
+            best_error = 1000
             print ("generation: %d"%(gen))
             results = []
             total_error = 0
             for dn in dns:
-                error = self.validate_error(dn)
+                error = self.evaluate_error(dn)
+                if best_error > error:
+                    best_error = error
+                    best_dn = dn
                 total_error+=error
                 results.append((error, dn))
-            results = sorted(results)
+            if gen == (number_of_generations-1):
+                break
+            results = sorted(results, key=lambda x:x[0])
             intermediate_dns = []
             current_disparity = disparity
             space = 0
@@ -339,14 +364,21 @@ class dn_search():
                 current_disparity-=disparity_step
             random.shuffle(intermediate_dns)
             new_generation_genes = self.getNexGenerationGenes(intermediate_dns, uniqueness)
-            dns = []
+            i = 0
             for gene in new_generation_genes:
-                dns.append(self.getDnFromGenes(gene))
+                self.getDnFromGenes(gene, dns[i])
+                i+=1
             
             average_error = total_error / gen_size
-            print ("average error: %.4f\n"%(average_error))
+            print ("average error: %.4f\nbest error: %.3f"%(average_error, best_error))
             if self.current_strategy < len(strategy_switch_threshold)-1 and average_error < strategy_switch_threshold[self.current_strategy]:
                 self.setStrategy(self.current_strategy+1)
+        best_dn.saveSelf("GeneticResultDump%s.kmc"%(file_prefix))
+        best_dn.go_simulation(hops=1000000, record=True)
+        plt.clf()
+        kmc_utils.visualize_traffic(best_dn, 111, "Result")
+        plt.savefig("GeneticResultDump%s.png"%(file_prefix))
+        return self.validate_error(best_dn), 0
             
     def getGeneList(self, dn):
         genes = []
@@ -425,25 +457,19 @@ class dn_search():
         genes.extend(parent_2_genes[rnd_index:])
         return genes
 
-    def getDnFromGenes(self, genes):
-        try:
-            newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
-        except:
-            print ("Error: %d, %d, %.2f, %.2f, %s"%(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, str(self.dn.electrodes)))
-            newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
+    def getDnFromGenes(self, genes, dn):
 
-        setattr(newDn, "genes", genes)
+        setattr(dn, "genes", genes)
 
         for i in range(self.dn.N):
             x = genes[i*2]/65535*self.dn.xdim
             y = genes[i*2+1]/65535*self.dn.ydim
-            newDn.acceptors[i] = (x, y, 0)
+            dn.acceptors[i] = (x, y, 0)
         for i in range(self.dn.M):
             x = genes[self.dn.N*2+i*2]/65535*self.dn.xdim
             y = genes[self.dn.N*2+i*2+1]/65535*self.dn.ydim
-            newDn.donors[i] = (x, y, 0)
-        newDn.initialize( dopant_placement=False, charge_placement=False)
-        return newDn
+            dn.donors[i] = (x, y, 0)
+        dn.initialize( dopant_placement=False, charge_placement=False)
     def P(self, e, e0, T):
 
         if e < e0:
@@ -458,14 +484,11 @@ class dn_search():
 
 # Genetic algorithm
 # 1. Evaluating a generation is trivial, we already have everything
-# 2. Selecting individuals to reproduce is the harder part.
-#    We should take into account both the evalution score and uniqueness.
-#    To take into account uniqueness we could consider for each site, 
-#    how far is the nearest site and add the distances
-# 3. Generating new generation, we have several methods
+# 2. Selecting individuals to reproduce: We used idea from literature, Tutorial
+# 3. Generating new generation, we have several methods. AGain use Tutorial and Unique measurement.
 #  - New random sample
 #  - Getting a random neighbour of an existing individual
 #  - Combining 2 samples using uniform crossover.
 #  - Combining 2 samples using single-point crossover.
 # 4. Each method could have some weight, which is gradually changed based on 
-#    how much success they provide.
+#    how much success they provide. Idea to test in the future. First write base-line solution, that can be tested against.

@@ -120,13 +120,14 @@ def searchBasedOnTest(fileName, N_acceptors, N_donors, test_index, schedule_func
         return search.simulatedAnnealingSearch(0.4, schedule, "10DOP%d"%(test_index))
     return None, None
 
-def searchGeneticBasedOnTest(fileName, N_acceptors, N_donors, test_index):
+def searchGeneticBasedOnTest(fileName, N_acceptors, N_donors, test_index, use_tests):
     with open(fileName, 'rb') as f:
         tests = pickle.load(f)
         dn = getRandomDn(N_acceptors, N_donors)
         search = dn_search.dn_search(dn, tests, 1, 1, 0.04, 0.04)
+        search.use_tests = use_tests
 
-        return search.genetic_search(100, 100, [], 2, 5000, "10DOP%d"%(test_index))
+        return search.genetic_search(10, 10, [], 2, 5000, "10DOP%d"%(test_index))
     return None, None
 
 
@@ -136,7 +137,7 @@ rel_path = "search_tests/test_set_4"
 abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
 #genXorTest(abs_file_path, "xor_example.png")
 
-#genAndSaveTest(abs_file_path, N_acceptors, N_donors, 2)
+#genAndSaveTest(abs_file_path, N_acceptors, N_donors, 10)
 """results = {'schedule_1':[], 'schedule_2':[]}
 for i in range(5):
     result, strategy = searchBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 12+i, get_schedule1)
@@ -146,4 +147,4 @@ for i in range(5):
     result, strategy = searchBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 18+i, get_schedule2)
     results['schedule_2'].append((result, strategy))
 print (results)"""
-searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 101)
+print (searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 101, 4))
