@@ -68,22 +68,22 @@ class experiment_config(config_class):
         ################################################
         # Model parameters
         self.kT = 1
-        self.I_0 = 15*self.kT
-        self.ab_R = 0.22
+        self.I_0 = 100*self.kT
+        self.ab_R = 0.25
         self.layout = 0
         self.prehops = 10000
-        self.hops = 100000
+        self.hops = 200000
 
         # Define experiment
-        self.generations = 50
+        self.generations = 25
         self.generange = [[0, 1]]*5
         self.avg = 2
         self.P = 0
         self.Q = 1
         self.output = 2
         self.controls = [0, 1, 2, 3, 4]
-        self.controlrange = np.array([-2000, 2000])*self.kT
-        self.inputrange = 1000*self.kT
+        self.controlrange = np.array([-150, 150])*self.kT
+        self.inputrange = 75*self.kT
 
         # Define targets
         self.AND_discrete = np.array([0, 0, 0, 1])
@@ -210,4 +210,13 @@ class experiment_config(config_class):
         return F
 
     def FitnessCorr(self, x, target):
-        return np.corrcoef(x, target)[0, 1] 
+        # Check if x has single value
+        valid = False
+        for i in range(len(x)):
+            if(not x[i] == x[0]):
+                valid = True
+
+        if(valid):
+            return np.corrcoef(x, target)[0, 1] 
+        else:
+            return -1
