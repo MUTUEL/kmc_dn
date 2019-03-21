@@ -61,7 +61,7 @@ def callGoSimulation(N_acceptors, N_electrodes, nu, kT, I_0, R, time, occupation
     traffic = getGoSlice(np.zeros(N*N))
     average_occupation = getGoSlice(np.zeros(N_acceptors))
     newElectrode_occupation = getGoSlice(electrode_occupation)
-    lib = cdll.LoadLibrary("./libSimulation.so")
+    lib = cdll.LoadLibrary("./goSimulation/libSimulation.so")
     getattr(lib, goSpecificFunction).argtypes = [c_longlong, c_longlong, c_double, c_double, c_double, c_double, c_double,
         GoSlice, GoSlice, GoSlice, GoSlice, GoSlice, GoSlice, c_int, c_bool, GoSlice, GoSlice]
 

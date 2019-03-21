@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0,'../')
+#sys.path.insert(0,'../')
 import kmc_dopant_networks as kmc_dn
 import dn_search
 import numpy as np

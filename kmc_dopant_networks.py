@@ -473,7 +473,7 @@ class kmc_dn():
         self.electrode_occupation = np.zeros(self.P, dtype=int)
 
     def go_simulation(self, hops = 1E5, prehops = 0, 
-                      goSpecificFunction="wrapperSimulateRecord", 
+                      goSpecificFunction="wrapperSimulate", 
                       record=False, prune_threshold=0):
         '''
         Perform a simulation with the go implementation.
