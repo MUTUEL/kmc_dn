@@ -161,7 +161,7 @@ class dn_search():
             if self.doesPositionFit(pos[0], pos[1]):
                 newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.xdim, 
                     self.ydim, 0, electrodes = self.dn.electrodes, 
-                    acceptors=self.dn.acceptors, donors=self.dn.donors)
+                    acceptors=self.dn.acceptors, donors=self.dn.donors, copy_from=self.dn)
                 newDn.xCoords = self.dn.xCoords.copy()
                 newDn.yCoords = self.dn.yCoords.copy()
 
@@ -173,7 +173,6 @@ class dn_search():
                 else:
                     newDn.donors[option[0]-self.dn.N][0] = pos[0]
                     newDn.donors[option[0]-self.dn.N][1] = pos[1]
-                    print ("Donor position swap")
                 newDn.initialize( dopant_placement=False, charge_placement=False)
                 yield newDn, option[0], pos
 
@@ -188,7 +187,7 @@ class dn_search():
         return True
 
     def float_equals(self, a, b):
-        if a < (b+0.0001) and a > (b-0.0001):
+        if a < (b+0.001) and a > (b-0.001):
             return True
         else:
             return False
@@ -228,7 +227,7 @@ class dn_search():
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump3.png")
 
-    def simulatedAnnealingSearch(self, T, annealing_schedule):
+    def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix):
         real_start_time = time.time()
         annealing_index = 0
         T = annealing_schedule[0][0]
@@ -239,7 +238,7 @@ class dn_search():
         found = True
         writer = anim.getWriter(60, "")
         acceptor_plot, donor_plot, history_acceptor_plot, history_donor_plot, text_element, fig = anim.initScatterAnimation(self.dn)
-        with writer.saving(fig, "annealingSearch7.mp4", 100):
+        with writer.saving(fig, "annealingSearch%s.mp4"%(file_prefix), 100):
             anim_counter = 0
             anim_erase_history_at = 480
             while found and annealing_index < len(annealing_schedule):
@@ -253,6 +252,8 @@ class dn_search():
                         annealing_index+=1
                         if annealing_index < len(annealing_schedule):
                             T = annealing_schedule[annealing_index][0]
+                            if annealing_schedule[annealing_index][2] > self.current_strategy:
+                                self.setStrategy(annealing_schedule[annealing_index][2])
                         else:
                             break
                     if T > 0 and annealing_index < len(annealing_schedule)-1:
@@ -296,13 +297,153 @@ class dn_search():
                             self.donor_dist-=2
                         print("New resolution: %.5f"%(self.x_resolution))
                     found = True
-        self.dn.saveSelf("resultDump14.kmc")
+        self.dn.saveSelf("resultDump%s.kmc"%(file_prefix))
         self.dn.go_simulation(hops=100000, record=True)
         plt.clf()
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
-        plt.savefig("resultDump14.png")
+        plt.savefig("resultDump%s.png"%(file_prefix))
+        return best, self.current_strategy
 
+    def genetic_search(self, gen_size, number_of_generations, strategy_switch_threshold, disparity, uniqueness, file_prefix):
+        dns = []
+        self.current_strategy = 0
+        disparity_step = disparity / (gen_size-1)
+        for i in range (gen_size):
+            newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
+                self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
+            newDn.initialize()
+            setattr(newDn, "genes", self.getGeneList(newDn))
+            dns.append(newDn)
+        for gen in range(number_of_generations):
+            print ("generation: %d"%(gen))
+            results = []
+            total_error = 0
+            for dn in dns:
+                error = self.validate_error(dn)
+                total_error+=error
+                results.append((error, dn))
+            results = sorted(results)
+            intermediate_dns = []
+            current_disparity = disparity
+            space = 0
+            tot = 0
+            for _,dn in results:
+                space += current_disparity
+                tot+=current_disparity
+                while space >= 1:
+                    intermediate_dns.append(dn)
+                    space-=1
+                if random.random() < space:
+                    space-=1
+                    intermediate_dns.append(dn)
+                current_disparity-=disparity_step
+            random.shuffle(intermediate_dns)
+            new_generation_genes = self.getNexGenerationGenes(intermediate_dns, uniqueness)
+            dns = []
+            for gene in new_generation_genes:
+                dns.append(self.getDnFromGenes(gene))
+            
+            average_error = total_error / gen_size
+            print ("average error: %.4f\n"%(average_error))
+            if self.current_strategy < len(strategy_switch_threshold)-1 and average_error < strategy_switch_threshold[self.current_strategy]:
+                self.setStrategy(self.current_strategy+1)
+            
+    def getGeneList(self, dn):
+        genes = []
+        for acceptor in dn.acceptors:
+            x = np.uint16(acceptor[0]/dn.xdim * 65535)
+            y = np.uint16(acceptor[1]/dn.ydim * 65535)
+            genes.append(x)
+            genes.append(y)
+        for donor in dn.donors:
+            x = np.uint16(donor[0]/dn.xdim * 65535)
+            y = np.uint16(donor[1]/dn.ydim * 65535)
+            genes.append(x)
+            genes.append(y)
+        return genes
+    
+    def getNexGenerationGenes(self, dns, uniqueness):
+        newGeneration = []
+        print(len(dns))
+        for i in range(len(dns)):
+            if i % 2 == 0:
+                j = i+1
+            else:
+                j = i-1 
+            parent_1 = dns[i].genes
+            parent_2 = dns[j].genes
+            newGenes = dn_search.single_point_crossover(parent_1, parent_2)
+            ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, 65)
+            tries = 0
+            while not ok:
+                if problem == -1:
+                    problem = math.floor(random.random()*len(newGenes))
 
+                newGenes[problem] = dn_search.mutate(newGenes[problem])
+                ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, 65)
+                tries+=1
+                if tries == 100:
+                    print ("i: %d, j: %d"%(i, j))
+                    print ("that does not bode well")
+            newGeneration.append(newGenes)
+        return newGeneration
+
+    @staticmethod
+    def mutate(a):
+        rnd = math.floor(random.random()*16)
+        b = np.uint16(2**rnd)
+        return np.bitwise_xor(a, b)
+
+    def isAllowed(self, prev_genes, gene, uniqueness, resolution):
+        for coord in range(0, len(gene), 2):
+            for coord2 in range(0, len(gene), 2):
+                if coord == coord2:
+                    continue
+                if dn_search.uInt16Diff( gene[coord], gene[coord2]) < resolution \
+                    and dn_search.uInt16Diff(gene[coord+1], gene[coord2+1]) < resolution:
+                    return False, coord
+        for prev_gene in prev_genes:
+            total_diff = 0
+            for coord in range(len(gene)):
+                total_diff+=dn_search.uInt16Diff(prev_gene[coord], gene[coord])
+            if total_diff < uniqueness:
+                return False, -1
+        return True, -1
+
+    @staticmethod
+    def uInt16Diff(a, b):
+        if a < b:
+            return b-a
+        else:
+            return a-b
+
+    @staticmethod
+    def single_point_crossover(parent_1_genes, parent_2_genes):
+        genes = []
+        rnd_index = round(random.random()*len(parent_1_genes))
+        genes.extend(parent_1_genes[:rnd_index])
+        genes.extend(parent_2_genes[rnd_index:])
+        return genes
+
+    def getDnFromGenes(self, genes):
+        try:
+            newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
+        except:
+            print ("Error: %d, %d, %.2f, %.2f, %s"%(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, str(self.dn.electrodes)))
+            newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
+
+        setattr(newDn, "genes", genes)
+
+        for i in range(self.dn.N):
+            x = genes[i*2]/65535*self.dn.xdim
+            y = genes[i*2+1]/65535*self.dn.ydim
+            newDn.acceptors[i] = (x, y, 0)
+        for i in range(self.dn.M):
+            x = genes[self.dn.N*2+i*2]/65535*self.dn.xdim
+            y = genes[self.dn.N*2+i*2+1]/65535*self.dn.ydim
+            newDn.donors[i] = (x, y, 0)
+        newDn.initialize( dopant_placement=False, charge_placement=False)
+        return newDn
     def P(self, e, e0, T):
 
         if e < e0:
@@ -310,7 +451,6 @@ class dn_search():
         elif T < 0.001:
             return False
         else:
-            print ("Odds are: %.3f"%(math.exp(-(e-e0)/T)))
             if random.random() < math.exp(-(e-e0)/T):
                 return True
             else:

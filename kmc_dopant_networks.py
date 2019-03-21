@@ -331,9 +331,14 @@ class kmc_dn():
         #TODO
         '''
         # Constants
-        self.nu = 1  # Hop attempt frequency (1/s)
-        self.kT = 1  # Temperature energy
-        self.I_0 = self.kT  # Interaction energy
+        if 'copy_from' in kwargs:
+            self.nu = kwargs['copy_from'].nu
+            self.kT = kwargs['copy_from'].kT
+            self.I_0 = kwargs['copy_from'].I_0
+        else: 
+            self.nu = 1  # Hop attempt frequency (1/s)
+            self.kT = 1  # Temperature energy
+            self.I_0 = self.kT  # Interaction energy
         self.time = 0  # s
         self.mu = mu  # Equilibrium chemical potential
 
@@ -469,7 +474,7 @@ class kmc_dn():
 
     def go_simulation(self, hops = 1E5, prehops = 0, 
                       goSpecificFunction="wrapperSimulateRecord", 
-                      record=False):
+                      record=False, prune_threshold=0):
         '''
         Perform a simulation with the go implementation.
         
@@ -501,7 +506,7 @@ class kmc_dn():
                             preHopFunction = callGoSimulation, 
                             hops = hops, prehops = prehops, 
                             goSpecificFunction=goSpecificFunction, 
-                            record=record)
+                            record=record, prune_threshold=prune_threshold)
     
     def python_simulation(self, hops = 1E5, prehops = 0, 
                           record = False):
@@ -536,7 +541,7 @@ class kmc_dn():
 
     def makeSimulation(self, simulateFunction = None, preHopFunction = None, 
                        prehops = 0, hops = 1E5, record = False, 
-                       goSpecificFunction = None):
+                       goSpecificFunction = None, prune_threshold=0.0):
         '''
         A wrapper function that allows the user to simulate with either
         python or go. Examples can be found in self.python_simulation()
@@ -562,10 +567,11 @@ class kmc_dn():
                 "transitions_constant":self.transitions_constant,
                 "transitions":self.transitions, "problist":self.problist, 
                 "electrode_occupation":self.electrode_occupation, 
-                "record":False}
+                "record":False,}
 
         if goSpecificFunction != None:
             args["goSpecificFunction"] = goSpecificFunction
+            args["prune_threshold"] = prune_threshold
     
 
         # Simulate prehops

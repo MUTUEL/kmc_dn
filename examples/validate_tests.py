@@ -51,8 +51,8 @@ def evaluate(kmcs, printThreshold):
                 if len(extreme_errors) == 0 or extreme_errors[-1][0]!= j:
                     extreme_errors.append((j, "Expected current: %.3f, simulated current: %.3f, electrode is %d"%(kmc.expected_current[i], kmc.current[i], i)))
             
-            
-            direction = math.fabs(kmc.current[i]) - math.fabs(kmc.expected_current[i])
+            direction_multi = 1 if (kmc.current[i] < 0) == (kmc.expected_current[i] < 0) else -1
+            direction = math.fabs(kmc.current[i]) - direction_multi*math.fabs(kmc.expected_current[i])
             direction_sum+=direction
             #if math.fabs(kmc.expected_current[i]) >= 0.1:
             diffs.append(diff)
@@ -101,6 +101,31 @@ def testProb5000(kmc, record=False):
 
 def testCombined10K(kmc, record=True):
     kmc.go_simulation(hops=10000, goSpecificFunction="wrapperSimulateCombined", record = True)
+def testPruned10K(kmc, record=True):
+    kmc.go_simulation(hops=10000, goSpecificFunction="wrapperSimulatePruned", record = True)
+
+def testPruned5K(kmc, record=True):
+    kmc.go_simulation(hops=5000, goSpecificFunction="wrapperSimulatePruned", record = True)
+def testPruned50K(kmc, record=True):
+    kmc.go_simulation(hops=50000, goSpecificFunction="wrapperSimulatePruned", record = True)
+
+def testPruned1M1P(kmc, record=True):
+    kmc.go_simulation(hops=1000000, goSpecificFunction="wrapperSimulatePruned", record = True, prune_threshold=10)
+def testPruned1M3P(kmc, record=True):
+    kmc.go_simulation(hops=1000000, goSpecificFunction="wrapperSimulatePruned", record = True, prune_threshold=30)
+def testPruned1M1Pr(kmc, record=True):
+    kmc.go_simulation(hops=1000000, goSpecificFunction="wrapperSimulatePruned", record = True, prune_threshold=1)
+def testPruned1M3Pr(kmc, record=True):
+    kmc.go_simulation(hops=1000000, goSpecificFunction="wrapperSimulatePruned", record = True, prune_threshold=3)
+def testPruned5K1P(kmc, record=True):
+    kmc.go_simulation(hops=5000, goSpecificFunction="wrapperSimulatePruned", record = True, prune_threshold=10)
+def testPruned5K3Pr(kmc, record=True):
+    kmc.go_simulation(hops=5000, goSpecificFunction="wrapperSimulatePruned", record = True, prune_threshold=3)
+
+def getPruneFunction(hops, prune_threshold):
+    def new_func(kmc, record=True):
+        kmc.go_simulation(hops=hops, goSpecificFunction="wrapperSimulatePruned", record = True, prune_threshold=prune_threshold)
+    return new_func
 
 def visualize(kmc, func):
     func(kmc, True)
@@ -146,7 +171,7 @@ def compareVisualizeErrors(diffs, fileName):
         for ele in diffs[title]:
             ordered_tuple.append((ele, i))
             i-=1
-        kmc_utils.plot_swipe(ordered_tuple, sub_plot_number, fig, title, xlim=0.15)
+        kmc_utils.plot_swipe(ordered_tuple, sub_plot_number, fig, title, xlim=0.05)
         index+=1
     plt.savefig(fileName)
 
@@ -179,11 +204,14 @@ def testSet(prefix, amount):
     for func, title in [
         (testKMC5000, "KMC 5000 hops"), 
         (testPython5K, "Python KMC 5000 hops"),
-        (testKMC50000, "KMC 50000 hops"), 
-        (testKMC1E6, "KMC 1E6 hops"), 
-        (testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
-        (testProb5000, "Probability 5000 hops"),
-        (testCombined10K, "Combined 10K hops")
+        #(testKMC50000, "KMC 50000 hops"), 
+        #(testProb500, "Probability 500 hops"), 
+        (testProb1000, "Probability 1000 hops"), 
+        #(testProb5000, "Probability 5000 hops"),
+        #(testCombined10K, "Combined 10K hops"),
+        (getPruneFunction(5000, 0.01), "Python pruned KMC 5K hops,1% threshold"),
+        (getPruneFunction(5000, 0.003), "Python pruned KMC 5K hops, 0.3% threshold"),
+        #(testKMC1E6, "KMC 1E6 hops"), 
         ]:
         extreme_errors[title] = (func, test(tests, func, title))
         diffs[title] = extreme_errors[title][1][1]
@@ -214,8 +242,8 @@ def measureSwipe(prefix, amount, inputVoltage, outPutCurrent, funcs):
         print ("Finished simulating on %s\n"%(title))
     compareVisualizeSwipe(data, "Swipe%s.png"%(prefix))
 
-testSet("set", 101)
-testSet("xor", 100)
+#testSet("set", 101)
+#testSet("xor", 100)
 testSet("rnd", 200)
 """measureSwipe("xor", 100, 1, 2, [
         (testKMC5000, "KMC 5000 hops"), 

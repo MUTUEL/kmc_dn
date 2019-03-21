@@ -77,7 +77,24 @@ func wrapperSimulate(NSites int64, NElectrodes int64, nu float64, kT float64, I_
 	bool_occupation := make([]bool, NSites)
 	//printAverageExpRandom();
 	time := simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
-		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false, record, traffic, average_occupation)
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false, record, traffic, average_occupation, 0)
+
+	return time
+}
+
+//export wrapperSimulatePruned
+func wrapperSimulatePruned(NSites int64, NElectrodes int64, prune_threshold float64, nu float64, kT float64, I_0 float64, R float64,
+	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
+	electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, 
+	average_occupation []float64) float64 {
+	//Log(fmt.Sprintf("%d %d", NSites, NElectrodes))
+	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
+	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
+	bool_occupation := make([]bool, NSites)
+	//printAverageExpRandom();
+	fmt.Printf("%.4f\n", prune_threshold)
+	time := simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, false, record, traffic, average_occupation, float32(prune_threshold))
 
 	return time
 }
@@ -106,7 +123,8 @@ func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float
 
 	bool_occupation := make([]bool, NSites)
 	time := simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
-	newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true, record, traffic, average_occupation)
+	newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true, record, traffic, average_occupation,
+	0)
 
 return time
 }

@@ -34,6 +34,9 @@ func getKey(boolAr []bool) uint64 {
 }
 
 func transition_possible(i int, j int, NSites int, occupation []bool) bool {
+    if i == j {
+        return false
+    }
     if i >= NSites && j >= NSites {
         return false
     } else if i>= NSites && occupation[j]{
@@ -45,6 +48,31 @@ func transition_possible(i int, j int, NSites int, occupation []bool) bool {
         return false
     }
     return true
+}
+
+
+func calcTransitionList(transitions []transition, distances [][]float32, occupation []bool, 
+    site_energies []float32, R float32, I_0 float32, kT float32, nu float32, NSites int, 
+    N int, transitions_constant [][]float32) {
+
+    for i, trans := range transitions {
+        if !transition_possible(trans.from, trans.to, NSites, occupation){
+            transitions[i].rate = 0
+        } else {
+            var dE float32
+            if trans.from < NSites && trans.to < NSites {
+                dE = site_energies[trans.to] - site_energies[trans.from] - I_0*R/distances[trans.from][trans.to]
+            } else {
+                dE = site_energies[trans.to] - site_energies[trans.from]
+            }
+            if dE > 0 {
+                transitions[i].rate = nu * float32(math.Exp(float64(-dE/kT)))
+            } else {
+                transitions[i].rate = 1
+            }
+            transitions[i].rate*=transitions_constant[trans.from][trans.to]
+        }
+    }
 }
 
 func calcTransitions(transitions [][]float32, distances [][]float32, occupation []bool, 
@@ -101,15 +129,38 @@ type probabilities struct {
     probList []float32
 }
 
+type transition struct {
+    from int;
+    to int;
+    rate float32;
+}
+
 
 
 
 func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32,
         occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
         electrode_occupation []float64, site_energies []float32, hops int, record_problist bool, record bool, 
-        traffic []float64, average_occupation []float64) float64 {
+        traffic []float64, average_occupation []float64, transition_cut_constant float32) float64 {
     N := NSites + NElectrodes
-    transitions := make([][]float32, N)
+    transitions := make([]transition, 0, N*N)
+    largest_tc := float32(0)
+    for i := 0; i < len(transitions_constant); i++ {
+        for j := 0; j < len(transitions_constant[i]); j++ {
+            if largest_tc < transitions_constant[i][j] {
+                largest_tc = transitions_constant[i][j]
+            }
+        }
+    }
+
+    for i := 0; i < len(transitions_constant); i++ {
+        for j := 0; j < len(transitions_constant[i]); j++ {
+            if transitions_constant[i][j] > (transition_cut_constant*largest_tc) {
+                transitions = append(transitions, transition{i, j, 0})
+            }
+        }
+    }
+
     //occupation_time := make([]float64, NSites)
     allProbs := make(map[uint64]*probabilities)
     countProbs := make(map[uint64]uint16)
@@ -130,9 +181,6 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
     }
     time := float64(0)
 
-    for i := 0; i < N; i++ {
-        transitions[i] = make([]float32, NSites+NElectrodes)
-    }
     countReuses := uint64(0)
     countStorage := uint64(0)
     reuseThreshold := uint16(1)
@@ -152,19 +200,19 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             }
         }
         if !ok {
-            calcTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant)
+            calcTransitionList(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant)
     
-            probList = make([]float32, N*N)
+            probList = make([]float32, len(transitions))
 
-            for i := 0; i < N; i++ {
-                for j := 0; j < N; j++ {
-                    if i==0 && j==0 {
-                        probList[0] = transitions[i][j]
-                    } else {
-                        probList[N*i+j] = probList[N*i+j-1] + transitions[i][j]
-                    }
+
+            for i,trans := range transitions {
+                if i == 0 {
+                    probList[0] = trans.rate
+                } else {
+                    probList[i] = probList[i-1] + trans.rate
                 }
             }
+
             if record_problist {
                 val, ok := countProbs[key64]
                 if ok {
@@ -194,11 +242,11 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
                 break
             }
         }
-        from := event/N
-        to := event%N
+        from := transitions[event].from
+        to := transitions[event].to
 
         if record {
-            traffic[event]+=1
+            traffic[from*N+to]+=1
             traffic[to*N+from]-=1
             for i := 0; i < NSites; i++ {
                 if occupation[i] {
