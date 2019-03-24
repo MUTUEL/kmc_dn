@@ -38,7 +38,7 @@ kmc.calc_E_constant()
 kmc.calc_transitions_constant()
 
 # Obtain device response
-output = np.zeros((len(cf.kT), 2, len(cf.voltages)))
+output = np.zeros((len(cf.kT), 2, len(cf.voltages), cf.avg))
 for ii in range(len(cf.kT)):
     # Timing
     if(ii==0):
@@ -63,10 +63,13 @@ for ii in range(len(cf.kT)):
         kmc.python_simulation(prehops = cf.prehops)
 
         # Get current
-        kmc.python_simulation(hops = cf.hops)
-        output[ii, :, jj] = kmc.current
+        for kk in range(cf.avg):
+            kmc.python_simulation(hops = cf.hops)
+            output[ii, :, jj, kk] = kmc.current
 
 SaveLib.saveExperiment(saveDirectory, 
                        kT = cf.kT,
                        output = output,
-                       voltages=cf.voltages)
+                       voltages = cf.voltages)
+
+print('All done!')
