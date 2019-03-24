@@ -4,7 +4,7 @@ import kmc_dopant_networks as kmc_dn
 import kmc_dopant_networks_utils as kmc_dn_utils
 import numpy as np
 import matplotlib.pyplot as plt
-import config_single_shot as config
+import config_temperature_dependence as config
 import time 
 
 cf = config.experiment_config()
@@ -20,7 +20,7 @@ acceptor_layouts = np.load('acceptor_layouts.npy')
 donor_layouts = np.load('donor_layouts.npy')
 
 # Define 8 electrodes
-electrodes = np.zeros((8, 4))
+electrodes = np.zeros((2, 4))
 electrodes[0] = [0, ydim/2, 0, 0]
 electrodes[1] = [1, ydim/2, 0, 0]
 
@@ -46,7 +46,7 @@ for ii in range(len(cf.kT)):
     if(ii==1):
         dt = time.time() - starttime
         print(f'Estimated remaining time: {dt*len(cf.kT)} s, or \
-                 {dt*len(cf.kT)/3600} h'}
+                 {dt*len(cf.kT)/3600} h')
     # Set the temperature
     kmc.kT = cf.kT[ii]
 
