@@ -16,15 +16,16 @@ class experiment_config(config_class):
         self.name = 'testrun'
 
         # Model parameters
-        self.kT = np.logspace(-1, 3, 25)
+        self.kT = np.logspace(0, 1, 25)
         self.I_0 = 100
         self.ab_R = 0.25
         self.layout = 0
         self.prehops = 100000
         self.hops = 1000000
+        self.avg = 10
 
         # Define experiment
-        self.voltages = [-7.5, 7.5]
+        self.voltages = [-15, 15]
 
     #####################################################
     ############# USER-SPECIFIC METHODS #################
