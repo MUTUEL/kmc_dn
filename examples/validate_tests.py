@@ -244,12 +244,14 @@ def measureSwipe(prefix, amount, inputVoltage, outPutCurrent, funcs):
 
 #testSet("set", 101)
 #testSet("xor", 100)
-testSet("rnd", 200)
-"""measureSwipe("xor", 100, 1, 2, [
+#testSet("rnd", 200)
+measureSwipe("xor", 100, 1, 2, [
         (testKMC5000, "KMC 5000 hops"), 
-        #(testKMC50000, "KMC 50000 hops"), 
-        #(testKMC1E6, "KMC 1E6 hops"), 
+        (testKMC50000, "KMC 50000 hops"), 
+        (testKMC1E6, "KMC 1E6 hops"), 
         #(testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
-        #(testProb5000, "Probability 5000 hops"),
-        (testCombined10K, "Combined 10K hops")]
-        )"""
+        (testProb5000, "Probability 5000 hops"),
+        #(testCombined10K, "Combined 10K hops"),
+        (getPruneFunction(1000000, 0.01), "Python pruned KMC 1M hops,1% threshold"),
+        (getPruneFunction(1000000, 0.003), "Python pruned KMC 1M hops, 0.3% threshold"),
+        ])

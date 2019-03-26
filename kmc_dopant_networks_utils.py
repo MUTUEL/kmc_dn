@@ -289,7 +289,7 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
                 y = startPos[1]+a*arrowVector[1]*1.5+arrowVector[1]*0.25
                 width = 0.004
                 ax.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity))
-    center = (kmc_dn.xdim/2, kmc_dn.ydim/2)
+    center = (kmc_dn.xdim, kmc_dn.ydim)
     for i in range(NElectrodes):
         ele = kmc_dn.electrodes[i]
         x = (ele[0] - center[0])*0.1 + ele[0]

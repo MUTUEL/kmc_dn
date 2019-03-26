@@ -8,6 +8,7 @@ import random
 import math
 import matplotlib.pyplot as plt
 import kmc_dopant_networks_utils as kmc_utils
+import dn_search_util
 import matplotlib.pyplot as plt
 import pickle
 
@@ -91,14 +92,14 @@ def genXorTest(fileName, exampleFileName):
 
 def get_schedule1(multiplier, time_multiplier):
     return [
-            (0.2*multiplier, 500*time_multiplier, 0),
-            (0.1*multiplier, 950*time_multiplier, 0),
-            (0.1*multiplier, 955*time_multiplier, 1),
-            (0.15*multiplier, 1300*time_multiplier, 1),
-            (0.05*multiplier, 1750*time_multiplier, 1),
-            (0.02*multiplier, 2000*time_multiplier, 1),
-            (0.01*multiplier, 2500*time_multiplier, 1),
-            (0, 2700*time_multiplier, 2),
+            (0.002*multiplier, 600*time_multiplier, 0),
+            (0.001*multiplier, 1200*time_multiplier, 0),
+            (0.001*multiplier, 1205*time_multiplier, 1),
+            (0.0015*multiplier, 1800*time_multiplier, 1),
+            (0.0005*multiplier, 2400*time_multiplier, 1),
+            (0.0002*multiplier, 3000*time_multiplier, 1),
+            (0.0001*multiplier, 3300*time_multiplier, 1),
+            (0, 3600*time_multiplier, 2),
         ]
 
 def get_schedule2(multiplier, time_multiplier):
@@ -109,43 +110,55 @@ def get_schedule2(multiplier, time_multiplier):
         (0, 2700*time_multiplier, 1)
     ]
 
-def searchBasedOnTest(fileName, N_acceptors, N_donors, test_index, schedule_function):
+def searchAnnealingBasedOnTest(fileName, N_acceptors, N_donors, test_index, schedule_function, use_tests, hours = 10, error_threshold_multiplier = 1):
     with open(fileName, 'rb') as f:
         tests = pickle.load(f)
         dn = getRandomDn(N_acceptors, N_donors)
         search = dn_search.dn_search(dn, tests, 1, 1, 0.04, 0.04)
-        multiplier = 2
-        time_multiplier = 2
-        schedule = schedule_function(multiplier, time_multiplier)
+        schedule = schedule_function(error_threshold_multiplier, hours)
+        search.setUseTests(use_tests)
         return search.simulatedAnnealingSearch(0.4, schedule, "10DOP%d"%(test_index))
-    return None, None
+    return None
 
-def searchGeneticBasedOnTest(fileName, N_acceptors, N_donors, test_index, use_tests):
+def searchGeneticBasedOnTest(fileName, N_acceptors, N_donors, test_index, use_tests, hours = 10, uniqueness = 5000, disparity=2):
     with open(fileName, 'rb') as f:
         tests = pickle.load(f)
         dn = getRandomDn(N_acceptors, N_donors)
         search = dn_search.dn_search(dn, tests, 1, 1, 0.04, 0.04)
         search.setUseTests(use_tests)
 
-        return search.genetic_search(50, 7200, 2, 5000, "10DOP%d"%(test_index))
-    return None, None
+        return search.genetic_search(50, 3600*hours, 2, uniqueness, "10DOP%d"%(test_index))
+    return None
 
 
 N_acceptors = 10
 N_donors = 3
-rel_path = "search_tests/test_set_4"
+rel_path = "search_tests/test_set_5"
 abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
 #genXorTest(abs_file_path, "xor_example.png")
 
-genAndSaveTest(abs_file_path, N_acceptors, N_donors, 20)
-"""results = {'schedule_1':[], 'schedule_2':[]}
-for i in range(5):
-    result, strategy = searchBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 12+i, get_schedule1)
-    results['schedule_1'].append((result, strategy))
+#genAndSaveTest(abs_file_path, N_acceptors, N_donors, 100)
+results = {}
 
-for i in range(5):
-    result, strategy = searchBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 18+i, get_schedule2)
-    results['schedule_2'].append((result, strategy))
-print (results)"""
-for i in range(1, 15):
-    print (searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 100+i, i))
+result = searchAnnealingBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 52, get_schedule1, 50)
+results['annealingEr1'] = result
+result = searchAnnealingBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 52, get_schedule1, 50, error_threshold_multiplier=2)
+results['annealingEr2'] = result
+result = searchAnnealingBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 52, get_schedule1, 50, error_threshold_multiplier=3)
+results['annealingEr3'] = result
+result = searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 53, 50)
+results['geneticU5K'] = result
+result = searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 53, 50, uniqueness=1000)
+results['geneticU1K'] = result
+result = searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, N_donors, 53, 50, uniqueness=25000)
+results['geneticU25K'] = result
+data = {}
+for key in results:
+    data[key] = results[key][2]
+print (results)
+print (data)
+plt.clf()
+dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
+plt.savefig("SearchSummery.png")
+#for i in range(1, 15):
+#    print ()

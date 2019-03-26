@@ -47,19 +47,19 @@ class dn_search():
             {'func':"go_simulation",
              'args':{'hops':1000, 'goSpecificFunction':"wrapperSimulateProbability"},
              'expected_error':0.04,
-             'threshold_per_test':0.005},
+             'threshold_error':0.005},
             {'func':"go_simulation",
              'args':{'hops':5000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.025,
-             'threshold_per_test':0.005},
+             'threshold_error':0.005},
             {'func':"go_simulation",
              'args':{'hops':50000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.01,
-             'threshold_per_test':0.002},
+             'threshold_error':0.002},
             {'func':"go_simulation",
              'args':{'hops':250000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.002,
-             'threshold_per_test':0.0},
+             'threshold_error':0.0},
         ]
         self.setStrategy(0)
         self.error_func = self.average_cumulative_error
@@ -79,7 +79,7 @@ class dn_search():
         self.simulation_func = self.simulation_strategy[index]['func']
         self.simulation_args = self.simulation_strategy[index]['args']
         self.expected_error =  self.simulation_strategy[index]['expected_error']
-        self.threshold_per_test =  self.simulation_strategy[index]['threshold_per_test']
+        self.threshold_error =  self.simulation_strategy[index]['threshold_error']
 
     def evaluate_error(self, dn):
         #channel_indexes = []
@@ -113,6 +113,8 @@ class dn_search():
 
     def validate_error(self, dn):
         diffs = []
+        cur_strat = self.current_strategy
+        self.setStrategy(len(self.simulation_strategy)-1)
         for j in range(self.use_tests, len(self.tests)):
             test = self.tests[j]
             electrodes = test[0]
@@ -121,10 +123,12 @@ class dn_search():
                 dn.electrodes[i][3] = electrodes[i]
             dn.update_V()
             execpted_currents = test[1]
+            
             getattr(dn, self.simulation_func)(**self.simulation_args)
             for index, current in execpted_currents:
                 diff = math.fabs(dn.current[index]-current)
                 diffs.append(diff)
+        self.setStrategy(cur_strat)
         return self.error_func(diffs) 
         
     def average_cumulative_error(self, diffs):
@@ -238,7 +242,7 @@ class dn_search():
                     self.dn = neighbour
                     break
             if not found and self.x_resolution > self.minimum_resolution:
-                if best < self.threshold_per_test*self.N_tests:
+                if best < self.threshold_error*self.N_tests:
                     self.setStrategy(self.current_strategy+1)
                     best = self.evaluate_error(self.dn)
                     print("New strategy: %d"%(self.current_strategy))
@@ -255,14 +259,16 @@ class dn_search():
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump3.png")
 
-    def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix):
+    def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix, validation_timestep=3600):
         real_start_time = time.time()
         annealing_index = 0
+        next_validation = validation_timestep
+        validations = []
         T = annealing_schedule[0][0]
         found = True
         best = self.evaluate_error(self.dn)
         print ("Best is %.3f"%(best))
-        print ("strategy threshold is :%.4f"%(self.threshold_per_test*self.N_tests))
+        print ("strategy threshold is :%.4f"%(self.threshold_error*self.N_tests))
         found = True
         writer = anim.getWriter(60, "")
         acceptor_plot, donor_plot, history_acceptor_plot, history_donor_plot, text_element, fig = anim.initScatterAnimation(self.dn)
@@ -275,6 +281,10 @@ class dn_search():
                     
                     current_real_time = time.time()
                     time_difference = current_real_time - real_start_time
+                    if time_difference > next_validation:
+                        validation_error = self.validate_error(self.dn)
+                        validations.append((validation_error, best, time_difference))
+                        next_validation+=validation_timestep    
 
                     if time_difference > annealing_schedule[annealing_index][1]:
                         annealing_index+=1
@@ -282,6 +292,7 @@ class dn_search():
                             T = annealing_schedule[annealing_index][0]
                             if annealing_schedule[annealing_index][2] > self.current_strategy:
                                 self.setStrategy(annealing_schedule[annealing_index][2])
+                                best = self.evaluate_error(self.dn)
                         else:
                             break
                     if T > 0 and annealing_index < len(annealing_schedule)-1:
@@ -309,41 +320,54 @@ class dn_search():
                             alpha = (anim_erase_history_at-anim_counter)/anim_erase_history_at*0.35+0.15
                         anim.animateTransition(self.dn, donor_plot, acceptor_plot, history_donor_plot, history_acceptor_plot, text_element, index, target_pos, writer, 5, refresh, alpha, "Error: %.3f, Time: %.0f sec, strategy: %d"%(best, time_difference, self.current_strategy))
                         best = error
+                        
                         self.dn = neighbour
+                        if best < self.threshold_error:
+                            self.setStrategy(self.current_strategy+1)
+                            best = self.evaluate_error(self.dn)
+                            print ("New strategy best is %.3f"%(best))
+                            print("New strategy: %d"%(self.current_strategy))
                         break
                 if not found and self.x_resolution > self.minimum_resolution:
-                    print ("Best is %.4f and thershold is %.4f"%(best, self.threshold_per_test*self.N_tests))
-                    if best < self.threshold_per_test*self.N_tests:
-                        self.setStrategy(self.current_strategy+1)
-                        best = self.evaluate_error(self.dn)
-                        print ("New strategy best is %.3f"%(best))
-                        print("New strategy: %d"%(self.current_strategy))
-                    else:
-                        self.x_resolution /= 2
-                        self.y_resolution /= 2
-                        if self.donor_dist > 2:
-                            self.donor_dist-=2
-                        print("New resolution: %.5f"%(self.x_resolution))
+                    print ("Best is %.4f and thershold is %.4f"%(best, self.threshold_error))
+
+                    self.x_resolution /= 2
+                    self.y_resolution /= 2
+                    if self.donor_dist > 2:
+                        self.donor_dist-=2
+                    print("New resolution: %.5f"%(self.x_resolution))
                     found = True
         self.dn.saveSelf("resultDump%s.kmc"%(file_prefix))
+
+        validation_error = self.validate_error(self.dn)
+        validations.append((validation_error, best, time_difference))
         self.dn.go_simulation(hops=100000, record=True)
         plt.clf()
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump%s.png"%(file_prefix))
-        return best, self.current_strategy
+        return best, self.current_strategy, validations
 
-    def genetic_search(self, gen_size, time_available, disparity, uniqueness, file_prefix):
+    def genetic_search(self, gen_size, time_available, disparity, uniqueness, file_prefix, validation_timestep = 3600):
         dns = []
         self.current_strategy = 0
-        disparity_step = disparity / (gen_size-1)
+        disparity_sum = 0
+        preserved_top = 4 - (gen_size % 2)
+        cross_over_gen_size = gen_size - preserved_top
+        for i in range(cross_over_gen_size):
+            disparity_sum+= math.fabs(disparity * ((1-(i+0.5)/cross_over_gen_size)**(disparity-1)))
+        print (disparity_sum)
+        disparity_offset = (cross_over_gen_size - disparity_sum) / cross_over_gen_size
+        print (disparity_offset)
         for i in range (gen_size):
             newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
                 self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
             newDn.initialize()
-            setattr(newDn, "genes", self.getGeneList(newDn))
+            setattr(newDn, "genes", self.getGenes(newDn))
             dns.append(newDn)
         best_dn = dns[0]
         start_time = time.time()
+        next_validation = validation_timestep
+        validations = []
         gen = 0
         while True:
             gen += 1
@@ -361,44 +385,63 @@ class dn_search():
             time_difference = time.time() - start_time
             average_error = total_error / gen_size
             print ("average error: %.4f\nbest error: %.3f"%(average_error, best_error))
+            if time_difference > next_validation:
+                cur_str = self.current_strategy
+                self.setStrategy(len(self.simulation_strategy)-1)
+                validation_error = self.validate_error(best_dn)
+                tmp_error = self.evaluate_error(best_dn)
+                validations.append((validation_error, tmp_error, time_difference))
+                self.setStrategy(cur_str)
+                next_validation+=validation_timestep
             if time_difference > time_available:
                 break
             results = sorted(results, key=lambda x:x[0])
             intermediate_dns = []
-            current_disparity = disparity
+
+            for i in range(preserved_top):
+                self.copyDnFromBtoA(dns[i], results[i][1])
+            i = 0
             space = 0
             tot = 0
             for _,dn in results:
-                space += current_disparity
-                tot+=current_disparity
+                space_for_index = math.fabs(disparity * ((1-(i+0.5)/cross_over_gen_size)**(disparity-1))) + disparity_offset
+                i+=1
+                space += space_for_index
+                tot+=space_for_index
                 while space >= 1:
                     intermediate_dns.append(dn)
                     space-=1
                 if random.random() < space:
                     space-=1
                     intermediate_dns.append(dn)
-                current_disparity-=disparity_step
+            print (tot)
             random.shuffle(intermediate_dns)
-            new_generation_genes = self.getNexGenerationGenes(intermediate_dns, uniqueness)
-            i = 0
+            new_generation_genes = self.getNextGenerationGenes(intermediate_dns, uniqueness)
+            i = preserved_top
             for gene in new_generation_genes:
                 self.getDnFromGenes(gene, dns[i])
                 i+=1
-            
+            print (i)
             
             
             if self.current_strategy < len(self.simulation_strategy)-1 \
-                    and best_error < self.simulation_strategy[self.current_strategy]['threshold_per_test'] \
-                    and average_error < self.simulation_strategy[self.current_strategy]['threshold_per_test']*3:
+                    and best_error < self.simulation_strategy[self.current_strategy]['threshold_error'] \
+                    and average_error < self.simulation_strategy[self.current_strategy]['threshold_error']*3:
                 self.setStrategy(self.current_strategy+1)
         best_dn.saveSelf("GeneticResultDump%s.kmc"%(file_prefix))
+        cur_str = self.current_strategy
+        self.setStrategy(len(self.simulation_strategy)-1)
+        validation_error = self.validate_error(best_dn)
+        tmp_error = self.evaluate_error(best_dn)
+        validations.append((validation_error, tmp_error, time_difference))
+        self.setStrategy(cur_str)
         best_dn.go_simulation(hops=1000000, record=True)
         plt.clf()
         kmc_utils.visualize_traffic(best_dn, 111, "Result")
         plt.savefig("GeneticResultDump%s.png"%(file_prefix))
-        return self.validate_error(best_dn), self.current_strategy
+        return best_error, self.current_strategy, validations
             
-    def getGeneList(self, dn):
+    def getGenes(self, dn):
         genes = []
         for acceptor in dn.acceptors:
             x = np.uint16(acceptor[0]/dn.xdim * 65535)
@@ -412,7 +455,7 @@ class dn_search():
             genes.append(y)
         return genes
     
-    def getNexGenerationGenes(self, dns, uniqueness):
+    def getNextGenerationGenes(self, dns, uniqueness):
         newGeneration = []
         print(len(dns))
         for i in range(len(dns)):
@@ -420,6 +463,8 @@ class dn_search():
                 j = i+1
             else:
                 j = i-1 
+            if j >= len(dns):
+                break
             parent_1 = dns[i].genes
             parent_2 = dns[j].genes
             newGenes = dn_search.single_point_crossover(parent_1, parent_2)
@@ -488,8 +533,14 @@ class dn_search():
             y = genes[self.dn.N*2+i*2+1]/65535*self.dn.ydim
             dn.donors[i] = (x, y, 0)
         dn.initialize( dopant_placement=False, charge_placement=False)
+    
+    def copyDnFromBtoA(self, dna, dnb):
+        setattr(dna, "genes", dnb.genes.copy())
+        dna.acceptors = dnb.acceptors.copy()
+        dna.donors = dnb.donors.copy()
+        dna.initialize( dopant_placement=False, charge_placement=False)
+    
     def P(self, e, e0, T):
-
         if e < e0:
             return True
         elif T < 0.001:
