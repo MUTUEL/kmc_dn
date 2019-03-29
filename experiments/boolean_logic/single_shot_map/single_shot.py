@@ -77,6 +77,6 @@ for ii in range(cf.n_voltage):
 
 SaveLib.saveExperiment(saveDirectory, 
                        output = output,
-                       inputaxis = inputaxis)
+                       inputaxis = cf.inputaxis)
 
 print('All done!')
