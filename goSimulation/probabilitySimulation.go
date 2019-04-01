@@ -49,7 +49,7 @@ func probTransitionPossible(i int, j int, NSites int, occupation []float64) floa
         return (1-occupation[j])*occupation[i]
     }
 }
-  
+
 
 func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float64, R float64,
     	occupation []float64, distances [][]float64, E_constant []float64, transitions_constant [][]float64,
@@ -59,6 +59,7 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 	transitions := make([][]float64, N)
 	difference := make([]float64, NSites)
 	eoDifference := make([]float64, NElectrodes)
+
 	
 	//fmt.Println(occupation)
 
@@ -97,10 +98,10 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 		for i := 0; i < NSites; i++ {
 			newVal := occupation[i] + max_rate*difference[i]/tot_rates
 			if newVal < 0 {
-				max_rate = occupation[i]/-difference[i]
+				max_rate = occupation[i]/-(difference[i]*max_rate)
 			}
 			if newVal > 1 {
-				max_rate = (1-occupation[i])/difference[i]
+				max_rate = (1-occupation[i])/(difference[i]*max_rate)
 			}
 		}
 		time_step := rand.ExpFloat64() * (max_rate) / tot_rates

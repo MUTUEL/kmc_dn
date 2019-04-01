@@ -224,6 +224,30 @@ class dn_search():
         else:
             return False
 
+    def randomSearch(self, time_budget):
+        self.setStrategy(len(self.simulation_strategy)-1)
+        errors = []
+        vals = []
+        diffs = []
+        best = self.evaluate_error(self.dn)
+        bestDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
+                self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
+        real_start_time = time.time()
+        time_difference = time.time() - real_start_time
+        while time_difference < time_budget:
+            print (time_difference)
+            self.dn.initialize()
+            error = self.evaluate_error(self.dn)
+            val = self.validate_error(self.dn)
+            vals.append(val)
+            diffs.append(math.fabs(error-val))
+            if error < best:
+                self.copyDnFromBtoA(bestDn, self.dn)
+                best = error
+            errors.append(error)
+            time_difference = time.time() - real_start_time
+        return bestDn, errors, vals, diffs
+
     def greedySearch(self):
         best = self.evaluate_error(self.dn)
         print ("Best is %.3f"%(best))
@@ -347,8 +371,10 @@ class dn_search():
         plt.savefig("resultDump%s.png"%(file_prefix))
         return best, self.current_strategy, validations
 
-    def genetic_search(self, gen_size, time_available, disparity, uniqueness, file_prefix, validation_timestep = 3600):
+    def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
+            file_prefix, cross_over_function, mut_pow=1, order_center=None):
         dns = []
+        validation_timestep = time_available / 10
         self.current_strategy = 0
         disparity_sum = 0
         preserved_top = 4 - (gen_size % 2)
@@ -398,8 +424,7 @@ class dn_search():
             results = sorted(results, key=lambda x:x[0])
             intermediate_dns = []
 
-            for i in range(preserved_top):
-                self.copyDnFromBtoA(dns[i], results[i][1])
+
             i = 0
             space = 0
             tot = 0
@@ -416,10 +441,12 @@ class dn_search():
                     intermediate_dns.append(dn)
             print (tot)
             random.shuffle(intermediate_dns)
-            new_generation_genes = self.getNextGenerationGenes(intermediate_dns, uniqueness)
+            new_generation_genes = self.getNextGenerationGenes(intermediate_dns, uniqueness, cross_over_function, mut_pow)
+            for i in range(preserved_top):
+                self.copyDnFromBtoA(dns[i], results[i][1])
             i = preserved_top
             for gene in new_generation_genes:
-                self.getDnFromGenes(gene, dns[i])
+                self.getDnFromGenes(gene, dns[i], order_center)
                 i+=1
             print (i)
             
@@ -455,7 +482,7 @@ class dn_search():
             genes.append(y)
         return genes
     
-    def getNextGenerationGenes(self, dns, uniqueness):
+    def getNextGenerationGenes(self, dns, uniqueness, cross_over_function, power=1):
         newGeneration = []
         print(len(dns))
         for i in range(len(dns)):
@@ -467,14 +494,14 @@ class dn_search():
                 break
             parent_1 = dns[i].genes
             parent_2 = dns[j].genes
-            newGenes = dn_search.single_point_crossover(parent_1, parent_2)
+            newGenes = cross_over_function(parent_1, parent_2)
             ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, 65)
             tries = 0
             while not ok:
                 if problem == -1:
                     problem = math.floor(random.random()*len(newGenes))
 
-                newGenes[problem] = dn_search.mutate(newGenes[problem])
+                newGenes[problem] = dn_search.mutate(newGenes[problem], power)
                 ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, 65)
                 tries+=1
                 if tries == 100:
@@ -484,8 +511,8 @@ class dn_search():
         return newGeneration
 
     @staticmethod
-    def mutate(a):
-        rnd = math.floor(random.random()*16)
+    def mutate(a, power):
+        rnd = math.floor(random.random()**power*16)
         b = np.uint16(2**rnd)
         return np.bitwise_xor(a, b)
 
@@ -512,15 +539,26 @@ class dn_search():
         else:
             return a-b
 
-    @staticmethod
-    def single_point_crossover(parent_1_genes, parent_2_genes):
+    def singlePointCrossover(self, parent_1_genes, parent_2_genes):
         genes = []
         rnd_index = round(random.random()*len(parent_1_genes))
         genes.extend(parent_1_genes[:rnd_index])
         genes.extend(parent_2_genes[rnd_index:])
         return genes
 
-    def getDnFromGenes(self, genes, dn):
+    def alteredTwoPointCrossOver(self, parent_1_genes, parent_2_genes):
+        genes = []
+        rnd_index = round(random.random()*self.dn.N*2)
+        rnd_index_2 = round(random.random()*self.dn.M*2)+self.dn.N*2
+        assert rnd_index <= rnd_index_2, "first index after second"
+        assert rnd_index_2 <= len(parent_1_genes), "index longr than gene length"
+        genes.extend(parent_1_genes[:rnd_index])
+        genes.extend(parent_2_genes[rnd_index:rnd_index_2])
+        genes.extend(parent_1_genes[rnd_index_2:])
+        assert len(genes) == len(parent_1_genes) == len(parent_2_genes), "gene lengths unstable"
+        return genes
+
+    def getDnFromGenes(self, genes, dn, order_center=None):
 
         setattr(dn, "genes", genes)
 
@@ -532,10 +570,40 @@ class dn_search():
             x = genes[self.dn.N*2+i*2]/65535*self.dn.xdim
             y = genes[self.dn.N*2+i*2+1]/65535*self.dn.ydim
             dn.donors[i] = (x, y, 0)
+        if order_center is not None:
+            self.orderPlacement(dn, center = order_center)
         dn.initialize( dopant_placement=False, charge_placement=False)
     
+    @staticmethod
+    def nDimSquareDistance(a, b):
+        sum=0
+        for i in range(len(a)):
+            sum+=(a[i]-b[i])**2
+        return sum
+
+    def orderPlacement(self, dn, center):
+        distances = []
+        for i in range(self.dn.N):
+            dist = dn_search.nDimSquareDistance(dn.acceptors[i], center)
+            distances.append((dist, i))
+        distances = sorted(distances, key=lambda x:x[0])
+        newAcceptors = []
+        for _,index in distances:
+            newAcceptors.append(dn.acceptors[index])
+        dn.acceptors = np.array(newAcceptors)
+        distances = []
+        for i in range(self.dn.M):
+            dist = dn_search.nDimSquareDistance(dn.donors[i], center)
+            distances.append((dist, i))
+        distances = sorted(distances, key=lambda x:x[0])
+        newDonors = []
+        for _,index in distances:
+            newDonors.append(dn.donors[i])
+        dn.donors = newDonors
+
+    
     def copyDnFromBtoA(self, dna, dnb):
-        setattr(dna, "genes", dnb.genes.copy())
+        setattr(dna, "genes", getattr(dnb, "genes", []).copy())
         dna.acceptors = dnb.acceptors.copy()
         dna.donors = dnb.donors.copy()
         dna.initialize( dopant_placement=False, charge_placement=False)

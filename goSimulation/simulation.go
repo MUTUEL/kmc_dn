@@ -1,8 +1,12 @@
 package main
 
-import "fmt"
-import "math"
-import "math/rand"
+import (
+    "fmt"
+    "io/ioutil" 
+    "math"
+    "math/rand"
+    "encoding/json"
+    )
 //import "sort"
 
 func wrapReturnables(time float64, occupation []bool, electrode_occupation []int) []float64 {
@@ -135,7 +139,27 @@ type transition struct {
     rate float32;
 }
 
+type reuseLog struct {
+    Reuses []uint64
+    States []int
+}
 
+func logReuseToJson(reuses []uint64, states []int, file_name string){
+    var log_list []reuseLog
+    data, err := ioutil.ReadFile(file_name)
+    if err == nil {
+        err2 := json.Unmarshal(data, &log_list)
+        if err2 != nil {
+            fmt.Printf("opening config file %s", err2.Error())
+        }
+    }
+
+    log := reuseLog {reuses, states}
+    log_list = append(log_list, log)
+    logjson, _ := json.Marshal(log_list)
+    _ = ioutil.WriteFile(file_name, logjson, 0644)
+}
+  
 
 
 func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32,
@@ -185,7 +209,11 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
     countStorage := uint64(0)
     reuseThreshold := uint16(1)
     reuseThresholdIncrease := uint64(100000)
-    //showStep := 1
+    /*countResighting := uint64(0)
+    reuses := make([]uint64, 30)
+	states := make([]int, 30)
+    showStep := 2
+    showIndex := 0*/
     for hop := 0; hop < hops; hop++ {
         var probList []float32
         ok := false
@@ -197,6 +225,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             if ok {
                 probList = val.probList
                 countReuses++
+                //countResighting++
             }
         }
         if !ok {
@@ -216,8 +245,8 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             if record_problist {
                 val, ok := countProbs[key64]
                 if ok {
-
-                    countProbs[key64]+=1
+                    //countResighting++
+                    countProbs[key64]++
                     if val >= reuseThreshold {
                         newProbability := probabilities{probList}
                         allProbs[key64] = &newProbability
@@ -242,6 +271,12 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
                 break
             }
         }
+        /*if hop % showStep == showStep - 1{
+            showStep*=2
+            reuses[showIndex] = countResighting
+            states[showIndex] = len(countProbs)
+            showIndex+=1
+        }*/
         from := transitions[event].from
         to := transitions[event].to
 
@@ -259,6 +294,8 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             NSites, from, to)
 
     }
+
+    //logReuseToJson(reuses, states, "reusing.log")
 
     return time
 }
