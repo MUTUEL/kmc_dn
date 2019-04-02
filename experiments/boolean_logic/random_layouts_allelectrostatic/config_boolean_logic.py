@@ -75,7 +75,7 @@ class experiment_config(config_class):
         self.layout = 0
         self.prehops = 10000
         self.hops = 200000
-        self.evolve_input = False
+        self.evolve_input = True
 
         # Define electrode positions
         #     6   7
@@ -108,7 +108,7 @@ class experiment_config(config_class):
         self.static_controls = [3, 4, 6, 7]  # No current injection 
         self.controls = [5]  # Current injecting electrodes
         self.controlrange = np.array([150, 150])*self.kT
-        self.max_input = 75*self.kT
+        self.max_input = 150*self.kT
         if(self.evolve_input):
             self.inputrange = np.array([1, 75])*self.kT
         else:
