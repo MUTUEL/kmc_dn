@@ -192,12 +192,13 @@ abs_file_path = os.path.join(os.path.dirname(__file__), rel_path)
 #genXorTest(abs_file_path, "xor_example.png")
 
 #genAndSaveTest(abs_file_path, N_acceptors, N_donors, 100)
-tests = 30
+tests = 50
 hours = 3
 index = 1
 center = (0.5, 0.5, 0)
 for i in range(10, 13, 1):
     results = {}
+    index = i*6
     for key, result in [
         ("geneticU5K1P2Cr1", searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, 
             N_donors, index, tests, use_single_point_crossover=False, mut_pow=1, hours=hours)),
@@ -208,14 +209,15 @@ for i in range(10, 13, 1):
         ("geneticU5K2P2Cr2", searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, 
             N_donors, index+3, tests, use_single_point_crossover=False, mut_pow=2, hours=hours)),
         ("geneticU5K1P2Cr1Ordered", searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, 
-            N_donors, index, tests, use_single_point_crossover=False, mut_pow=1, hours=hours, 
+            N_donors, index+4, tests, use_single_point_crossover=False, mut_pow=1, hours=hours, 
             order_center=center)),
         ("geneticU5K1P2Cr2Ordered", searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, 
-            N_donors, index+1, tests, use_single_point_crossover=False, mut_pow=1, hours=hours,
+            N_donors, index+5, tests, use_single_point_crossover=False, mut_pow=1, hours=hours,
             order_center=center)),
-
             ]:
-        results[key] = result
+        results[key] = searchGeneticBasedOnTest("%s.kmc"%(abs_file_path), N_acceptors, 
+            N_donors, index, tests, use_single_point_crossover=False, mut_pow=1, hours=hours)
+
     data = {}
     for key in results:
         data[key] = results[key][2]

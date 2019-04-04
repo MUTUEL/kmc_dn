@@ -2,7 +2,6 @@ package main
 
 import "fmt"
 import "math"
-import "math/rand"
 
 
 
@@ -94,17 +93,17 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 		}
 
 		tot_rates = calcProbTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant, difference)
-		var max_rate float64 = 1.0
+		var max_change float64 = 1.0
 		for i := 0; i < NSites; i++ {
-			newVal := occupation[i] + max_rate*difference[i]/tot_rates
+			newVal := occupation[i] + max_change*difference[i]/tot_rates
 			if newVal < 0 {
-				max_rate = occupation[i]/-(difference[i]*max_rate)
+				max_change = occupation[i]/-(difference[i]*max_change)
 			}
 			if newVal > 1 {
-				max_rate = (1-occupation[i])/(difference[i]*max_rate)
+				max_change = (1-occupation[i])/(difference[i]*max_change)
 			}
 		}
-		time_step := rand.ExpFloat64() * (max_rate) / tot_rates
+		time_step := 0.98 * (max_change) / tot_rates
 		time += time_step
 		if record {
 			for i := 0; i < NSites; i++ {
@@ -117,7 +116,7 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 				if i >= NSites && j >= NSites {
 					break
 				}
-				rate := transitions[i][j]*max_rate/tot_rates
+				rate := transitions[i][j]*max_change/tot_rates
 				if i < NSites {
 					occupation[i]-=rate
 				} else {

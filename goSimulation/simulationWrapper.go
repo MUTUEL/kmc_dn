@@ -122,6 +122,13 @@ func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float
 	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
 
 	bool_occupation := make([]bool, NSites)
+	for i := int64(0); i < NSites; i++{
+		if occupation[i] > 0{
+			bool_occupation[i] = true
+		} else {
+			bool_occupation[i] = false
+		}
+	}
 	time := simulate(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
 	newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true, record, traffic, average_occupation,
 	0)

@@ -552,6 +552,8 @@ class kmc_dn():
             self.simulate_func = simulateFunction
         if preHopFunction != None:
             self.simulate_prehop = preHopFunction
+        else:
+            self.simulate_prehop = _simulate_discrete_record
 
         
         # Reset current and time
@@ -569,17 +571,20 @@ class kmc_dn():
                 "electrode_occupation":self.electrode_occupation, 
                 "record":False,}
 
-        if goSpecificFunction != None:
-            args["goSpecificFunction"] = goSpecificFunction
-            args["prune_threshold"] = prune_threshold
-    
+
 
         # Simulate prehops
         if(prehops != 0):
             args["hops"] = prehops
-            self.simulate_prehop(**args)
+            _, self.occupation,_,_,_ = _simulate_discrete_record(**args)
             self.reset()
             args['electrode_occupation']=self.electrode_occupation
+            args['occupation']=self.occupation
+
+        if goSpecificFunction != None:
+            args["goSpecificFunction"] = goSpecificFunction
+            args["prune_threshold"] = prune_threshold
+    
         args["hops"] = hops
 
         # Simulate hops

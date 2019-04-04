@@ -1,12 +1,14 @@
-import math
-import numpy as np
 import kmc_dopant_networks as kmc_dn
-import matplotlib.pyplot as plt
 import kmc_dopant_networks_utils as kmc_utils
 import dn_animation as anim
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 import copy
 import random
 import time
+import math
 
 class dn_search():
     def __init__(self, initial_dn, tests, xdim, ydim, x_start_resolution, y_start_resolution):
@@ -28,7 +30,6 @@ class dn_search():
         '''
 
         self.minimum_resolution = 0.01
-        self.donor_dist = 10
         self.xdim = xdim
         self.ydim = ydim
         self.x_resolution = x_start_resolution
@@ -64,6 +65,8 @@ class dn_search():
         self.setStrategy(0)
         self.error_func = self.average_cumulative_error
         self.initRandomPlacement()
+        self.genetic_allowed_overlap = 65
+        self.order_distance_function = dn_search.degreeDistance
 
     def setUseTests(self, N):
         self.use_tests = N
@@ -129,7 +132,7 @@ class dn_search():
                 diff = math.fabs(dn.current[index]-current)
                 diffs.append(diff)
         self.setStrategy(cur_strat)
-        return self.error_func(diffs) 
+        return self.error_func(diffs)
         
     def average_cumulative_error(self, diffs):
         error = 0
@@ -273,8 +276,6 @@ class dn_search():
                 else:
                     self.x_resolution /= 2
                     self.y_resolution /= 2
-                    if self.donor_dist > 2:
-                        self.donor_dist-=2
                     print("New resolution: %.5f"%(self.x_resolution))
                 found = True
         self.dn.saveSelf("resultDump3.kmc")
@@ -283,7 +284,7 @@ class dn_search():
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump3.png")
 
-    def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix, validation_timestep=3600):
+    def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix, validation_timestep=3600, animate=True):
         real_start_time = time.time()
         annealing_index = 0
         next_validation = validation_timestep
@@ -291,6 +292,7 @@ class dn_search():
         T = annealing_schedule[0][0]
         found = True
         best = self.evaluate_error(self.dn)
+        abs_best = best
         print ("Best is %.3f"%(best))
         print ("strategy threshold is :%.4f"%(self.threshold_error*self.N_tests))
         found = True
@@ -317,6 +319,8 @@ class dn_search():
                             if annealing_schedule[annealing_index][2] > self.current_strategy:
                                 self.setStrategy(annealing_schedule[annealing_index][2])
                                 best = self.evaluate_error(self.dn)
+                                if best < abs_best:
+                                    abs_best = best
                         else:
                             break
                     if T > 0 and annealing_index < len(annealing_schedule)-1:
@@ -335,14 +339,15 @@ class dn_search():
                     if self.P(error, best, T):
                         found = True
                         print ("Current best is %.3f"%(error))
-                        refresh = anim_counter >= anim_erase_history_at
-                        if refresh:
-                            alpha = 0.5
-                            anim_counter = 0
-                        else:
-                            anim_counter+=1
-                            alpha = (anim_erase_history_at-anim_counter)/anim_erase_history_at*0.35+0.15
-                        anim.animateTransition(self.dn, donor_plot, acceptor_plot, history_donor_plot, history_acceptor_plot, text_element, index, target_pos, writer, 5, refresh, alpha, "Error: %.3f, Time: %.0f sec, strategy: %d"%(best, time_difference, self.current_strategy))
+                        if animate:
+                            refresh = anim_counter >= anim_erase_history_at
+                            if refresh:
+                                alpha = 0.5
+                                anim_counter = 0
+                            else:
+                                anim_counter+=1
+                                alpha = (anim_erase_history_at-anim_counter)/anim_erase_history_at*0.35+0.15
+                            anim.animateTransition(self.dn, donor_plot, acceptor_plot, history_donor_plot, history_acceptor_plot, text_element, index, target_pos, writer, 5, refresh, alpha, "Error: %.3f, Time: %.0f sec, strategy: %d"%(best, time_difference, self.current_strategy))
                         best = error
                         
                         self.dn = neighbour
@@ -356,9 +361,8 @@ class dn_search():
                     print ("Best is %.4f and thershold is %.4f"%(best, self.threshold_error))
 
                     self.x_resolution /= 2
-                    self.y_resolution /= 2
-                    if self.donor_dist > 2:
-                        self.donor_dist-=2
+                    if hasattr(self, "y_resolution"):
+                        self.y_resolution /= 2
                     print("New resolution: %.5f"%(self.x_resolution))
                     found = True
         self.dn.saveSelf("resultDump%s.kmc"%(file_prefix))
@@ -369,6 +373,7 @@ class dn_search():
         plt.clf()
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump%s.png"%(file_prefix))
+        print ("\nAbs best is %.3f\n"%(abs_best))
         return best, self.current_strategy, validations
 
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
@@ -385,9 +390,7 @@ class dn_search():
         disparity_offset = (cross_over_gen_size - disparity_sum) / cross_over_gen_size
         print (disparity_offset)
         for i in range (gen_size):
-            newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
-                self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
-            newDn.initialize()
+            newDn = self.getRandomDn()
             setattr(newDn, "genes", self.getGenes(newDn))
             dns.append(newDn)
         best_dn = dns[0]
@@ -423,7 +426,9 @@ class dn_search():
                 break
             results = sorted(results, key=lambda x:x[0])
             intermediate_dns = []
-
+            new_generation_genes = []
+            for i in range(preserved_top):
+                new_generation_genes.append(results[i][1].genes) 
 
             i = 0
             space = 0
@@ -439,17 +444,17 @@ class dn_search():
                 if random.random() < space:
                     space-=1
                     intermediate_dns.append(dn)
-            print (tot)
+                if i >= cross_over_gen_size:
+                    break
             random.shuffle(intermediate_dns)
-            new_generation_genes = self.getNextGenerationGenes(intermediate_dns, uniqueness, cross_over_function, mut_pow)
-            for i in range(preserved_top):
-                self.copyDnFromBtoA(dns[i], results[i][1])
-            i = preserved_top
+            new_generation_genes.extend(self.getNextGenerationGenes(intermediate_dns, uniqueness, cross_over_function, mut_pow))
+            tmp_sum = sum([new_generation_genes[y][x] for x in range(len(new_generation_genes[0])) for y in range(len(new_generation_genes))])
+            i = 0
             for gene in new_generation_genes:
                 self.getDnFromGenes(gene, dns[i], order_center)
                 i+=1
-            print (i)
-            
+            tmp_sum2 = sum([new_generation_genes[y][x] for x in range(len(new_generation_genes[0])) for y in range(len(new_generation_genes))])
+            assert tmp_sum == tmp_sum2            
             
             if self.current_strategy < len(self.simulation_strategy)-1 \
                     and best_error < self.simulation_strategy[self.current_strategy]['threshold_error'] \
@@ -458,8 +463,8 @@ class dn_search():
         best_dn.saveSelf("GeneticResultDump%s.kmc"%(file_prefix))
         cur_str = self.current_strategy
         self.setStrategy(len(self.simulation_strategy)-1)
-        validation_error = self.validate_error(best_dn)
         tmp_error = self.evaluate_error(best_dn)
+        validation_error = self.validate_error(best_dn)
         validations.append((validation_error, tmp_error, time_difference))
         self.setStrategy(cur_str)
         best_dn.go_simulation(hops=1000000, record=True)
@@ -467,6 +472,11 @@ class dn_search():
         kmc_utils.visualize_traffic(best_dn, 111, "Result")
         plt.savefig("GeneticResultDump%s.png"%(file_prefix))
         return best_error, self.current_strategy, validations
+
+    def getRandomDn(self):
+        newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
+                self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
+        return newDn
             
     def getGenes(self, dn):
         genes = []
@@ -484,7 +494,6 @@ class dn_search():
     
     def getNextGenerationGenes(self, dns, uniqueness, cross_over_function, power=1):
         newGeneration = []
-        print(len(dns))
         for i in range(len(dns)):
             if i % 2 == 0:
                 j = i+1
@@ -495,7 +504,7 @@ class dn_search():
             parent_1 = dns[i].genes
             parent_2 = dns[j].genes
             newGenes = cross_over_function(parent_1, parent_2)
-            ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, 65)
+            ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, self.genetic_allowed_overlap)
             tries = 0
             while not ok:
                 if problem == -1:
@@ -581,10 +590,27 @@ class dn_search():
             sum+=(a[i]-b[i])**2
         return sum
 
+
+    @staticmethod
+    def getDegree(x, y):
+        d = math.sqrt(x**2 + y**2)
+        asinv = math.asin(y/d)*180/math.pi
+        if x < 0:
+            asinv = 180 - asinv
+        if asinv < 0:
+            asinv+=360
+        return asinv
+
+    @staticmethod
+    def degreeDistance(a, b):
+        x = a[0] - b[0]
+        y = a[1] - b[1]
+        return dn_search.getDegree(x, y)
+
     def orderPlacement(self, dn, center):
         distances = []
         for i in range(self.dn.N):
-            dist = dn_search.nDimSquareDistance(dn.acceptors[i], center)
+            dist = self.order_distance_function(dn.acceptors[i], center)
             distances.append((dist, i))
         distances = sorted(distances, key=lambda x:x[0])
         newAcceptors = []
@@ -599,7 +625,7 @@ class dn_search():
         newDonors = []
         for _,index in distances:
             newDonors.append(dn.donors[i])
-        dn.donors = newDonors
+        dn.donors = np.array(newDonors)
 
     
     def copyDnFromBtoA(self, dna, dnb):

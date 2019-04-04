@@ -81,10 +81,10 @@ def testPython5K(kmc, record=False):
 def testCombined10K(kmc, record=True):
     kmc.go_simulation(hops=10000, goSpecificFunction="wrapperSimulateCombined", record = True)
 
-def getKMCFunction(hops):
+def getKMCFunction(hops, prehops = 0):
     def new_func(kmc, record=True):
-        kmc.go_simulation(hops=hops, record = record)
-    return new_func, "KMC with %d hops"%(hops)
+        kmc.go_simulation(hops=hops, prehops=prehops, record = record)
+    return new_func, "KMC with %d hops, %d prehops"%(hops, prehops)
 def getProbFunction(hops):
     def new_func(kmc, record=True):
         kmc.go_simulation(hops=hops, goSpecificFunction="wrapperSimulateProbability", record = record)
@@ -175,16 +175,20 @@ def testSet(prefix, amount):
         #(testPython5K, "Python KMC 5000 hops"),
         getKMCFunction(1000),
         getKMCFunction(5000),
-        getKMCFunction(25000),
-        getKMCFunction(100000),
-        getKMCFunction(1000000),
-        getProbFunction(500),
-        getProbFunction(1000),
-        getProbFunction(2500),
-        getProbFunction(8000),
-        getProbFunction(25000),
-        getProbFunction(100000),
-        getProbFunction(1000000),
+        getKMCFunction(1000, 100),
+        getKMCFunction(5000, 100),
+        getKMCFunction(1000, 1000),
+        getKMCFunction(5000, 1000),
+        #getKMCFunction(25000),
+        #getKMCFunction(100000),
+        #getKMCFunction(1000000),
+        #getProbFunction(500),
+        #getProbFunction(1000),
+        #getProbFunction(2500),
+        #getProbFunction(8000),
+        #getProbFunction(25000),
+        #getProbFunction(100000),
+        #getProbFunction(1000000),
         #(testCombined10K, "Combined 10K hops"),
         #(getPruneFunction(5000, 0.01), "Python pruned KMC 5K hops,1% threshold"),
         #(getPruneFunction(5000, 0.003), "Python pruned KMC 5K hops, 0.3% threshold"),
@@ -220,8 +224,8 @@ def measureSwipe(prefix, amount, inputVoltage, outPutCurrent, funcs):
     compareVisualizeSwipe(data, "Swipe%s.png"%(prefix))
 
 def main():
-    testSet("set", 101)
-    testSet("xor", 100)
+    #testSet("set", 101)
+    #testSet("xor", 100)
     testSet("rnd", 200)
     """measureSwipe("xor", 100, 1, 2, [
             (testKMC5000, "KMC 5000 hops"), 
