@@ -1,5 +1,5 @@
 '''
-@author: Bram de Wilde (b.dewilde-1@student.utwente.nl), Indrek Klanberg (i.klanberg@student.utwente.nl)
+@author: Indrek Klanberg (i.klanberg@student.utwente.nl)
 '''
 import os
 import math
@@ -16,7 +16,7 @@ import seaborn as sns
 def getMeanAndStandardDeviation(arr):
     sum = 0
     arr.sort()
-    print (arr[-25:])
+    #print (arr[-25:])
     for ele in arr:
         sum+=ele
     average = sum / len(arr)
@@ -61,7 +61,7 @@ def evaluate(kmcs, printThreshold):
         sum_direction_sums+=direction_sum
         j+=1
     average_error, error_SD = getMeanAndStandardDeviation(diffs)
-    print("Average error: %.2f, Standard deviation: %.2f, direction sum: %.2f"%(average_error, error_SD, sum_direction_sums/len(kmcs)))
+    print("Average error: %.2g, Standard deviation: %.2g, direction sum: %.2g"%(average_error, error_SD, sum_direction_sums/len(kmcs)))
     return extreme_errors, diffs
 
 def test(kmcs, func, title):
@@ -131,6 +131,8 @@ def compareVisualizeErrors(diffs, fileName):
     fig = plt.figure(figsize=(math.floor(prefix/10)*10, (prefix%10)*10))
 
     for title in diffs:
+        avg, dev = getMeanAndStandardDeviation(diffs[title])
+        x_dim = avg + 3*dev
         sub_plot_number = plt.subplot(prefix/10, prefix%10,index)
         diffs[title].sort()
         ordered_tuple = []
@@ -138,7 +140,10 @@ def compareVisualizeErrors(diffs, fileName):
         for ele in diffs[title]:
             ordered_tuple.append((ele, i))
             i-=1
-        kmc_utils.plot_swipe(ordered_tuple, sub_plot_number, fig, title, xlim=0.05)
+        ax = kmc_utils.plot_swipe(ordered_tuple, sub_plot_number, fig, title, xlim=x_dim)
+        avg, dev = getMeanAndStandardDeviation(diffs[title])
+        ax.text(0.5, -0.1, "Average: %.3g, Std. deviation: %.3g"%(avg, dev), horizontalalignment='center', transform=ax.transAxes)
+
         index+=1
     plt.savefig(fileName)
 
@@ -151,14 +156,24 @@ def compareVisualizeErrorDistribution(diffs, fileName):
 
     for title in diffs:
         sub_plot_number = plt.subplot(prefix/10, prefix%10,index)
-        diffs[title].sort()
-        ax = fig.add_subplot(sub_plot_number)
-        ax.set_xlim(right=0.15)
-        ax.set_title(title)
         avg, dev = getMeanAndStandardDeviation(diffs[title])
-        ax.text(0.5, -0.1, "Average: %.4f, Std. deviation: %.4f"%(avg, dev), horizontalalignment='center', transform=ax.transAxes)
- 
-        sns.distplot(diffs[title], kde=True, ax=ax, bins=int(diffs[title][-1]/0.001),
+        x_dim = avg + 3*dev
+        diffs[title].sort()
+        diff_list=diffs[title]
+        for i in range(len(diff_list)):
+            if diff_list[i] > x_dim:
+                break
+        if i < len(diff_list) - 1:
+            diff_list = diff_list[:i]
+
+        ax = fig.add_subplot(sub_plot_number)
+
+        ax.set_xlim(right=x_dim)
+        ax.set_title(title)
+        
+        ax.text(0.5, -0.1, "Average: %.3g, Std. deviation: %.3g"%(avg, dev), horizontalalignment='center', transform=ax.transAxes)
+        bins = 50
+        sns.distplot(diff_list, kde=True, ax=ax, bins=bins,
              color = 'darkblue',
              norm_hist=True,
              kde_kws={'linewidth': 4})
@@ -171,15 +186,20 @@ def testSet(prefix, amount):
     print ("finished reading testSet %s"%(prefix))
     extreme_errors = {}
     diffs = {}
+    diffs['values'] = []
+    for kmc in tests:
+        for curr in kmc.expected_current:
+            diffs['values'].append(math.fabs(curr))
+
     for func, title in [
         #(testPython5K, "Python KMC 5000 hops"),
-        getKMCFunction(1000),
-        getKMCFunction(5000),
-        getKMCFunction(1000, 100),
-        getKMCFunction(5000, 100),
-        getKMCFunction(1000, 1000),
-        getKMCFunction(5000, 1000),
-        #getKMCFunction(25000),
+        #getKMCFunction(1000),
+        #getKMCFunction(5000),
+        #getKMCFunction(1000, 100),
+        #getKMCFunction(5000, 100),
+        #getKMCFunction(1000, 1000),
+        #getKMCFunction(5000, 1000),
+        getKMCFunction(25000),
         #getKMCFunction(100000),
         #getKMCFunction(1000000),
         #getProbFunction(500),
@@ -190,8 +210,16 @@ def testSet(prefix, amount):
         #getProbFunction(100000),
         #getProbFunction(1000000),
         #(testCombined10K, "Combined 10K hops"),
-        #(getPruneFunction(5000, 0.01), "Python pruned KMC 5K hops,1% threshold"),
-        #(getPruneFunction(5000, 0.003), "Python pruned KMC 5K hops, 0.3% threshold"),
+        #(getPruneFunction(25000, 0.001), "Python pruned KMC 25K hops,0.1% threshold"),
+        (getPruneFunction(25000, 0.0001), "Python pruned KMC 25K hops, 0.01% threshold"),
+        (getPruneFunction(25000, 0.00001), "Python pruned KMC 25K hops, 0.001% threshold"),
+        (getPruneFunction(25000, 0.000001), "Python pruned KMC 25K hops, 0.0001% threshold"),
+        (getPruneFunction(25000, 0.0000001), "Python pruned KMC 25K hops, 0.00001% threshold"),
+        (getPruneFunction(250000, 0.0001), "Python pruned KMC 250K hops, 0.01% threshold"),
+        (getPruneFunction(250000, 0.00001), "Python pruned KMC 250K hops, 0.001% threshold"),
+        (getPruneFunction(250000, 0.000001), "Python pruned KMC 250K hops, 0.0001% threshold"),
+        (getPruneFunction(250000, 0.0000001), "Python pruned KMC 250K hops, 0.00001% threshold"),
+        #(getPruneFunction(25000, 0.00000001), "Python pruned KMC 25K hops, 0.000001% threshold"),
         #(testKMC1E6, "KMC 1E6 hops"), 
         ]:
         extreme_errors[title] = (func, test(tests, func, title))
@@ -226,16 +254,16 @@ def measureSwipe(prefix, amount, inputVoltage, outPutCurrent, funcs):
 def main():
     #testSet("set", 101)
     #testSet("xor", 100)
-    testSet("rnd", 200)
+    #testSet("rnd", 200)
+    testSet("rnd2", 200)
+    #testSet("rnd3", 200)
     """measureSwipe("xor", 100, 1, 2, [
-            (testKMC5000, "KMC 5000 hops"), 
-            (testKMC50000, "KMC 50000 hops"), 
-            (testKMC1E6, "KMC 1E6 hops"), 
-            #(testProb500, "Probability 500 hops"), (testProb1000, "Probability 1000 hops"), 
-            (testProb5000, "Probability 5000 hops"),
+            getKMCFunction(5000),
+            getKMCFunction(1000000),            
+            getProbFunction(2500),
             #(testCombined10K, "Combined 10K hops"),
-            (getPruneFunction(1000000, 0.01), "Python pruned KMC 1M hops,1% threshold"),
-            (getPruneFunction(1000000, 0.003), "Python pruned KMC 1M hops, 0.3% threshold"),
+            #(getPruneFunction(1000000, 0.01), "Python pruned KMC 1M hops,1% threshold"),
+            #(getPruneFunction(1000000, 0.003), "Python pruned KMC 1M hops, 0.3% threshold"),
             ])"""
   
 if __name__== "__main__":

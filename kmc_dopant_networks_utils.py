@@ -390,6 +390,7 @@ def plot_swipe(data, pos=111, figure=None, title="", xlim=None):
 
     if len(title) > 0:
         ax.set_title(title)
+    return ax
 
 def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
                        standalone = True):

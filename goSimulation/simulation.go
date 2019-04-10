@@ -184,6 +184,10 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             }
         }
     }
+    if transition_cut_constant > 0 {
+        //fmt.Printf("Transition list size: %d", len(transitions))
+    }
+    
 
     //occupation_time := make([]float64, NSites)
     allProbs := make(map[uint64]*probabilities)

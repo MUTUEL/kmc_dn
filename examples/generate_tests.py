@@ -8,6 +8,7 @@ import kmc_dopant_networks as kmc_dn
 import numpy as np
 import matplotlib.pyplot as plt
 import cProfile
+import random
 
 
 #%% Parameters
@@ -23,19 +24,19 @@ hops = int(1E6)
 for i in range(200):
     # Define electrodes
     electrodes = np.zeros((8, 4))
-    electrodes[0] = [0, ydim/4, 0, 10]
-    electrodes[1] = [0, 3*ydim/4, 0, 0]
-    electrodes[2] = [xdim, ydim/4, 0, 10]
-    electrodes[3] = [xdim, 3*ydim/4, 0, 0]
-    electrodes[4] = [xdim/4, 0, 0, 10]
-    electrodes[5] = [3*xdim/4, 0, 0, 0]
-    electrodes[6] = [xdim/4, ydim, 0, 10]
+    electrodes[0] = [0, ydim/4, 0, random.random()*320-160]
+    electrodes[1] = [0, 3*ydim/4, 0, random.random()*320-160]
+    electrodes[2] = [xdim, ydim/4, 0, random.random()*320-160]
+    electrodes[3] = [xdim, 3*ydim/4, 0, random.random()*320-160]
+    electrodes[4] = [xdim/4, 0, 0, random.random()*320-160]
+    electrodes[5] = [3*xdim/4, 0, 0, random.random()*320-160]
+    electrodes[6] = [xdim/4, ydim, 0, random.random()*320-160]
     electrodes[7] = [3*xdim/4, ydim, 0, 0]
     #%% Initialize simulation object
 
     kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes)
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
-    rel_path = "tests/rnd/test"+str(i)+".kmc"
+    rel_path = "tests/rnd3/test"+str(i)+".kmc"
     abs_file_path = os.path.join(script_dir, rel_path)
     #%% Profile code
     kmc.python_simulation(hops=hops)

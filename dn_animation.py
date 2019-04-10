@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
+from kmc_dopant_networks_utils import visualize_traffic
 
 # Requires installation: sudo apt-get install ffmpeg
 
@@ -24,8 +25,6 @@ def initScatterAnimation(kmc):
     history_donors, = ax.plot(kmc.xCoords[kmc.N:], kmc.yCoords[kmc.N:], 'o', color='red')
 
     text_element = ax.text(0.5, -0.1, "Error: , time: , strategy: ", horizontalalignment='center')
-
-    
 
     return acceptors, donors, history_acceptors, history_donors, text_element, fig
 
@@ -57,4 +56,15 @@ def animateTransition(kmc, donors, acceptors, history_donors, history_acceptors,
             history_acceptors.set_alpha(alpha)
             history_donors.set_alpha(alpha)
         writer.grab_frame()
+
+def trafficAnimation(kmc, search_results, writer, file_name):
+    fig = plt.figure()
+    with writer.saving(fig, file_name, 100):
+        for entry in search_results:
+            kmc.electrodes = entry[0]
+            kmc.current = entry[1]
+            kmc.traffic = entry[2]
+            plt.clf()
+            visualize_traffic(kmc, figure=fig)
+            writer.grab_frame()
 

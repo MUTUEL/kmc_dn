@@ -227,6 +227,7 @@ class dn_search():
         else:
             return False
 
+
     def randomSearch(self, time_budget):
         self.setStrategy(len(self.simulation_strategy)-1)
         errors = []
@@ -250,6 +251,8 @@ class dn_search():
             errors.append(error)
             time_difference = time.time() - real_start_time
         return bestDn, errors, vals, diffs
+
+
 
     def greedySearch(self):
         best = self.evaluate_error(self.dn)
@@ -284,6 +287,8 @@ class dn_search():
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump3.png")
 
+
+#Sunykated abbeakubf searcg
     def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix, validation_timestep=3600, animate=True):
         real_start_time = time.time()
         annealing_index = 0
@@ -376,8 +381,11 @@ class dn_search():
         print ("\nAbs best is %.3f\n"%(abs_best))
         return best, self.current_strategy, validations
 
+
+#Genetic search
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
-            file_prefix, cross_over_function, mut_pow=1, order_center=None):
+            file_prefix, cross_over_function, mut_pow=1, order_center=None, 
+            u_schedule = None):
         dns = []
         validation_timestep = time_available / 10
         self.current_strategy = 0
@@ -398,6 +406,10 @@ class dn_search():
         next_validation = validation_timestep
         validations = []
         gen = 0
+        if u_schedule is not None:
+            us_i = 0
+            us_from = uniqueness
+            us_start_time = 0
         while True:
             gen += 1
             best_error = 1000
@@ -412,6 +424,12 @@ class dn_search():
                 total_error+=error
                 results.append((error, dn))
             time_difference = time.time() - start_time
+            if u_schedule is not None:
+                if u_schedule[us_i][1] > time_difference:
+                    us_from = u_schedule[us_i][0]
+                    us_i += 1
+                uniqueness = us_from + (u_schedule[us_i]-us_from)\
+                    *(time_difference-us_start_time)/(u_schedule[us_i][1])
             average_error = total_error / gen_size
             print ("average error: %.4f\nbest error: %.3f"%(average_error, best_error))
             if time_difference > next_validation:
@@ -473,11 +491,14 @@ class dn_search():
         plt.savefig("GeneticResultDump%s.png"%(file_prefix))
         return best_error, self.current_strategy, validations
 
+
+
     def getRandomDn(self):
         newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
                 self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
         return newDn
-            
+
+
     def getGenes(self, dn):
         genes = []
         for acceptor in dn.acceptors:
@@ -492,6 +513,7 @@ class dn_search():
             genes.append(y)
         return genes
     
+
     def getNextGenerationGenes(self, dns, uniqueness, cross_over_function, power=1):
         newGeneration = []
         for i in range(len(dns)):
@@ -519,11 +541,13 @@ class dn_search():
             newGeneration.append(newGenes)
         return newGeneration
 
+
     @staticmethod
     def mutate(a, power):
         rnd = math.floor(random.random()**power*16)
         b = np.uint16(2**rnd)
         return np.bitwise_xor(a, b)
+
 
     def isAllowed(self, prev_genes, gene, uniqueness, resolution):
         for coord in range(0, len(gene), 2):
@@ -541,6 +565,7 @@ class dn_search():
                 return False, -1
         return True, -1
 
+
     @staticmethod
     def uInt16Diff(a, b):
         if a < b:
@@ -548,12 +573,14 @@ class dn_search():
         else:
             return a-b
 
+
     def singlePointCrossover(self, parent_1_genes, parent_2_genes):
         genes = []
         rnd_index = round(random.random()*len(parent_1_genes))
         genes.extend(parent_1_genes[:rnd_index])
         genes.extend(parent_2_genes[rnd_index:])
         return genes
+
 
     def alteredTwoPointCrossOver(self, parent_1_genes, parent_2_genes):
         genes = []
@@ -566,6 +593,7 @@ class dn_search():
         genes.extend(parent_1_genes[rnd_index_2:])
         assert len(genes) == len(parent_1_genes) == len(parent_2_genes), "gene lengths unstable"
         return genes
+
 
     def getDnFromGenes(self, genes, dn, order_center=None):
 
@@ -583,6 +611,7 @@ class dn_search():
             self.orderPlacement(dn, center = order_center)
         dn.initialize( dopant_placement=False, charge_placement=False)
     
+
     @staticmethod
     def nDimSquareDistance(a, b):
         sum=0
@@ -600,6 +629,7 @@ class dn_search():
         if asinv < 0:
             asinv+=360
         return asinv
+
 
     @staticmethod
     def degreeDistance(a, b):

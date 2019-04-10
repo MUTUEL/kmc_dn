@@ -338,7 +338,7 @@ class kmc_dn():
         else: 
             self.nu = 1  # Hop attempt frequency (1/s)
             self.kT = 1  # Temperature energy
-            self.I_0 = self.kT  # Interaction energy
+            self.I_0 = 100*self.kT  # Interaction energy
         self.time = 0  # s
         self.mu = mu  # Equilibrium chemical potential
 
@@ -361,7 +361,7 @@ class kmc_dn():
             self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
 
         # Set dimensonless variables to 1
-        self.ab = self.R
+        self.ab = 0.25*self.R
 
         # Initialize parameter kwargs
         if('electrodes' in kwargs):
