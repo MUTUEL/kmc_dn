@@ -21,7 +21,7 @@ class experiment_config(config_class):
 
         # Define experiment
         self.generations = 50
-        self.generange = [[0.1, 100], [0.01, 10]]
+        self.generange = [[0.3, 16], [0.0034, 2.7]]  # I_0; ab
         self.avg = 2
 
         self.Fitness = self.FitnessGap
