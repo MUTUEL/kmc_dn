@@ -67,9 +67,9 @@ class experiment_config(config_class):
         ######### SPECIFY PARAMETERS ###################
         ################################################
         # Gene to test
-        self.gene = [0.1571753 , 0.81749769, 0.64451251, 0.5748818 , 0.        ]
+        self.gene = [0.30525348, 0.61918397, 0.90047364, 0.1011786 , 0.25739554]
         self.filepath = ''
-        self.name = 'NAND'
+        self.name = 'OR'
 
         # Model parameters
         self.kT = 1
