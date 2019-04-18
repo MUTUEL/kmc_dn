@@ -416,6 +416,7 @@ class dn_search():
             print ("generation: %d"%(gen))
             results = []
             total_error = 0
+            i = 0
             for dn in dns:
                 error = self.evaluate_error(dn)
                 if best_error > error:
@@ -423,6 +424,9 @@ class dn_search():
                     best_dn = dn
                 total_error+=error
                 results.append((error, dn))
+                if i % 10 == 0:
+                    print (i)
+                i+=1
             time_difference = time.time() - start_time
             if u_schedule is not None:
                 if u_schedule[us_i][1] > time_difference:
@@ -431,7 +435,7 @@ class dn_search():
                 uniqueness = us_from + (u_schedule[us_i]-us_from)\
                     *(time_difference-us_start_time)/(u_schedule[us_i][1])
             average_error = total_error / gen_size
-            print ("average error: %.4f\nbest error: %.3f"%(average_error, best_error))
+            print ("average error: %.3g\nbest error: %.3g"%(average_error, best_error))
             if time_difference > next_validation:
                 cur_str = self.current_strategy
                 self.setStrategy(len(self.simulation_strategy)-1)
@@ -479,6 +483,9 @@ class dn_search():
                     and average_error < self.simulation_strategy[self.current_strategy]['threshold_error']*3:
                 self.setStrategy(self.current_strategy+1)
         best_dn.saveSelf("GeneticResultDump%s.kmc"%(file_prefix))
+        print (best_dn.electrodes)
+        print (best_dn.true_voltage)
+        print ("\n")
         cur_str = self.current_strategy
         self.setStrategy(len(self.simulation_strategy)-1)
         tmp_error = self.evaluate_error(best_dn)

@@ -972,6 +972,7 @@ class kmc_dn():
             d = pickle.load(f)
             for key in d:
                 setattr(self, key, d[key])
+        self.initialize(dopant_placement=False, charge_placement=False)
 
     #%% Miscellaneous methods
 

@@ -17,11 +17,11 @@ from validate_tests import compareVisualizeErrorDistribution
 
 def get8Electrodes(xdim, ydim):
     electrodes = np.zeros((8, 4))
-    electrodes[0] = [0, ydim/4, 0, 10]
-    electrodes[1] = [0, 3*ydim/4, 0, 0]
+    electrodes[0] = [0, 3*ydim/4, 0, 0]
+    electrodes[1] = [xdim/4, 0, 0, 10]
     electrodes[2] = [xdim, ydim/4, 0, 10]
     electrodes[3] = [xdim, 3*ydim/4, 0, 0]
-    electrodes[4] = [xdim/4, 0, 0, 10]
+    electrodes[4] = [0, ydim/4, 0, 10]
     electrodes[5] = [3*xdim/4, 0, 0, 0]
     electrodes[6] = [xdim/4, ydim, 0, 10]
     electrodes[7] = [3*xdim/4, ydim, 0, 0]
@@ -59,14 +59,14 @@ def searchAnnealing(dn, schedule_function, tests, hours = 10, error_threshold_mu
     schedule = schedule_function(error_threshold_multiplier, hours)
     return search.simulatedAnnealingSearch(0.002*error_threshold_multiplier, schedule, "Voltage10DOP", animate=False)
 
-def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 5000, disparity=2, 
+def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 1000, disparity=2, 
         mut_pow=1, order_center = None, gen_size = 50, index = 0):
-    search = voltage_search.voltage_search(dn, 160, 10, tests)
+    search = voltage_search.voltage_search(dn, 300, 10, tests)
     cross_over_function = search.singlePointCrossover
     return search.genetic_search(gen_size, 3600*hours, 2, uniqueness, "VoltageGenetic%d"%(index), 
         cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center)
 
-for i in range(50, 60):
+for i in range(66, 69):
     dn = getRandomDn(30, 3)
     
     results = {}
@@ -75,7 +75,7 @@ for i in range(50, 60):
     #    ((100, 100), False)], 5, error_threshold_multiplier=20)
 
     results['genetic'] = searchGeneticBasedOnTest(dn, [((False, False), False), ((False, True), True), ((True, False), True), 
-            ((True, True), False)], hours = 5, gen_size=200, index=i)
+            ((True, True), False)], hours = 3, gen_size=100, index=i)
 
     data = {}
     for key in results:

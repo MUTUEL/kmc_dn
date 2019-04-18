@@ -36,9 +36,13 @@ class voltage_search(dn_search):
         
         self.simulation_strategy = [
             {'func':"go_simulation",
-             'args':{'hops':200000, 'goSpecificFunction':"wrapperSimulatePruned", 'prune_threshold':0.000001},
+             'args':{'hops':1000000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.000002,
-             'threshold_error':0},
+             'threshold_error':-1},
+            {'func':"go_simulation",
+             'args':{'hops':5000000, 'goSpecificFunction':"wrapperSimulateRecord"},
+             'expected_error':0.000002,
+             'threshold_error':-1},
         ]
         """    {'func':"go_simulation",
              'args':{'hops':5000, 'goSpecificFunction':"wrapperSimulateRecord"},
@@ -61,8 +65,8 @@ class voltage_search(dn_search):
         self.dn.xCoords = []
         self.dn.yCoords = []
         self.init_random_voltages(self.dn)
-        for i in range(10):
-            print (self.evaluate_error(self.dn))
+        #for _ in range(10):
+        #    print (self.evaluate_error(self.dn))
         self.genetic_allowed_overlap = -1
 
     def init_random_voltages(self, dn):
@@ -87,7 +91,7 @@ class voltage_search(dn_search):
             else:
                 if highest_false < dn.current[self.output_electrode]:
                     highest_false = dn.current[self.output_electrode]
-        return highest_false - lowest_true + 1
+        return highest_false - lowest_true
 
     def yieldNeighbours(self):
         shifts = [self.x_resolution, -self.x_resolution]
@@ -99,7 +103,7 @@ class voltage_search(dn_search):
             if option[0] == 0:
                 electrode_voltage = self.dn.true_voltage + option[1]
 
-                if math.fabs(electrode_voltage) < self.voltage_range:
+                if electrode_voltage < self.voltage_range and electrode_voltage > self.voltage_range/10:
                     newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, 
                         self.dn.ydim, 0, electrodes = self.dn.electrodes, 
                         acceptors=self.dn.acceptors, donors=self.dn.donors, copy_from=self.dn)
@@ -133,7 +137,7 @@ class voltage_search(dn_search):
             
     def getGenes(self, dn):
         genes = []
-        x = np.uint16((dn.true_voltage + self.voltage_range)/self.voltage_range/2 * 65535)
+        x = np.uint16(dn.true_voltage / self.voltage_range * 65535)
         genes.append(x)
         for i in range(self.N):
             value = dn.electrodes[i+2][3]
@@ -143,7 +147,7 @@ class voltage_search(dn_search):
 
     def getDnFromGenes(self, genes, dn, order_center=None):
         setattr(dn, "genes", genes)
-        value = genes[0]/65535 * 2 * self.voltage_range - self.voltage_range
+        value = genes[0]/65535 * self.voltage_range
         setattr(dn, "true_voltage", value)
         assert len(genes) == 6
         for i in range(1, len(genes)):

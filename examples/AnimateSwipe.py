@@ -29,7 +29,7 @@ def getSwipeResults(dn, bool_func, steps, hops):
             dn.electrodes[0][3] = from_voltage[0] + (to_voltage[0]-from_voltage[0])*(j*1.0/steps)
             dn.electrodes[1][3] = from_voltage[1] + (to_voltage[1]-from_voltage[1])*(j*1.0/steps)
             dn.update_V()
-            dn.python_simulation(hops = hops, record=True)
+            dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
             dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy()))
             print(j)
         dn.electrodes[0][3] = to_voltage[0]
@@ -38,23 +38,30 @@ def getSwipeResults(dn, bool_func, steps, hops):
 
 
 def main():
+    index = 10
     xor = [(False, False, False), (True, False, True), (True, True, False), (False, True, True)]
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
-    rel_path = "tests/xor/test0.kmc"
+    rel_path = "tests/trained/example%d.kmc"%(index)
     
     abs_file_path = os.path.join(script_dir, rel_path)
     dn = openKmc(abs_file_path)
-    if not hasattr(dn, "bool_voltage"):
+    print (dn.electrodes)
+    if not hasattr(dn, "true_voltage"):
         dn.bool_voltage = {}
-        dn.bool_voltage[True] = 1000
-        dn.bool_voltage[False] = -1000
+        dn.bool_voltage[True] = 75
+        dn.bool_voltage[False] = 0
+    else:
+        dn.bool_voltage = {}
+        dn.bool_voltage[True] = dn.true_voltage
+        dn.bool_voltage[False] = 0
+    #dn.electrodes[7][3] = 0
     if not hasattr(dn, "swipe_results"):
-        getSwipeResults(dn, xor, 20, 1000000)
-        rel_write_path = "swipeResults/xor1.kmc"
+        getSwipeResults(dn, xor, 40, 5000000)
+        rel_write_path = "swipeResults/xor%d.kmc"%(index)
         abs_file_path = os.path.join(script_dir, rel_write_path)
         dn.saveSelf(abs_file_path)
     writer = dn_animation.getWriter(2, "Swipe animation")
-    dn_animation.trafficAnimation(dn, dn.swipe_results, writer, "swipe_animation1.mp4")
+    dn_animation.trafficAnimation(dn, dn.swipe_results, writer, "swipe_animation%d.mp4"%(index))
   
 if __name__== "__main__":
   main()

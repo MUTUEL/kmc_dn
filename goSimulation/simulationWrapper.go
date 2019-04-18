@@ -5,6 +5,10 @@ import "fmt"
 import "sync"
 import "math"
 import "math/rand"
+import (
+	"io/ioutil" 
+    "encoding/json"
+)
 
 var count int
 var mtx sync.Mutex
@@ -54,17 +58,29 @@ func toFloat32(m []float64) []float32{
 	return r
 }
 
+func logListToJson(list_f []float64, file_name string) {
+    list_json, _ := json.Marshal(list_f)
+    _ = ioutil.WriteFile(file_name, list_json, 0644)
+}
+
 func printAverageExpRandom(){
+	list_f := make([]float64, 100000)
 	sum := 0.0
-	for i := 0; i < 1000; i++ {
-		sum+= rand.ExpFloat64()
+	for i := 0; i < 100000; i++ {
+		r_f := rand.ExpFloat64()/0.23
+		list_f[i] = r_f
+		sum+= r_f
 	}
-	fmt.Printf("Exp random average is: %.3fn", sum/1000)
+	fmt.Printf("Exp random average is: %.3fn", sum/100000)
 	sum = 0.0
-	for i := 0; i < 1000; i++ {
-		sum+= math.Log(1/rand.Float64())
+	logListToJson(list_f, "ExpRand.log")
+	for i := 0; i < 100000; i++ {
+		r_f := math.Log(1/rand.Float64())/0.23
+		list_f[i] = r_f
+		sum+= r_f
 	}
-	fmt.Printf("Ln 1/random average is: %.3fn", sum/1000)
+	fmt.Printf("Ln 1/random average is: %.3fn", sum/100000)
+	logListToJson(list_f, "Ln1Rand.log")
 }
 
 //export wrapperSimulate
@@ -120,7 +136,7 @@ func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float
 
 	bool_occupation := make([]bool, NSites)
 	for i := int64(0); i < NSites; i++{
-		if occupation[i] > 0{
+		if false {//occupation[i] > 0{
 			bool_occupation[i] = true
 		} else {
 			bool_occupation[i] = false
@@ -131,6 +147,53 @@ func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float
 	0)
 
 return time
+}
+
+//export analyzeStateOverlap
+func analyzeStateOverlap(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, 
+	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
+	electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, average_occupation []float64) float64 {
+	newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
+	newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
+	bool_occupation := make([]bool, NSites)
+	for i := int64(0); i < NSites; i++{
+		if occupation[i] > 0{
+			bool_occupation[i] = true
+		} else {
+			bool_occupation[i] = false
+		}
+	}
+	state_count := simulateReturnStatecount(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true, record, traffic, average_occupation,
+		0)
+	fmt.Printf("Number of states in original: %d", len(state_count))
+	for j := 0; j < 10; j++ {
+		for i := int64(0); i < NSites; i++{
+			if occupation[i] > 0{
+				bool_occupation[i] = true
+			} else {
+				bool_occupation[i] = false
+			}
+		}
+		other_state_count := simulateReturnStatecount(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true, record, traffic, average_occupation,
+		0)
+		overlap := uint32(0)
+		for key, val :=  range state_count {
+			val2, ok := other_state_count[key]
+			if ok {
+				if val > val2 {
+					overlap += uint32(val2)
+				} else {
+					overlap += uint32(val)
+				}
+			}
+		}
+		fmt.Printf("The number of keys in new try:%d\n%d: The overlap for %d hops was %d\n\n", len(other_state_count), j, hops, overlap)
+	}
+
+
+return 0
 }
 
 //export wrapperSimulateProbability

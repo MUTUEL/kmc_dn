@@ -80,10 +80,19 @@ def testPython5K(kmc, record=False):
 
 def testCombined10K(kmc, record=True):
     kmc.go_simulation(hops=10000, goSpecificFunction="wrapperSimulateCombined", record = True)
+def getPythonFunction(hops, prehops = 0):
+    def new_func(kmc, record=True):
+        kmc.python_simulation(hops=hops, prehops=prehops, record = record)
+    return new_func, "Python KMC with %d hops, %d prehops"%(hops, prehops)
+
+def getKMCFunctionNoRecord(hops, prehops = 0):
+    def new_func(kmc, record=True):
+        kmc.go_simulation(hops=hops, prehops=prehops, record = record, goSpecificFunction="wrapperSimulate")
+    return new_func, "Go KMC No record with %d hops, %d prehops"%(hops, prehops)
 
 def getKMCFunction(hops, prehops = 0):
     def new_func(kmc, record=True):
-        kmc.go_simulation(hops=hops, prehops=prehops, record = record)
+        kmc.go_simulation(hops=hops, prehops=prehops, record = record, goSpecificFunction="wrapperSimulateRecord")
     return new_func, "KMC with %d hops, %d prehops"%(hops, prehops)
 def getProbFunction(hops):
     def new_func(kmc, record=True):
@@ -179,7 +188,35 @@ def compareVisualizeErrorDistribution(diffs, fileName):
              kde_kws={'linewidth': 4})
         index+=1
     plt.savefig(fileName)
-
+def findWierdnessInTestSet(prefix, amount):
+    tests = getTests(prefix, amount)
+    print ("finished reading testSet %s"%(prefix))
+    i = 0
+    all_results = []
+    keys_printed = False
+    for kmc in tests:
+        results = {}
+        for func, title in [
+            getKMCFunction(1000000),
+            getKMCFunctionNoRecord(1000000),
+            getPythonFunction(1000000),
+            ]:
+            func(kmc)
+            results[title] = ["%.3g"%(math.fabs(kmc.current[j]-kmc.expected_current[j])) for j in range(len(kmc.current))]
+            results[title][-1] = results[title][-1]+"\n"
+        
+        for i in range(len(kmc.current)):
+            result = [kmc.expected_current[i]]
+            for key in results:
+                result.append(results[key][i])
+            all_results.append(result)
+            if not keys_printed:
+                for key in results:
+                    print (key)
+                    keys_printed = True
+    all_results = sorted(all_results, key=lambda x:x[0])
+    for res in all_results:
+        print ("%s\n"%(str(res)))
 
 def testSet(prefix, amount):
     tests = getTests(prefix, amount)
@@ -193,15 +230,18 @@ def testSet(prefix, amount):
 
     for func, title in [
         #(testPython5K, "Python KMC 5000 hops"),
-        #getKMCFunction(1000),
-        #getKMCFunction(5000),
-        #getKMCFunction(1000, 100),
-        #getKMCFunction(5000, 100),
-        #getKMCFunction(1000, 1000),
-        #getKMCFunction(5000, 1000),
+        getKMCFunction(1000),
+        getKMCFunction(5000),
+        getKMCFunction(1000, 100),
+        getKMCFunction(5000, 100),
+        getKMCFunction(1000, 1000),
+        getKMCFunction(5000, 1000),
         getKMCFunction(25000),
-        #getKMCFunction(100000),
+        getKMCFunction(100000),
+        getKMCFunction(1000000),
         #getKMCFunction(1000000),
+        #getKMCFunctionNoRecord(1000000),
+        #getPythonFunction(1000000),
         #getProbFunction(500),
         #getProbFunction(1000),
         #getProbFunction(2500),
@@ -211,14 +251,14 @@ def testSet(prefix, amount):
         #getProbFunction(1000000),
         #(testCombined10K, "Combined 10K hops"),
         #(getPruneFunction(25000, 0.001), "Python pruned KMC 25K hops,0.1% threshold"),
-        (getPruneFunction(25000, 0.0001), "Python pruned KMC 25K hops, 0.01% threshold"),
-        (getPruneFunction(25000, 0.00001), "Python pruned KMC 25K hops, 0.001% threshold"),
-        (getPruneFunction(25000, 0.000001), "Python pruned KMC 25K hops, 0.0001% threshold"),
-        (getPruneFunction(25000, 0.0000001), "Python pruned KMC 25K hops, 0.00001% threshold"),
-        (getPruneFunction(250000, 0.0001), "Python pruned KMC 250K hops, 0.01% threshold"),
-        (getPruneFunction(250000, 0.00001), "Python pruned KMC 250K hops, 0.001% threshold"),
-        (getPruneFunction(250000, 0.000001), "Python pruned KMC 250K hops, 0.0001% threshold"),
-        (getPruneFunction(250000, 0.0000001), "Python pruned KMC 250K hops, 0.00001% threshold"),
+        #(getPruneFunction(25000, 0.0001), "Python pruned KMC 25K hops, 0.01% threshold"),
+        #(getPruneFunction(25000, 0.00001), "Python pruned KMC 25K hops, 0.001% threshold"),
+        #(getPruneFunction(25000, 0.000001), "Python pruned KMC 25K hops, 0.0001% threshold"),
+        #(getPruneFunction(25000, 0.0000001), "Python pruned KMC 25K hops, 0.00001% threshold"),
+        #(getPruneFunction(250000, 0.0001), "Python pruned KMC 250K hops, 0.01% threshold"),
+        #(getPruneFunction(250000, 0.00001), "Python pruned KMC 250K hops, 0.001% threshold"),
+        ##(getPruneFunction(250000, 0.000001), "Python pruned KMC 250K hops, 0.0001% threshold"),
+        #(getPruneFunction(250000, 0.0000001), "Python pruned KMC 250K hops, 0.00001% threshold"),
         #(getPruneFunction(25000, 0.00000001), "Python pruned KMC 25K hops, 0.000001% threshold"),
         #(testKMC1E6, "KMC 1E6 hops"), 
         ]:
@@ -251,12 +291,16 @@ def measureSwipe(prefix, amount, inputVoltage, outPutCurrent, funcs):
         print ("Finished simulating on %s\n"%(title))
     compareVisualizeSwipe(data, "Swipe%s.png"%(prefix))
 
+
+
 def main():
     #testSet("set", 101)
     #testSet("xor", 100)
     #testSet("rnd", 200)
-    testSet("rnd2", 200)
+    #testSet("rnd2", 200)
     #testSet("rnd3", 200)
+    testSet("rnd4", 200)
+    #findWierdnessInTestSet("rnd2", 5)
     """measureSwipe("xor", 100, 1, 2, [
             getKMCFunction(5000),
             getKMCFunction(1000000),            

@@ -238,6 +238,7 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
         fig = plt.figure()
 
     ax = fig.add_subplot(pos)
+    ax.set_aspect(1)
     ax.set_xlim(right=max(1, kmc_dn.xdim))
     ax.set_ylim(top=max(1, kmc_dn.ydim))
     ax.get_xaxis().set_visible(False)
@@ -258,6 +259,7 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = acceptorColors, marker='o', s=48)
     ax.scatter(kmc_dn.electrodes[:,0], kmc_dn.electrodes[:,1], c = 'r', marker='o')
     ax.scatter(kmc_dn.donors[:, 0], kmc_dn.donors[:, 1], marker='x')
+    
     largest = 0
     for row in kmc_dn.traffic:
         for ele in row:
@@ -294,7 +296,7 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
         ele = kmc_dn.electrodes[i]
         x = (ele[0] - center[0])*0.1 + ele[0]
         y = (ele[1] - center[1])*0.1 + ele[1]
-        ax.text(x, y, "V:%.2f\nC: %.3f"%(ele[3], kmc_dn.current[i]))
+        ax.text(x, y, "V:%.1f\nC: %.3g"%(ele[3], kmc_dn.current[i]))
     return fig
 
 
