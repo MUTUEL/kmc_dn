@@ -160,6 +160,33 @@ func logReuseToJson(reuses []uint64, states []int, file_name string){
     _ = ioutil.WriteFile(file_name, logjson, 0644)
 }
 
+func getRandomEvent(probList []float32) int {
+    eventRand := rand.Float32() * probList[len(probList)-1]
+    event := 0
+    e_step := int(len(probList)/2)
+    i := e_step
+    for true {
+        if e_step >= 2 {
+            e_step = e_step/2
+        }
+        if probList[i] < eventRand {
+            i+=e_step
+            if i >= len(probList) {
+                i = len(probList) - 1
+            }
+        } else if (i>0 && probList[i-1] >= eventRand) {
+            i-=e_step
+            if i < 0 {
+                i = 0
+            }
+        } else {
+            event = i
+            break
+        }
+    }
+    return event
+}
+
 
   
 
@@ -269,29 +296,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
         }
         time_step := rand.ExpFloat64() / float64(probList[len(probList)-1])
         time += time_step
-        eventRand := rand.Float32() * probList[len(probList)-1]
-        event := 0
-        e_step := int(len(probList)/2)
-        i := e_step
-        for true {
-            if e_step >= 2 {
-                e_step = e_step/2
-            }
-            if probList[i] < eventRand {
-                i+=e_step
-                if i >= len(probList) {
-                    i = len(probList) - 1
-                }
-            } else if (i>0 && probList[i-1] >= eventRand) {
-                i-=e_step
-                if i < 0 {
-                    i = 0
-                }
-            } else {
-                event = i
-                break
-            }
-        }
+        event := getRandomEvent(probList)
         /*if hop % showStep == showStep - 1{
             showStep*=2
             reuses[showIndex] = countResighting
@@ -310,14 +315,132 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
                 }
             }
         }
-
         makeJump(occupation, electrode_occupation, site_energies, distances, R, I_0, 
             NSites, from, to)
-
     }
 
     //logReuseToJson(reuses, states, "reusing.log")
 
+    return time
+}
+
+func simulateRecordPlus(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, R float32,
+    occupation []bool, distances [][]float32, E_constant []float32, transitions_constant [][]float32,
+    electrode_occupation []float64, site_energies []float32, hops int, record_problist bool, record bool, 
+    traffic []float64, average_occupation []float64, transition_cut_constant float32) float64 {
+    N := NSites + NElectrodes
+    transitions := make([]transition, 0, N*N)
+    largest_tc := float32(0)
+    for i := 0; i < len(transitions_constant); i++ {
+        for j := 0; j < len(transitions_constant[i]); j++ {
+            if largest_tc < transitions_constant[i][j] {
+                largest_tc = transitions_constant[i][j]
+            }
+        }
+    }
+
+    for i := 0; i < len(transitions_constant); i++ {
+        for j := 0; j < len(transitions_constant[i]); j++ {
+            if transitions_constant[i][j] > (transition_cut_constant*largest_tc) {
+                transitions = append(transitions, transition{i, j, 0})
+            }
+        }
+    }
+    if transition_cut_constant > 0 {
+        //fmt.Printf("Transition list size: %d", len(transitions))
+    }
+
+
+    //occupation_time := make([]float64, NSites)
+    allProbs := make(map[uint64]*probabilities)
+    countProbs := make(map[uint64]uint16)
+
+    //fmt.Printf("Site energies at start: %v\n", site_energies)
+
+
+    for i := 0; i < NElectrodes; i++ {
+        electrode_occupation[i] = 0.0
+    }
+    time := float64(0)
+
+    countReuses := uint64(0)
+    countStorage := uint64(0)
+    reuseThreshold := uint16(1)
+    reuseThresholdIncrease := uint64(100000)
+    for hop := 0; hop < hops; hop++ {
+
+        var probList []float32
+        ok := false
+        var key64 uint64
+        if record_problist {
+            var val *probabilities
+            key64 = getKey(occupation)
+            val, ok = allProbs[key64]
+            if ok {
+                probList = val.probList
+                countReuses++
+                //countResighting++
+            }
+        }
+        if !ok {
+            for i := 0; i < NSites; i++ {
+                acceptor_interaction := float32(0)
+                for j := 0; j < NSites; j++ {
+                    if j != i && !occupation[j] {
+                        acceptor_interaction+= 1/distances[i][j]
+                    }
+                }
+                site_energies[i] = E_constant[i] - I_0*R*acceptor_interaction
+            }
+            calcTransitionList(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant)
+
+            probList = make([]float32, len(transitions))
+
+
+            for i,trans := range transitions {
+                if i == 0 {
+                    probList[0] = trans.rate
+                } else {
+                    probList[i] = probList[i-1] + trans.rate
+                }
+            }
+
+            if record_problist {
+                val, ok := countProbs[key64]
+                if ok {
+                    //countResighting++
+                    countProbs[key64]++
+                    if val >= reuseThreshold {
+                        newProbability := probabilities{probList}
+                        allProbs[key64] = &newProbability
+                        countStorage++
+                        if countStorage > reuseThresholdIncrease {
+                            reuseThreshold++
+                            reuseThresholdIncrease+=100000
+                        }
+                    }
+                } else {
+                    countProbs[key64] = 1
+                }
+            }
+        }
+        time_step := rand.ExpFloat64() / float64(probList[len(probList)-1])
+        time += time_step
+        event := getRandomEvent(probList)
+
+        from := transitions[event].from
+        to := transitions[event].to
+        if from < NSites {
+            occupation[from] = false
+        } else {
+            electrode_occupation[from-NSites]-=1.0
+        }
+        if to < NSites {
+            occupation[to] = true
+        } else {
+            electrode_occupation[to-NSites]+=1.0
+        }
+    }
     return time
 }
 

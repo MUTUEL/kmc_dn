@@ -149,6 +149,28 @@ func wrapperSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float
 return time
 }
 
+//export wrapperSimulateRecordPlus
+func wrapperSimulateRecordPlus(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, 
+	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
+	electrode_occupation []float64, site_energies []float64, hops int, record bool, traffic []float64, average_occupation []float64) float64 {
+		newDistances := deFlattenFloatTo32(distances, NSites+NElectrodes, NSites+NElectrodes)
+		newConstants := deFlattenFloatTo32(transitions_constant, NSites+NElectrodes, NSites+NElectrodes)
+
+		bool_occupation := make([]bool, NSites)
+		for i := int64(0); i < NSites; i++{
+			if false {//occupation[i] > 0{
+				bool_occupation[i] = true
+			} else {
+				bool_occupation[i] = false
+			}
+		}
+		time := simulateRecordPlus(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
+		newDistances , toFloat32(E_constant), newConstants, electrode_occupation, toFloat32(site_energies), hops, true, false, traffic, average_occupation,
+		0)
+
+return time
+}
+
 //export analyzeStateOverlap
 func analyzeStateOverlap(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, 
 	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,

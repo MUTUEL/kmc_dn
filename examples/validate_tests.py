@@ -90,8 +90,13 @@ def getKMCFunctionNoRecord(hops, prehops = 0):
         kmc.go_simulation(hops=hops, prehops=prehops, record = record, goSpecificFunction="wrapperSimulate")
     return new_func, "Go KMC No record with %d hops, %d prehops"%(hops, prehops)
 
+def getKMCFunctionRecordPlus(hops, prehops = 0, index=0):
+    def new_func(kmc, record=False):
+        kmc.go_simulation(hops=hops, prehops=prehops, record = record, goSpecificFunction="wrapperSimulateRecordPlus")
+    return new_func, "KMC record+ with %d hops, %d prehops:%d"%(hops, prehops, index)
+
 def getKMCFunction(hops, prehops = 0):
-    def new_func(kmc, record=True):
+    def new_func(kmc, record=False):
         kmc.go_simulation(hops=hops, prehops=prehops, record = record, goSpecificFunction="wrapperSimulateRecord")
     return new_func, "KMC with %d hops, %d prehops"%(hops, prehops)
 def getProbFunction(hops):
@@ -230,15 +235,18 @@ def testSet(prefix, amount):
 
     for func, title in [
         #(testPython5K, "Python KMC 5000 hops"),
-        getKMCFunction(1000),
-        getKMCFunction(5000),
-        getKMCFunction(1000, 100),
-        getKMCFunction(5000, 100),
-        getKMCFunction(1000, 1000),
-        getKMCFunction(5000, 1000),
-        getKMCFunction(25000),
+        #getKMCFunction(1000),
+        #getKMCFunction(5000),
+        #getKMCFunction(1000, 100),
+        #getKMCFunction(5000, 100),
+        #getKMCFunction(1000, 1000),
+        #getKMCFunction(5000, 1000),
+        #getKMCFunction(25000),
         getKMCFunction(100000),
         getKMCFunction(1000000),
+        #getKMCFunction(5000000),
+        getKMCFunctionRecordPlus(1000000),
+        #getKMCFunctionRecordPlus(5000000),
         #getKMCFunction(1000000),
         #getKMCFunctionNoRecord(1000000),
         #getPythonFunction(1000000),
@@ -299,7 +307,7 @@ def main():
     #testSet("rnd", 200)
     #testSet("rnd2", 200)
     #testSet("rnd3", 200)
-    testSet("rnd4", 200)
+    testSet("rnd5", 200)
     #findWierdnessInTestSet("rnd2", 5)
     """measureSwipe("xor", 100, 1, 2, [
             getKMCFunction(5000),

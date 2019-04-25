@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
-from kmc_dopant_networks_utils import visualize_traffic
+from kmc_dopant_networks_utils import visualize_traffic, visualize_V_and_traffic
 
 # Requires installation: sudo apt-get install ffmpeg
 
@@ -57,14 +57,38 @@ def animateTransition(kmc, donors, acceptors, history_donors, history_acceptors,
             history_donors.set_alpha(alpha)
         writer.grab_frame()
 
-def trafficAnimation(kmc, search_results, writer, file_name):
+def trafficAnimation(kmc_dn, search_results, writer, file_name):
     fig = plt.figure()
+    vmin = 300
+    vmax = -300
+    highest_current = 0
+    for entry in search_results:
+        kmc_dn.electrodes = entry[0]
+        kmc_dn.current = entry[1]
+        kmc_dn.traffic = entry[2]
+        kmc_dn.time = entry[3]
+        kmc_dn.update_V()
+        x = np.arange(0, kmc_dn.xdim, kmc_dn.res)
+        y = np.arange(0, kmc_dn.ydim, kmc_dn.res)
+        for i in range(len(x)):
+            for j in range(len(y)):
+                val = kmc_dn.V(x[i], y[j])
+                if val > vmax:
+                    vmax = val
+                if val < vmin:
+                    vmin = val
+        for row in kmc_dn.traffic:
+            for ele in row:
+                if highest_current < ele / kmc_dn.time:
+                    highest_current =  ele / kmc_dn.time
     with writer.saving(fig, file_name, 100):
         for entry in search_results:
-            kmc.electrodes = entry[0]
-            kmc.current = entry[1]
-            kmc.traffic = entry[2]
+            kmc_dn.electrodes = entry[0]
+            kmc_dn.current = entry[1]
+            kmc_dn.traffic = entry[2]
+            time = entry[3]
+            kmc_dn.update_V()
             plt.clf()
-            visualize_traffic(kmc, figure=fig)
+            visualize_V_and_traffic(kmc_dn, figure=fig, max_traffic=highest_current*time, v_min=vmin, v_max=vmax)
             writer.grab_frame()
 

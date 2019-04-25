@@ -30,18 +30,20 @@ def getSwipeResults(dn, bool_func, steps, hops):
             dn.electrodes[1][3] = from_voltage[1] + (to_voltage[1]-from_voltage[1])*(j*1.0/steps)
             dn.update_V()
             dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
-            dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy()))
+            dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy(), dn.time))
             print(j)
         dn.electrodes[0][3] = to_voltage[0]
         dn.electrodes[1][3] = to_voltage[1]
     print (dn.swipe_results)
 
 
-def main():
-    index = 10
-    xor = [(False, False, False), (True, False, True), (True, True, False), (False, True, True)]
+def animateExample(index, useCalcs=False):
+    xor = [(False, False, False), (True, False, True), (True, True, False), (False, True, True), (False, False, False)]
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
-    rel_path = "tests/trained/example%d.kmc"%(index)
+    if not useCalcs:
+        rel_path = "tests/trained/example%d.kmc"%(index)
+    else:
+        rel_path = "swipeResults/xor%d.kmc"%(index)
     
     abs_file_path = os.path.join(script_dir, rel_path)
     dn = openKmc(abs_file_path)
@@ -54,7 +56,7 @@ def main():
         dn.bool_voltage = {}
         dn.bool_voltage[True] = dn.true_voltage
         dn.bool_voltage[False] = 0
-    #dn.electrodes[7][3] = 0
+    #dn.electrodes[2][3] = 0
     if not hasattr(dn, "swipe_results"):
         getSwipeResults(dn, xor, 40, 5000000)
         rel_write_path = "swipeResults/xor%d.kmc"%(index)
@@ -63,5 +65,10 @@ def main():
     writer = dn_animation.getWriter(2, "Swipe animation")
     dn_animation.trafficAnimation(dn, dn.swipe_results, writer, "swipe_animation%d.mp4"%(index))
   
+
+def main():
+    for index in [2]:#range(7, 14):
+        animateExample(index, True)
+    
 if __name__== "__main__":
   main()
