@@ -77,9 +77,9 @@ class experiment_config(config_class):
         self.ab_R = 0.25
         self.layout = 0
         self.prehops = 10000
-        self.hops = 100000
+        self.hops = 10000
         self.avg = 10
-        self.n_voltage = 20
+        self.n_voltage = 2
 
         # Define experiment
         self.P = 0

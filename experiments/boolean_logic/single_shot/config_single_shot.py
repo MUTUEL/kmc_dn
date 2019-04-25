@@ -67,20 +67,20 @@ class experiment_config(config_class):
         ######### SPECIFY PARAMETERS ###################
         ################################################
         # Gene to test
-        self.gene = [0.30525348, 0.61918397, 0.90047364, 0.1011786 , 0.25739554]
+        self.gene = [0.84645537, 0.35108865, 0.82319423, 0.79596226, 0.17649046]
         self.filepath = ''
-        self.name = 'OR'
+        self.name = 'XOR'
 
         # Model parameters
         self.kT = 1
         self.I_0 = 100*self.kT
         self.ab_R = 0.25
-        self.layout = 0
+        self.layout = 9
         self.prehops = 10000
-        self.hops = 100000
+        self.hops = 10000
 
         # Define experiment
-        self.avg = 10
+        self.avg = 1
         self.P = 0
         self.Q = 1
         self.output = 2
