@@ -70,7 +70,7 @@ def searchSPSA(dn, tests, hours = 1, index = 0):
     search = voltage_search(dn, 300, 10, tests)
     return search.SPSA_search(hours*3600, a=500, c=10, A=100, alfa=0.5, gamma=0.2, file_prefix="VoltageSPSA%d"%(index))
 
-def testVC(dn, dim, points):
+def testVC(dn, dim, points, starting_index):
     for case in range(1, (2**dim)-1):
         tests = []
         results = {}
@@ -78,7 +78,7 @@ def testVC(dn, dim, points):
             tests.append((points[i], case&(2**i)))
         print (tests)
         results['genetic'] = searchGeneticBasedOnTest(dn, tests, hours = 1, gen_size=100, 
-        index=case)
+        index=case+starting_index)
         data = {}
         for key in results:
             data[key] = results[key][2]
@@ -115,6 +115,6 @@ def testVC(dn, dim, points):
 dn = getRandomDn(30, 3)
 points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]
 
-testVC(dn, 4, points)
-testVC(dn, 5, points)
-testVC(dn, 6, points)
+testVC(dn, 4, points, 0)
+testVC(dn, 5, points, 16)
+testVC(dn, 6, points, 48)
