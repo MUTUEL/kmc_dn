@@ -68,6 +68,9 @@ class dn_search():
         self.genetic_allowed_overlap = 65
         self.order_distance_function = dn_search.degreeDistance
 
+    def init_search(self):
+        self.validations = []
+
     def setUseTests(self, N):
         self.use_tests = N
         sum = 0
@@ -287,13 +290,20 @@ class dn_search():
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump3.png")
 
+    def appendValidationData(self, error, time_difference, dn=None):
+        if dn is None:
+            target = self.dn
+        else:
+            target = dn
+        validation_error = self.validate_error(target)
+        self.validations.append((validation_error, error, time_difference))
 
-#Sunykated abbeakubf searcg
     def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix, validation_timestep=3600, animate=True):
         real_start_time = time.time()
         annealing_index = 0
         next_validation = validation_timestep
-        validations = []
+        self.init_search()
+        
         T = annealing_schedule[0][0]
         found = True
         best = self.evaluate_error(self.dn)
@@ -313,8 +323,7 @@ class dn_search():
                     current_real_time = time.time()
                     time_difference = current_real_time - real_start_time
                     if time_difference > next_validation:
-                        validation_error = self.validate_error(self.dn)
-                        validations.append((validation_error, best, time_difference))
+                        self.appendValidationData(best, time_difference)
                         next_validation+=validation_timestep    
 
                     if time_difference > annealing_schedule[annealing_index][1]:
@@ -372,14 +381,13 @@ class dn_search():
                     found = True
         self.dn.saveSelf("resultDump%s.kmc"%(file_prefix))
 
-        validation_error = self.validate_error(self.dn)
-        validations.append((validation_error, best, time_difference))
+        self.appendValidationData(best, time_difference)
         self.dn.go_simulation(hops=100000, record=True)
         plt.clf()
         kmc_utils.visualize_traffic(self.dn, 111, "Result")
         plt.savefig("resultDump%s.png"%(file_prefix))
         print ("\nAbs best is %.3f\n"%(abs_best))
-        return best, self.current_strategy, validations
+        return best, self.current_strategy, self.validations
 
 
 #Genetic search
@@ -404,7 +412,7 @@ class dn_search():
         best_dn = dns[0]
         start_time = time.time()
         next_validation = validation_timestep
-        validations = []
+        self.init_search()
         gen = 0
         if u_schedule is not None:
             us_i = 0
@@ -439,9 +447,8 @@ class dn_search():
             if time_difference > next_validation:
                 cur_str = self.current_strategy
                 self.setStrategy(len(self.simulation_strategy)-1)
-                validation_error = self.validate_error(best_dn)
                 tmp_error = self.evaluate_error(best_dn)
-                validations.append((validation_error, tmp_error, time_difference))
+                self.appendValidationData(tmp_error, time_difference, best_dn)
                 self.setStrategy(cur_str)
                 next_validation+=validation_timestep
             if time_difference > time_available:
@@ -489,14 +496,13 @@ class dn_search():
         cur_str = self.current_strategy
         self.setStrategy(len(self.simulation_strategy)-1)
         tmp_error = self.evaluate_error(best_dn)
-        validation_error = self.validate_error(best_dn)
-        validations.append((validation_error, tmp_error, time_difference))
+        self.appendValidationData(tmp_error, time_difference, best_dn)
         self.setStrategy(cur_str)
         best_dn.go_simulation(hops=1000000, record=True)
         plt.clf()
         kmc_utils.visualize_traffic(best_dn, 111, "Result")
         plt.savefig("GeneticResultDump%s.png"%(file_prefix))
-        return best_error, self.current_strategy, validations
+        return best_error, self.current_strategy, self.validations
 
 
 

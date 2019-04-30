@@ -57,7 +57,7 @@ def animateTransition(kmc, donors, acceptors, history_donors, history_acceptors,
             history_donors.set_alpha(alpha)
         writer.grab_frame()
 
-def trafficAnimation(kmc_dn, search_results, writer, file_name):
+def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait_time):
     fig = plt.figure()
     vmin = 300
     vmax = -300
@@ -82,6 +82,7 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name):
                 if highest_current < ele / kmc_dn.time:
                     highest_current =  ele / kmc_dn.time
     with writer.saving(fig, file_name, 100):
+        i = 0
         for entry in search_results:
             kmc_dn.electrodes = entry[0]
             kmc_dn.current = entry[1]
@@ -90,5 +91,12 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name):
             kmc_dn.update_V()
             plt.clf()
             visualize_V_and_traffic(kmc_dn, figure=fig, max_traffic=highest_current*time, v_min=vmin, v_max=vmax)
+            writer.grab_frame()
+            
+            if i % wait_steps == 0:
+                for _ in range(wait_time):
+                    writer.grab_frame()
+            i+=1
+        for _ in range(wait_time):
             writer.grab_frame()
 

@@ -41,7 +41,7 @@ def animateExample(index, useCalcs=False):
     xor = [(False, False, False), (True, False, True), (True, True, False), (False, True, True), (False, False, False)]
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
     if not useCalcs:
-        rel_path = "tests/trained/example%d.kmc"%(index)
+        rel_path = "tests/trained/GeneticResultDumpVoltageGenetic%d.kmc"%(index)
     else:
         rel_path = "swipeResults/xor%d.kmc"%(index)
     
@@ -62,13 +62,13 @@ def animateExample(index, useCalcs=False):
         rel_write_path = "swipeResults/xor%d.kmc"%(index)
         abs_file_path = os.path.join(script_dir, rel_write_path)
         dn.saveSelf(abs_file_path)
-    writer = dn_animation.getWriter(2, "Swipe animation")
-    dn_animation.trafficAnimation(dn, dn.swipe_results, writer, "swipe_animation%d.mp4"%(index))
+    writer = dn_animation.getWriter(20, "Swipe animation")
+    dn_animation.trafficAnimation(dn, dn.swipe_results, writer, "swipe_animation%d.mp4"%(index), 40, 40)
   
 
 def main():
-    for index in [2]:#range(7, 14):
-        animateExample(index, True)
+    for index in [120, 121]:#range(7, 14):
+        animateExample(index, False)
     
 if __name__== "__main__":
   main()

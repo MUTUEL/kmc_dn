@@ -302,13 +302,13 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
 
 def getDiscreteCMap(cmap_name, steps):
     cmap = plt.get_cmap(cmap_name)
-    colorList = [
-        (111/255.0, 229/255.0, 69/255.0),
-        (1.0, 187/255.0, 142/255.0),
-        (1.0, 244/255.0, 170/255.0),
-        (211/255.0, 165/255.0, 222/255.0),
-        (1.0, 0, 72/255.0)
-    ]
+    # colorList = [
+    #     (111/255.0, 229/255.0, 69/255.0),
+    #     (1.0, 187/255.0, 142/255.0),
+    #     (1.0, 244/255.0, 170/255.0),
+    #     (211/255.0, 165/255.0, 222/255.0),
+    #     (1.0, 0, 72/255.0)
+    # ]
     colorList = []
     for i in range(steps):
         colorList.append(cmap.colors[i*int(len(cmap.colors)/steps)])
@@ -381,8 +381,11 @@ def visualize_V_and_traffic(kmc_dn, pos=111, title="", figure=None, max_traffic=
                 continue
             
             intensity = traffic / 1.0 / largest
-            if intensity < 0.01:
+            if intensity < 0.002:
                 continue
+            intensity = intensity + (1-intensity)*0.01
+            if intensity > 1:
+                intensity = 1
             #print ("i: %d, j: %d, intensity: %.3f, largest: %d"%(i, j, intensity, largest))
             startPos = getPosition(kmc_dn, i)
             endPos = getPosition(kmc_dn, j)

@@ -2,7 +2,7 @@ import os
 import sys
 #sys.path.insert(0,'../')
 import kmc_dopant_networks as kmc_dn
-import voltage_search
+from voltage_search2 import voltage_search
 import numpy as np
 import random
 import math
@@ -55,33 +55,66 @@ def get_schedule2(multiplier, time_multiplier):
     ]
 
 def searchAnnealing(dn, schedule_function, tests, hours = 10, error_threshold_multiplier = 1):
-    search = voltage_search.voltage_search(dn, 160, 10, tests)
+    search = voltage_search(dn, 160, 10, tests)
     schedule = schedule_function(error_threshold_multiplier, hours)
     return search.simulatedAnnealingSearch(0.002*error_threshold_multiplier, schedule, "Voltage10DOP", animate=False)
 
 def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 1000, disparity=2, 
         mut_pow=1, order_center = None, gen_size = 50, index = 0):
-    search = voltage_search.voltage_search(dn, 300, 10, tests)
+    search = voltage_search(dn, 300, 10, tests)
     cross_over_function = search.singlePointCrossover
     return search.genetic_search(gen_size, 3600*hours, 2, uniqueness, "VoltageGenetic%d"%(index), 
         cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center)
 
-for i in range(66, 69):
-    dn = getRandomDn(30, 3)
+def searchSPSA(dn, tests, hours = 1, index = 0):
+    search = voltage_search(dn, 300, 10, tests)
+    return search.SPSA_search(hours*3600, a=500, c=10, A=100, alfa=0.5, gamma=0.2, file_prefix="VoltageSPSA%d"%(index))
+
+def testVC(dn, dim, points):
+    for case in range(1, (2**dim)-1):
+        tests = []
+        results = {}
+        for i in range(dim):
+            tests.append((points[i], case&(2**i)))
+        print (tests)
+        results['genetic'] = searchGeneticBasedOnTest(dn, tests, hours = 1, gen_size=100, 
+        index=case)
+        data = {}
+        for key in results:
+            data[key] = results[key][2]
+        plt.clf()
+        dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
+        plt.savefig("VCdim%dCase%d.png"%(dim, case))
+
+
+# j = 0
+# dn = getRandomDn(10, 2)
+# #xor = [((False, False), False), ((False, True), True), ((True, False), True), ((True, True), False)]
+# for i in range(120, 124):
+#     if j % 3 == 0:
+#         dn = getRandomDn(10, 3)
+#     j+=1
     
-    results = {}
+#     results = {}
 
-    #results['annealing'] = searchAnnealing(dn, get_schedule1, [((0, 0), False), ((0, 100), True), ((100, 0), True), 
-    #    ((100, 100), False)], 5, error_threshold_multiplier=20)
+#     #results['annealing'] = searchAnnealing(dn, get_schedule1, [((0, 0), False), ((0, 100), True), ((100, 0), True), 
+#     #    ((100, 100), False)], 5, error_threshold_multiplier=20)
 
-    results['genetic'] = searchGeneticBasedOnTest(dn, [((False, False), False), ((False, True), True), ((True, False), True), 
-            ((True, True), False)], hours = 3, gen_size=100, index=i)
+#     results['genetic'] = searchGeneticBasedOnTest(dn, xor, hours = 1, gen_size=100, 
+#         index=i)
 
-    data = {}
-    for key in results:
-        data[key] = results[key][2]
-    print (results)
-    print (data)
-    plt.clf()
-    dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
-    plt.savefig("VoltageSearchSummery%d.png"%(i))
+#     #results['SPSA'] = searchSPSA(dn, xor, 2, i)
+
+#     data = {}
+#     for key in results:
+#         data[key] = results[key][2]
+#     plt.clf()
+#     dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
+#     plt.savefig("VoltageSearchSummery%d.png"%(i))
+
+dn = getRandomDn(30, 3)
+points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]
+
+testVC(dn, 4, points)
+testVC(dn, 5, points)
+testVC(dn, 6, points)
