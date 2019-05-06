@@ -486,9 +486,11 @@ class dn_search():
             assert tmp_sum == tmp_sum2            
             
             if self.current_strategy < len(self.simulation_strategy)-1 \
-                    and best_error < self.simulation_strategy[self.current_strategy]['threshold_error'] \
-                    and average_error < self.simulation_strategy[self.current_strategy]['threshold_error']*3:
+                    and best_error < self.simulation_strategy[self.current_strategy]['threshold_error']:
                 self.setStrategy(self.current_strategy+1)
+            elif best_error < self.simulation_strategy[self.current_strategy]['threshold_error']:
+                best_dn = dns[0]
+                break
         best_dn.saveSelf("GeneticResultDump%s.kmc"%(file_prefix))
         print (best_dn.electrodes)
         print (best_dn.true_voltage)

@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 import matplotlib.animation as manimation
 from kmc_dopant_networks_utils import visualize_traffic, visualize_V_and_traffic
 
@@ -58,13 +59,18 @@ def animateTransition(kmc, donors, acceptors, history_donors, history_acceptors,
         writer.grab_frame()
 
 def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait_time):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(20, 10))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[3, 1])
+    
     vmin = 300
     vmax = -300
     highest_current = 0
+    x_data = [i for i in range(len(search_results))]
+    y_data = []
     for entry in search_results:
         kmc_dn.electrodes = entry[0]
         kmc_dn.current = entry[1]
+        y_data.append(entry[1][7])
         kmc_dn.traffic = entry[2]
         kmc_dn.time = entry[3]
         kmc_dn.update_V()
@@ -81,6 +87,7 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait
             for ele in row:
                 if highest_current < ele / kmc_dn.time:
                     highest_current =  ele / kmc_dn.time
+    
     with writer.saving(fig, file_name, 100):
         i = 0
         for entry in search_results:
@@ -90,7 +97,14 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait
             time = entry[3]
             kmc_dn.update_V()
             plt.clf()
-            visualize_V_and_traffic(kmc_dn, figure=fig, max_traffic=highest_current*time, v_min=vmin, v_max=vmax)
+            ax0 = plt.subplot(gs[0])
+            text = ["I1: ", "I2: ", "C1: ", "C2: ", "C3: ", "C4: ", "C5: ", "O: "]
+            for h in range(len(text)):
+                text[h]+="%3g V"%(kmc_dn.electrodes[h][3]/150)
+            visualize_V_and_traffic(kmc_dn, ax_given=ax0, figure=fig, max_traffic=highest_current*time, v_min=vmin, v_max=vmax, text=text)
+            plotax = plt.subplot(gs[1])
+            plotax.set_xlim(0, len(search_results))
+            plotax.plot(x_data[:i], y_data[:i])
             writer.grab_frame()
             
             if i % wait_steps == 0:

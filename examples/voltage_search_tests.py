@@ -86,7 +86,21 @@ def testVC(dn, dim, points, starting_index):
         dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
         plt.savefig("VCdim%dCase%d.png"%(dim, case))
 
-
+def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
+    for case in cases:
+        tests = []
+        results = {}
+        for i in range(dim):
+            tests.append((points[i], case&(2**i)))
+        print (tests)
+        results['genetic'] = searchGeneticBasedOnTest(dn, tests, hours = 1, gen_size=100, 
+        index=case+starting_index)
+        data = {}
+        for key in results:
+            data[key] = results[key][2]
+        plt.clf()
+        dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
+        plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
 # j = 0
 # dn = getRandomDn(10, 2)
 # #xor = [((False, False), False), ((False, True), True), ((True, False), True), ((True, True), False)]
@@ -112,9 +126,20 @@ def testVC(dn, dim, points, starting_index):
 #     dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
 #     plt.savefig("VoltageSearchSummery%d.png"%(i))
 
-dn = getRandomDn(30, 3)
+dn = getRandomDn(20, 3)
+rel_path = "../GeneticResultDumpVoltageGenetic1.kmc"
+# script_dir = os.path.dirname(__file__)
+# abs_file_path = os.path.join(script_dir, rel_path)
+# dn.loadSelf(abs_file_path)
 points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]
 
-testVC(dn, 4, points, 0)
-testVC(dn, 5, points, 16)
-testVC(dn, 6, points, 48)
+# reV4 = [2, 10]
+# reV5 = [8, 23]
+# reV6 = [2, 8, 14, 19, 26, 27, 34, 38, 49]
+
+testVC(dn, 4, points, 1000, "20DOP")
+testVC(dn, 5, points, 1016, "20DOP")
+testVC(dn, 6, points, 1048, "20DOP")
+# reTestVC(dn, 4, points, reV4, 0)
+# reTestVC(dn, 5, points, reV5, 16)
+# reTestVC(dn, 6, points, reV6, 48)

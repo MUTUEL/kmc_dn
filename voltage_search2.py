@@ -47,11 +47,11 @@ class voltage_search(dn_search):
             {'func':"go_simulation",
              'args':{'hops':1000000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.000002,
-             'threshold_error':-1},
+             'threshold_error':-0.00001},
             {'func':"go_simulation",
              'args':{'hops':5000000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.000002,
-             'threshold_error':-1},
+             'threshold_error':-0.00001},
         ]
         """    {'func':"go_simulation",
              'args':{'hops':5000, 'goSpecificFunction':"wrapperSimulateRecord"},
