@@ -70,7 +70,7 @@ def searchSPSA(dn, tests, hours = 1, index = 0):
     search = voltage_search(dn, 300, 10, tests)
     return search.SPSA_search(hours*3600, a=500, c=10, A=100, alfa=0.5, gamma=0.2, file_prefix="VoltageSPSA%d"%(index))
 
-def testVC(dn, dim, points, starting_index):
+def testVC(dn, dim, points, starting_index, prefix=""):
     for case in range(1, (2**dim)-1):
         tests = []
         results = {}
@@ -84,7 +84,7 @@ def testVC(dn, dim, points, starting_index):
             data[key] = results[key][2]
         plt.clf()
         dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
-        plt.savefig("VCdim%dCase%d.png"%(dim, case))
+        plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
 
 def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
     for case in cases:
@@ -137,9 +137,9 @@ points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]
 # reV5 = [8, 23]
 # reV6 = [2, 8, 14, 19, 26, 27, 34, 38, 49]
 
-testVC(dn, 4, points, 1000, "20DOP")
-testVC(dn, 5, points, 1016, "20DOP")
-testVC(dn, 6, points, 1048, "20DOP")
+testVC(dn, 4, points, 1000, prefix="20DOP")
+testVC(dn, 5, points, 1016, prefix="20DOP")
+testVC(dn, 6, points, 1048, prefix="20DOP")
 # reTestVC(dn, 4, points, reV4, 0)
 # reTestVC(dn, 5, points, reV5, 16)
 # reTestVC(dn, 6, points, reV6, 48)
