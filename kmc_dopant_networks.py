@@ -21,7 +21,7 @@ TODO list
 # Imports
 import sys
 sys.path.insert(0,'./goSimulation')
-from goSimulation.pythonBind import callGoSimulation
+from goSimulation.pythonBind import callGoSimulation, startGoSimulation, readGoSimulationResult
 import numpy as np
 from numba import jit
 import fenics as fn
@@ -55,8 +55,9 @@ def _simulate_discrete_record(N_acceptors, N_electrodes, nu, kT, I_0, R,
     N_sites = N_acceptors+N_electrodes
     traffic = np.zeros(transitions_constant.shape)
     occupations_in_time = np.zeros(len(occupation))
+    time = 0
 
-    for hh in range(hops):
+    for _ in range(hops):
         # Calculate site_energies
         for i in range(N_acceptors):
             acceptor_interaction = 0
@@ -330,9 +331,14 @@ class kmc_dn():
         #TODO
         '''
         # Constants
-        self.nu = 1  # Hop attempt frequency (1/s)
-        self.kT = 1  # Temperature energy
-        self.I_0 = self.kT  # Interaction energy
+        if 'copy_from' in kwargs:
+            self.nu = kwargs['copy_from'].nu
+            self.kT = kwargs['copy_from'].kT
+            self.I_0 = kwargs['copy_from'].I_0
+        else: 
+            self.nu = 1  # Hop attempt frequency (1/s)
+            self.kT = 1  # Temperature energy
+            self.I_0 = 100*self.kT  # Interaction energy
         self.time = 0  # s
         self.mu = mu  # Equilibrium chemical potential
 
@@ -355,7 +361,7 @@ class kmc_dn():
             self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
 
         # Set dimensonless variables to 1
-        self.ab = self.R
+        self.ab = 0.25*self.R
 
         # Initialize parameter kwargs
         if('electrodes' in kwargs):
@@ -364,6 +370,13 @@ class kmc_dn():
         else:
             self.electrodes = np.zeros((0, 4))
             self.P = 0
+
+        if 'acceptors' in kwargs:
+            self.acceptors = kwargs['acceptors'].copy()
+        if 'donors' in kwargs:
+            self.donors = kwargs['donors'].copy()
+
+        
 
         if('static_electrodes' in kwargs):
             self.static_electrodes = kwargs['static_electrodes'].copy()
@@ -391,7 +404,8 @@ class kmc_dn():
             self.calc_E_constant = self.calc_E_constant_V_comp
             
         # Initialize sim object
-        self.initialize()
+        self.initialize(dopant_placement=(not hasattr(self, 'acceptors')), charge_placement=(not hasattr(self, 'donors')))
+
 
     def initialize(self, dopant_placement = True, charge_placement = True, 
                    distances = True, V = True, E_constant = True):
@@ -459,8 +473,8 @@ class kmc_dn():
         self.electrode_occupation = np.zeros(self.P, dtype=int)
 
     def go_simulation(self, hops = 1E5, prehops = 0, 
-                      goSpecificFunction="wrapperSimulateRecord", 
-                      record=False):
+                      goSpecificFunction="wrapperSimulate", 
+                      record=False, prune_threshold=0):
         '''
         Perform a simulation with the go implementation.
         
@@ -492,7 +506,7 @@ class kmc_dn():
                             preHopFunction = callGoSimulation, 
                             hops = hops, prehops = prehops, 
                             goSpecificFunction=goSpecificFunction, 
-                            record=record)
+                            record=record, prune_threshold=prune_threshold)
     
     def python_simulation(self, hops = 1E5, prehops = 0, 
                           record = False):
@@ -527,7 +541,7 @@ class kmc_dn():
 
     def makeSimulation(self, simulateFunction = None, preHopFunction = None, 
                        prehops = 0, hops = 1E5, record = False, 
-                       goSpecificFunction = None):
+                       goSpecificFunction = None, prune_threshold=0.0):
         '''
         A wrapper function that allows the user to simulate with either
         python or go. Examples can be found in self.python_simulation()
@@ -538,6 +552,12 @@ class kmc_dn():
             self.simulate_func = simulateFunction
         if preHopFunction != None:
             self.simulate_prehop = preHopFunction
+        else:
+            self.simulate_prehop = _simulate_discrete_record
+
+        
+        # Reset current and time
+        self.reset()     
 
         # Reset current and time
         self.reset()          
@@ -552,16 +572,20 @@ class kmc_dn():
                 "transitions_constant":self.transitions_constant,
                 "transitions":self.transitions, "problist":self.problist, 
                 "electrode_occupation":self.electrode_occupation, 
-                "record":False}
-
-        if goSpecificFunction != None:
-            args["goSpecificFunction"] = goSpecificFunction
+                "record":False,}
 
         # Simulate prehops
         if(prehops != 0):
             args["hops"] = prehops
-            self.simulate_prehop(**args)
+            _, self.occupation,_,_,_ = _simulate_discrete_record(**args)
             self.reset()
+            args['electrode_occupation']=self.electrode_occupation
+            args['occupation']=self.occupation
+
+        if goSpecificFunction != None:
+            args["goSpecificFunction"] = goSpecificFunction
+            args["prune_threshold"] = prune_threshold
+    
         args["hops"] = hops
 
         # Simulate hops
@@ -590,7 +614,28 @@ class kmc_dn():
 
             # Calculate quantities
             self.current = self.electrode_occupation/self.time
-        
+    
+    def start_simulation_parallel(self, hops=1000):
+        # Reset current and time
+        self.reset()     
+
+        # Initialize simulation arguments
+        args = {"N_acceptors":self.N, "N_electrodes":self.P, 
+                "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
+                "R":self.R, "time":self.time, "occupation":self.occupation, 
+                "distances":self.distances,
+                "E_constant":self.E_constant, 
+                "site_energies":self.site_energies, 
+                "transitions_constant":self.transitions_constant,
+                "transitions":self.transitions, "problist":self.problist, 
+                "electrode_occupation":self.electrode_occupation, 
+                "record":False, "hops":hops}
+        index, eo_slice = startGoSimulation(**args)
+        return index, eo_slice #Index of the channel where the result is going to be read and pointer to the slice, which is going to have the relevant data on.
+
+    def read_simulation_result(self, index, eo_slice):
+        time, electrode_occupation = readGoSimulationResult(index, eo_slice)
+        self.current = electrode_occupation/time
 
     def place_dopants_random(self):
         '''
@@ -928,6 +973,7 @@ class kmc_dn():
             d = pickle.load(f)
             for key in d:
                 setattr(self, key, d[key])
+        self.initialize(dopant_placement=False, charge_placement=False)
 
     #%% Miscellaneous methods
 

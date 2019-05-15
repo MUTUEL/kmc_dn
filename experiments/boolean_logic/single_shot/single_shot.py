@@ -22,7 +22,7 @@ donor_layouts = np.load('donor_layouts.npy')
 electrodes = np.zeros((8, 4))
 electrodes[0] = [0, ydim/4, 0, 0]
 electrodes[1] = [0, 3*ydim/4, 0, 0]
-electrodes[2] = [xdim, ydim/4, 0, 10]
+electrodes[2] = [xdim, ydim/4, 0, 0]
 electrodes[3] = [xdim, 3*ydim/4, 0, 0]
 electrodes[4] = [xdim/4, 0, 0, 0]
 electrodes[5] = [3*xdim/4, 0, 0, 0]
@@ -46,7 +46,6 @@ kmc.calc_transitions_constant()
 P = [0, 1, 0, 1]
 Q = [0, 0, 1, 1]
 w = [1, 1, 1, 1]
-kmc.electrodes[cf.output] = 0
 
 for index, control in enumerate(cf.controls):
     kmc.electrodes[control, 3] = (1-cf.gene[index])*cf.controlrange[0] \
@@ -56,8 +55,8 @@ for index, control in enumerate(cf.controls):
 output = np.zeros((8, 4*cf.avg))
 for k in range(4):
     # Set input voltages
-    kmc.electrodes[cf.P] = P[k]*cf.inputrange
-    kmc.electrodes[cf.Q] = Q[k]*cf.inputrange
+    kmc.electrodes[cf.P, 3] = P[k]*cf.inputrange
+    kmc.electrodes[cf.Q, 3] = Q[k]*cf.inputrange
     kmc.update_V()
 
     # Prestabilize the system

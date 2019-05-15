@@ -8,6 +8,7 @@ kmc_dn defined in kmc_dopant_networks.
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import itertools
 import fenics as fn
 import time
@@ -238,6 +239,7 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
         fig = plt.figure()
 
     ax = fig.add_subplot(pos)
+    ax.set_aspect(1)
     ax.set_xlim(right=max(1, kmc_dn.xdim))
     ax.set_ylim(top=max(1, kmc_dn.ydim))
     ax.get_xaxis().set_visible(False)
@@ -258,6 +260,7 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = acceptorColors, marker='o', s=48)
     ax.scatter(kmc_dn.electrodes[:,0], kmc_dn.electrodes[:,1], c = 'r', marker='o')
     ax.scatter(kmc_dn.donors[:, 0], kmc_dn.donors[:, 1], marker='x')
+    
     largest = 0
     for row in kmc_dn.traffic:
         for ele in row:
@@ -289,12 +292,115 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
                 y = startPos[1]+a*arrowVector[1]*1.5+arrowVector[1]*0.25
                 width = 0.004
                 ax.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity))
-    center = (kmc_dn.xdim/2, kmc_dn.ydim/2)
+    center = (kmc_dn.xdim, kmc_dn.ydim)
     for i in range(NElectrodes):
         ele = kmc_dn.electrodes[i]
         x = (ele[0] - center[0])*0.1 + ele[0]
         y = (ele[1] - center[1])*0.1 + ele[1]
-        ax.text(x, y, "V:%.2f\nCurrent: %.3f"%(ele[3], kmc_dn.current[i]))
+        ax.text(x, y, "V:%.1f\nC: %.3g"%(ele[3], kmc_dn.current[i]))
+    return fig
+
+def getDiscreteCMap(cmap_name, steps):
+    cmap = plt.get_cmap(cmap_name)
+    colorList = [
+        (111/255.0, 229/255.0, 69/255.0),
+        (1.0, 187/255.0, 142/255.0),
+        (1.0, 244/255.0, 170/255.0),
+        (211/255.0, 165/255.0, 222/255.0),
+        (1.0, 0, 72/255.0)
+    ]
+    colorList = []
+    for i in range(steps):
+        colorList.append(cmap.colors[i*int(len(cmap.colors)/steps)])
+    newCm = LinearSegmentedColormap.from_list(
+        "discrete_%s"%(cmap_name), colorList, N=steps)
+    return newCm
+
+def visualize_V_and_traffic(kmc_dn, pos=111, title="", figure=None, max_traffic=0, v_min=None, v_max=None):
+    if figure:
+        fig = figure
+    else:
+        fig = plt.figure()
+
+    ax = fig.add_subplot(pos)
+    ax.set_aspect(1)
+    ax.set_xlim(right=max(1, kmc_dn.xdim))
+    ax.set_ylim(top=max(1, kmc_dn.ydim))
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    if len(title) > 0:
+        ax.set_title(title)
+
+    acceptorColors = []
+    for i in range(len(kmc_dn.acceptors)):
+        h = hex(math.floor((1-kmc_dn.average_occupation[i])*255))
+        h = h[2:]
+        if len(h)==1:
+            h = "0%s"%(h)
+        colorStr = "#%s%s%s"%(h, h, h)
+        acceptorColors.append(colorStr)
+
+    x = np.arange(0, kmc_dn.xdim, kmc_dn.res)
+    y = np.arange(0, kmc_dn.ydim, kmc_dn.res)
+    V_plot = np.zeros((len(x), len(y)))
+    for i in range(len(x)):
+        for j in range(len(y)):
+            V_plot[i, j] = kmc_dn.V(x[i], y[j])
+
+
+    # Plot potential profile
+    cmap = getDiscreteCMap("plasma", 10)
+    V_profile = ax.imshow(V_plot.transpose(),
+                            interpolation='bicubic',
+                            origin='lower',
+                            extent=(0, kmc_dn.xdim, 0, kmc_dn.ydim),
+                            vmin=v_min, vmax=v_max,
+                            cmap=cmap#plt.get_cmap("tab20")
+                            )
+    cbar = fig.colorbar(V_profile)
+
+    ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = 'k', marker='o', s=64)
+    ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = acceptorColors, marker='o', s=48)
+    ax.scatter(kmc_dn.electrodes[:,0], kmc_dn.electrodes[:,1], c = 'r', marker='o')
+    ax.scatter(kmc_dn.donors[:, 0], kmc_dn.donors[:, 1], marker='x')
+    
+    largest = max_traffic
+    for row in kmc_dn.traffic:
+        for ele in row:
+            if largest < ele:
+                largest =  ele
+    
+    NSites = len(kmc_dn.acceptors)
+    NElectrodes = len(kmc_dn.electrodes)
+    N = NSites + NElectrodes
+    arrowLength = kmc_dn.xdim/20
+    for i in range(N):
+        for j in range(N):
+            traffic = kmc_dn.traffic[i][j]
+            if traffic <= 0:
+                continue
+            
+            intensity = traffic / 1.0 / largest
+            if intensity < 0.01:
+                continue
+            #print ("i: %d, j: %d, intensity: %.3f, largest: %d"%(i, j, intensity, largest))
+            startPos = getPosition(kmc_dn, i)
+            endPos = getPosition(kmc_dn, j)
+            distance = getDistance(startPos, endPos)
+            arrows = max(1, math.floor(distance / (arrowLength*1.5)))
+            arrowVector = ((endPos[0]-startPos[0])/distance*arrowLength, 
+                (endPos[1]-startPos[1])/distance*arrowLength)
+            for a in range(arrows):
+                x = startPos[0]+a*(arrowVector[0])*1.5+arrowVector[0]*0.25
+                y = startPos[1]+a*arrowVector[1]*1.5+arrowVector[1]*0.25
+                width = 0.004
+                ax.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity), color=(111/255.0, 229/255.0, 69/255.0))
+    center = (kmc_dn.xdim/2, kmc_dn.ydim)
+    for i in range(NElectrodes):
+        ele = kmc_dn.electrodes[i]
+        x = (ele[0] - center[0])*0.3 + ele[0]
+        y = (ele[1] - center[1])*0.1 + ele[1]
+        ax.text(x, y, "V:%.1f\nC: %.3g"%(ele[3], kmc_dn.current[i]))
     return fig
 
 
@@ -320,9 +426,9 @@ def visualize_traffic_substraction(kmc1, kmc2, pos=111, title="", figure=None):
         print (diff)
         r, g, b = 255, 255, 255
         if diff < 0:
-            g, b = 255+(diff*255), 255+(diff*255)
+            r, g = 255+(diff*255), 255+(diff*255)
         else :
-            r, b = 255-(diff*255), 255+(diff*255)
+            r, b = 255-(diff*255), 255-(diff*255)
         colorStr = getColorHex(r, g, b)
         print (colorStr)
         acceptorColors.append(colorStr)
@@ -369,16 +475,18 @@ def visualize_traffic_substraction(kmc1, kmc2, pos=111, title="", figure=None):
         ele = kmc1.electrodes[i]
         x = (ele[0] - center[0])*0.06 + ele[0]
         y = (ele[1] - center[1])*0.06 + ele[1]
-        ax.text(x, y, "V:%.2f\nCurrent difference: %.3f"%(ele[3], kmc2.current[i] - kmc1.current[i]))
+        ax.text(x, y, "V:%.2f\nCD: %.3f"%(ele[3], kmc2.current[i] - kmc1.current[i]), horizontalalignment='center')
     return fig
 
-def plot_swipe(data, pos=111, figure=None, title=""):
+def plot_swipe(data, pos=111, figure=None, title="", xlim=None):
     if figure:
         fig = figure
     else:
         fig = plt.figure()
 
     ax = fig.add_subplot(pos)
+    if xlim is not None:
+        ax.set_xlim(right=xlim)
     voltages = []
     currents = []
     for vol, curr in data:
@@ -388,6 +496,7 @@ def plot_swipe(data, pos=111, figure=None, title=""):
 
     if len(title) > 0:
         ax.set_title(title)
+    return ax
 
 def validate_boltzmann(kmc_dn, hops = 1000, n = 2, points = 100, mu = 1,
                        standalone = True):
