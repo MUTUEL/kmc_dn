@@ -316,7 +316,7 @@ def getDiscreteCMap(cmap_name, steps):
         "discrete_%s"%(cmap_name), colorList, N=steps)
     return newCm
 
-def visualize_V_and_traffic(kmc_dn, ax_given=None, title="", figure=None, max_traffic=0, v_min=None, v_max=None, text=None):
+def visualize_V_and_traffic(kmc_dn, ax_given=None, title="", figure=None, max_traffic=0, v_min=None, v_max=None, text=None, text_positions=None):
     if figure:
         fig = figure
     else:
@@ -402,12 +402,20 @@ def visualize_V_and_traffic(kmc_dn, ax_given=None, title="", figure=None, max_tr
                 width = 0.004
                 ax.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity), color=(111/255.0, 229/255.0, 69/255.0))
     if text:
+        font = {
+            'weight': 'bold',
+            'size': 20,
+            }
         center = (kmc_dn.xdim/2, kmc_dn.ydim)
         for i in range(NElectrodes):
             ele = kmc_dn.electrodes[i]
-            x = (ele[0] - center[0])*0.3 + ele[0]
-            y = (ele[1] - center[1])*0.1 + ele[1]
-            ax.text(x, y, text[i])
+            if text_positions:
+                x = text_positions[i][0]
+                y = text_positions[i][1]
+            else:
+                x = (ele[0] - center[0])*0.3 + ele[0]
+                y = (ele[1] - center[1])*0.1 + ele[1]
+            ax.text(x, y, text[i], fontdict = font)
     return fig
 
 

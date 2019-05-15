@@ -17,19 +17,27 @@ def openKmc(abs_file_path):
     kmc.loadSelf(abs_file_path)
     return kmc
 
+def appendToSwipeResults(dn, expected_result):
+    dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy(), dn.time, expected_result))
+    
+
 def getSwipeResults(dn, bool_func, steps, hops, waits, shuffle):
     dn.swipe_results = []
     dn.electrodes[0][3] = bool_func[0][0]
     dn.electrodes[1][3] = bool_func[0][1]
     dn.update_V()
+    tests = dn.tests
+    current_expected = 1 if tests[0][1] else 0
     
     for i in range(1, len(bool_func)):
+        next_expected = 1 if tests[i][1] else 0
         print ("i is %d"%(i))
         from_voltage = [dn.electrodes[0][3], dn.electrodes[1][3]]
         to_voltage = [bool_func[i][0], bool_func[i][1]]
         for j in range(waits):
             dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
-            dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy(), dn.time))
+
+            appendToSwipeResults(dn, current_expected)
             if shuffle:
                 dn.place_charges_random()
         for j in range(steps):
@@ -37,22 +45,23 @@ def getSwipeResults(dn, bool_func, steps, hops, waits, shuffle):
             dn.electrodes[1][3] = from_voltage[1] + (to_voltage[1]-from_voltage[1])*(j*1.0/steps)
             dn.update_V()
             dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
-            dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy(), dn.time))
+            appendToSwipeResults(dn, current_expected + (next_expected-current_expected)*(j*1.0/steps))
             if shuffle:
                 dn.place_charges_random()
         dn.electrodes[0][3] = to_voltage[0]
         dn.electrodes[1][3] = to_voltage[1]
         dn.update_V()
+        current_expected = next_expected
     for j in range(waits):
         dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
-        dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy(), dn.time))
+        appendToSwipeResults(dn, current_expected)
         if shuffle:
             dn.place_charges_random()
 
 def animateExample(index, useCalcs=False, animation_index=None, shuffle=False):
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
     if not useCalcs:
-        rel_path = "../GeneticResultDumpVoltageGenetic%d.kmc"%(index)
+        rel_path = "../resultDump%d.kmc"%(index)
     else:
         rel_path = "swipeResults/xor%d.kmc"%(index)
     
@@ -81,7 +90,7 @@ def animateExample(index, useCalcs=False, animation_index=None, shuffle=False):
   
 
 def main():
-    for index in range(95, 120):
+    for index in range(5000, 5048):
         animateExample(index, False)
     #animateExample(2, animation_index=1, shuffle=True)
     #animateExample(2, animation_index=2)

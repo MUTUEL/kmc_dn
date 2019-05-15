@@ -10,7 +10,7 @@ import math
 import time
 
 class voltage_search(dn_search):
-    def __init__(self, initial_dn, voltage_range, voltage_resolution, tests):
+    def __init__(self, initial_dn, voltage_range, voltage_resolution, tests, corr_pow=1):
         '''
         =======================
         dn_search dopant network placement search class
@@ -75,6 +75,7 @@ class voltage_search(dn_search):
         self.init_random_voltages(self.dn)
         self.genetic_allowed_overlap = -1
         self.evaluate_error = self.evaluate_error_corr
+        self.corr_pow = corr_pow
 
     def init_random_voltages(self, dn):
         dn.true_voltage = random.random()*self.voltage_range*2 - self.voltage_range
@@ -124,7 +125,7 @@ class voltage_search(dn_search):
         if separation > 0:
             return separation
         else:
-            return corr * separation
+            return (corr**self.corr_pow) * separation
 
     def yieldNeighbours(self):
         shifts = [self.x_resolution, -self.x_resolution]

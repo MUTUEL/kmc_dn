@@ -61,10 +61,12 @@ def searchAnnealing(dn, schedule_function, tests, hours = 10, error_threshold_mu
 
 def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 1000, disparity=2, 
         mut_pow=1, order_center = None, gen_size = 50, index = 0):
-    search = voltage_search(dn, 300, 10, tests)
+    search = voltage_search(dn, 300, 10, tests, corr_pow=2)
     cross_over_function = search.singlePointCrossover
-    return search.genetic_search(gen_size, 3600*hours, 2, uniqueness, "VoltageGenetic%d"%(index), 
+    results = search.genetic_search(gen_size, 3600*hours, 2, uniqueness, "VoltageGenetic%d"%(index), 
         cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center)
+    search.saveResults(True, False, "resultDump", index)
+    return results
 
 def searchSPSA(dn, tests, hours = 1, index = 0):
     search = voltage_search(dn, 300, 10, tests)
@@ -101,32 +103,8 @@ def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
         plt.clf()
         dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
         plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
-# j = 0
-# dn = getRandomDn(10, 2)
-# #xor = [((False, False), False), ((False, True), True), ((True, False), True), ((True, True), False)]
-# for i in range(120, 124):
-#     if j % 3 == 0:
-#         dn = getRandomDn(10, 3)
-#     j+=1
-    
-#     results = {}
 
-#     #results['annealing'] = searchAnnealing(dn, get_schedule1, [((0, 0), False), ((0, 100), True), ((100, 0), True), 
-#     #    ((100, 100), False)], 5, error_threshold_multiplier=20)
-
-#     results['genetic'] = searchGeneticBasedOnTest(dn, xor, hours = 1, gen_size=100, 
-#         index=i)
-
-#     #results['SPSA'] = searchSPSA(dn, xor, 2, i)
-
-#     data = {}
-#     for key in results:
-#         data[key] = results[key][2]
-#     plt.clf()
-#     dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
-#     plt.savefig("VoltageSearchSummery%d.png"%(i))
-
-dn = getRandomDn(20, 3)
+dn = getRandomDn(10, 1)
 rel_path = "../GeneticResultDumpVoltageGenetic1.kmc"
 # script_dir = os.path.dirname(__file__)
 # abs_file_path = os.path.join(script_dir, rel_path)
@@ -137,9 +115,9 @@ points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]
 # reV5 = [8, 23]
 # reV6 = [2, 8, 14, 19, 26, 27, 34, 38, 49]
 
-testVC(dn, 4, points, 1000, prefix="20DOP")
-testVC(dn, 5, points, 1016, prefix="20DOP")
-testVC(dn, 6, points, 1048, prefix="20DOP")
+testVC(dn, 4, points, 6000, prefix="10DOPTRY5CP2")
+testVC(dn, 5, points, 6016, prefix="10DOPTRY5CP2")
+#testVC(dn, 6, points, 1048, prefix="10DOP")
 # reTestVC(dn, 4, points, reV4, 0)
 # reTestVC(dn, 5, points, reV5, 16)
 # reTestVC(dn, 6, points, reV6, 48)

@@ -36,6 +36,7 @@ class dn_search():
         self.y_resolution = y_start_resolution
 
         self.dn = initial_dn
+        self.best_dn = self.dn
         self.tests = tests
         self.use_tests = len(tests)
         sum = 0
@@ -255,7 +256,14 @@ class dn_search():
             time_difference = time.time() - real_start_time
         return bestDn, errors, vals, diffs
 
-
+    def saveResults(self, kmc=True, plot=False, prefix="resultDump", index=0):
+        if kmc:
+            self.best_dn.saveSelf("%s%d.kmc"%(prefix, index))
+        if plot:
+            self.dn.go_simulation(hops=1000000, record=True)
+            plt.clf()
+            kmc_utils.visualize_traffic(self.dn, 111, "Result")
+            plt.savefig("%s%d.png"%(prefix, index))
 
     def greedySearch(self):
         best = self.evaluate_error(self.dn)
@@ -284,11 +292,8 @@ class dn_search():
                     self.y_resolution /= 2
                     print("New resolution: %.5f"%(self.x_resolution))
                 found = True
-        self.dn.saveSelf("resultDump3.kmc")
-        self.dn.go_simulation(hops=100000, record=True)
-        plt.clf()
-        kmc_utils.visualize_traffic(self.dn, 111, "Result")
-        plt.savefig("resultDump3.png")
+        self.best_nd = self.dn
+
 
     def appendValidationData(self, error, time_difference, dn=None):
         if dn is None:
@@ -379,20 +384,14 @@ class dn_search():
                         self.y_resolution /= 2
                     print("New resolution: %.5f"%(self.x_resolution))
                     found = True
-        self.dn.saveSelf("resultDump%s.kmc"%(file_prefix))
-
         self.appendValidationData(best, time_difference)
-        self.dn.go_simulation(hops=100000, record=True)
-        plt.clf()
-        kmc_utils.visualize_traffic(self.dn, 111, "Result")
-        plt.savefig("resultDump%s.png"%(file_prefix))
-        print ("\nAbs best is %.3f\n"%(abs_best))
+        self.best_dn = self.dn
         return best, self.current_strategy, self.validations
 
 
 #Genetic search
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
-            file_prefix, cross_over_function, mut_pow=1, order_center=None, 
+            cross_over_function, mut_pow=1, order_center=None, 
             u_schedule = None):
         dns = []
         validation_timestep = time_available / 10
@@ -491,7 +490,6 @@ class dn_search():
             elif best_error < self.simulation_strategy[self.current_strategy]['threshold_error']:
                 best_dn = dns[0]
                 break
-        best_dn.saveSelf("GeneticResultDump%s.kmc"%(file_prefix))
         print (best_dn.electrodes)
         print (best_dn.true_voltage)
         print ("\n")
@@ -500,10 +498,7 @@ class dn_search():
         tmp_error = self.evaluate_error(best_dn)
         self.appendValidationData(tmp_error, time_difference, best_dn)
         self.setStrategy(cur_str)
-        best_dn.go_simulation(hops=1000000, record=True)
-        plt.clf()
-        kmc_utils.visualize_traffic(best_dn, 111, "Result")
-        plt.savefig("GeneticResultDump%s.png"%(file_prefix))
+        self.best_dn = best_dn
         return best_error, self.current_strategy, self.validations
 
 

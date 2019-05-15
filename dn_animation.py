@@ -66,11 +66,19 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait
     vmax = -300
     highest_current = 0
     x_data = [i for i in range(len(search_results))]
+    y_data_max = -1
+    y_data_min = 1
+    
     y_data = []
+    y_data_expected = []
     for entry in search_results:
         kmc_dn.electrodes = entry[0]
         kmc_dn.current = entry[1]
         y_data.append(entry[1][7])
+        if entry[1][7] < y_data_min:
+            y_data_min = entry[1][7]
+        if entry[1][7] > y_data_max:
+            y_data_max = entry[1][7]
         kmc_dn.traffic = entry[2]
         kmc_dn.time = entry[3]
         kmc_dn.update_V()
@@ -83,10 +91,14 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait
                     vmax = val
                 if val < vmin:
                     vmin = val
+        
         for row in kmc_dn.traffic:
             for ele in row:
                 if highest_current < ele / kmc_dn.time:
                     highest_current =  ele / kmc_dn.time
+    for entry in search_results:
+        expected = entry[4]
+        y_data_expected.append(y_data_min + (y_data_max-y_data_min)*expected)
     
     with writer.saving(fig, file_name, 100):
         i = 0
@@ -99,12 +111,14 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait
             plt.clf()
             ax0 = plt.subplot(gs[0])
             text = ["I1: ", "I2: ", "C1: ", "C2: ", "C3: ", "C4: ", "C5: ", "O: "]
+            text_positions = [(-0.2, 0.75), (0.25, -0.1), (1.05, 0.25), (1.05, 0.75), (-0.2, 0.25), (0.75, -0.1), (0.25, 1.05), (0.75, 1.05)]
             for h in range(len(text)):
-                text[h]+="%3g V"%(kmc_dn.electrodes[h][3]/150)
-            visualize_V_and_traffic(kmc_dn, ax_given=ax0, figure=fig, max_traffic=highest_current*time, v_min=vmin, v_max=vmax, text=text)
+                text[h]+="%.3g V"%(kmc_dn.electrodes[h][3]/150)
+            visualize_V_and_traffic(kmc_dn, ax_given=ax0, figure=fig, max_traffic=highest_current*time, v_min=vmin, v_max=vmax, text=text, text_positions=text_positions)
             plotax = plt.subplot(gs[1])
             plotax.set_xlim(0, len(search_results))
             plotax.plot(x_data[:i], y_data[:i])
+            plotax.plot(x_data[:i], y_data_expected[:i], color='k')
             writer.grab_frame()
             
             if i % wait_steps == 0:
