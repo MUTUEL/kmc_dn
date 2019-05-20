@@ -233,6 +233,17 @@ def visualize_dwelltime(kmc_dn, show_V = True):
     return fig
 
 def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
+    '''
+        Visualizes traffic between dopant sites.
+        It places dots on the dopant positions and they scale from black to white,
+        which represents the probability of it being occupied, white being high probability occupied.
+
+    :param kmc_dn:
+    :param pos:
+    :param title:
+    :param figure:
+    :return:
+    '''
     if figure:
         fig = figure
     else:

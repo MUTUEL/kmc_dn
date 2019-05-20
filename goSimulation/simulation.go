@@ -242,11 +242,11 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
     countStorage := uint64(0)
     reuseThreshold := uint16(1)
     reuseThresholdIncrease := uint64(100000)
-    /*countResighting := uint64(0)
+    countResighting := uint64(0)
     reuses := make([]uint64, 30)
 	states := make([]int, 30)
     showStep := 2
-    showIndex := 0*/
+    showIndex := 0
     for hop := 0; hop < hops; hop++ {
         var probList []float32
         ok := false
@@ -258,7 +258,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             if ok {
                 probList = val.probList
                 countReuses++
-                //countResighting++
+                countResighting++
             }
         }
         if !ok {
@@ -278,7 +278,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             if record_problist {
                 val, ok := countProbs[key64]
                 if ok {
-                    //countResighting++
+                    countResighting++
                     countProbs[key64]++
                     if val >= reuseThreshold {
                         newProbability := probabilities{probList}
@@ -297,12 +297,12 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
         time_step := rand.ExpFloat64() / float64(probList[len(probList)-1])
         time += time_step
         event := getRandomEvent(probList)
-        /*if hop % showStep == showStep - 1{
+        if hop % showStep == showStep - 1{
             showStep*=2
             reuses[showIndex] = countResighting
             states[showIndex] = len(countProbs)
             showIndex+=1
-        }*/
+        }
         from := transitions[event].from
         to := transitions[event].to
 
@@ -319,7 +319,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             NSites, from, to)
     }
 
-    //logReuseToJson(reuses, states, "reusing.log")
+    logReuseToJson(reuses, states, "reusing.log")
 
     return time
 }

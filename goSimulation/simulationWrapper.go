@@ -13,9 +13,6 @@ import (
 var count int
 var mtx sync.Mutex
 
-var channelsMap map[int](chan float64) = make(map[int](chan float64))
-var channelMapIndex int = 0
-
 func Log(msg string) int {
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -235,43 +232,71 @@ func wrapperSimulateProbability(NSites int64, NElectrodes int64, nu float64, kT 
 	return time
 }
 
-func simulateProbabilityReturnChannel(NSites int64, NElectrodes int64, nu float64, 
-	kT float64, I_0 float64, R float64, occupation []float64, distances []float64, 
-	E_constant []float64, transitions_constant []float64, electrode_occupation []float64, 
-	site_energies []float64, hops int, record bool, c chan float64) {
-	
-	time := wrapperSimulateProbability(NSites, NElectrodes, nu, kT, I_0, R, occupation, 
-		distances, E_constant, transitions_constant, electrode_occupation, site_energies,
-		hops, false, nil, nil)
-	c <- time
+func channelSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, 
+	occupation []float64, distances [][]float32, E_constant []float64, transitions_constant [][]float32,
+	site_energies []float64, electrode_occupation []float64, hops int, c chan float64) {
+		bool_occupation := make([]bool, NSites)
+		for i := int64(0); i < NSites; i++{
+			if occupation[i] > 0{
+				bool_occupation[i] = true
+			} else {
+				bool_occupation[i] = false
+			}
+		}
+		time := simulateRecordPlus(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
+		distances , toFloat32(E_constant), transitions_constant, electrode_occupation, toFloat32(site_energies), hops, true, false, nil, nil,
+		0)
+		c <- time
 }
 
-//export startProbabilitySimulation
-func startProbabilitySimulation(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, 
-	occupation []float64, distances []float64, E_constant []float64, transitions_constant []float64,
-	electrode_occupation []float64, site_energies []float64, hops int, record bool) int64 {
-	
-	index := channelMapIndex
-	channelMapIndex++
-	c := make(chan float64)
-	channelsMap[index] = c
-	fmt.Printf("distance pointer: %p\n",&distances)
+//export parallelSimulations
+func parallelSimulations(NSites []float64, NElectrodes []float64, nu []float64, 
+		kT []float64, I_0 []float64, R []float64, occupation []float64, distances []float64, 
+		E_constant []float64, transitions_constant []float64, electrode_occupation []float64, 
+		hops []float64, time []float64, site_energies []float64) int64{
 
-	fmt.Printf("pointer: %p\n",&E_constant)
+	channelsMap := make(map[int](chan float64))
+	electrode_occupations := make(map[int]([]float64))
+	totalSites := 0
+	totalElectrodes := 0
+	totalCombos := 0
+	for i := 0; i < len(NSites); i++ {
+		c := make(chan float64)
+		channelsMap[i] = c
+		newNSite := int(NSites[i])
+		newElectrodes := int(NElectrodes[i])
+		N := newNSite + newElectrodes
+		newNu := nu[i]
+		newKT := kT[i]
+		newI_0 := I_0[i]
+		newR := R[i]
+		newHops := int(hops[i])
+		newOccupation := occupation[totalSites:(totalSites+newNSite)]
+		newDistances := deFlattenFloatTo32(distances[totalCombos:(totalCombos+N*N)], int64(N), int64(N))
+		newE_constant := E_constant[totalSites:(totalSites+newNSite)]
+		newTransitions_constant := deFlattenFloatTo32(transitions_constant[totalCombos:(totalCombos+N*N)], int64(N), int64(N))
+		newSite_energies := site_energies[(totalElectrodes+totalSites):(totalElectrodes+totalSites+newNSite+newElectrodes)]
+		newElectrode_occupation := electrode_occupation[totalElectrodes:(totalElectrodes+newElectrodes)]
+		electrode_occupations[i] = newElectrode_occupation
+		go channelSimulateRecord(int64(newNSite), int64(newElectrodes), newNu, newKT, newI_0, newR, 
+			newOccupation, newDistances, newE_constant, newTransitions_constant, newSite_energies,
+			newElectrode_occupation, newHops, c)
+		totalSites+=newNSite
+		totalElectrodes+=newElectrodes
+		totalCombos+=N*N
+	}
+	totalElectrodes = 0
+	for i := 0; i < len(NSites); i++ {
+		time_result := <- channelsMap[i]
+		time[i] = time_result
+		for j := 0; j < int(NElectrodes[i]); j++ {
+			if electrode_occupation[totalElectrodes+j] != electrode_occupations[i][j] {
+				fmt.Println("NECESSARY 1")
+			}
+			electrode_occupation[totalElectrodes+j] = electrode_occupations[i][j]
+		}
 
-	nE_constant := make([]float64, len(E_constant))
-	copy(nE_constant, E_constant)
-	fmt.Printf("pointer: %p\n",&nE_constant)
-
-	go simulateProbabilityReturnChannel(NSites, NElectrodes, nu, kT, I_0, R, occupation, 
-		distances, nE_constant, transitions_constant, electrode_occupation, site_energies,
-		hops, record, c)
-
-	return int64(index)
-}
-
-//export getResult
-func getResult(index int64) float64 {
-	result := <- channelsMap[int(index)]
-	return result
+		totalElectrodes += int(NElectrodes[i])
+	}
+	return int64(0)
 }

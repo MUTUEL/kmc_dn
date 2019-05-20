@@ -6,15 +6,43 @@ from matplotlib import gridspec
 import matplotlib.animation as manimation
 from kmc_dopant_networks_utils import visualize_traffic, visualize_V_and_traffic
 
-# Requires installation: sudo apt-get install ffmpeg
+# NB! Requires installation: sudo apt-get install ffmpeg
+# This module contains code for 2 animations. GetWriter is a function shared by both.
+# initScatterAnimation and animateTransition is used to animate DopantPlacement search in SimulatedAnnealing search.
+# trafficAnimation is used to animate the change in potential landscape and electron jump traffic as the input changes.
+# It also animates a graph in the side which shows the output current in parallel.
+
 
 def getWriter(fps, title):
+    '''
+        This returns a writer object that is used to make the animation. This object is used to write frames that
+        will be generated using matplotlib, to form an animation.
+        Input arguments
+        ---------------
+        fps; int
+            Frames per second.
+        title; string
+            Title of the animation.
+        Returns
+        -------
+            writer: FFMPegWriter
+                returns writer object used to make the animation.
+        '''
     FFMpegWriter = manimation.writers['ffmpeg']
     metadata = dict(title=title)
     writer = FFMpegWriter(fps=fps, metadata=metadata)
     return writer
 
 def initScatterAnimation(kmc):
+    '''
+        Used in the dopant placement annealing search animation.
+        Input arguments
+        ---------------
+
+        Returns
+        -------
+
+        '''
     plt.clf()
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -32,6 +60,15 @@ def initScatterAnimation(kmc):
 
 
 def animateTransition(kmc, donors, acceptors, history_donors, history_acceptors, text_element, index, target_pos, writer, splits, refresh_history, alpha, text):
+    '''
+        Used in the dopant placement annealing search animation.
+        Input arguments
+        ---------------
+
+        Returns
+        -------
+
+        '''
     acceptorDataX = [kmc.xCoords[j] for j in range(kmc.N)]
     acceptorDataY = [kmc.yCoords[j] for j in range(kmc.N)]
     donorDataX = [kmc.xCoords[j] for j in range(kmc.N, kmc.N+kmc.M)]
@@ -58,7 +95,28 @@ def animateTransition(kmc, donors, acceptors, history_donors, history_acceptors,
             history_donors.set_alpha(alpha)
         writer.grab_frame()
 
-def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait_time):
+def trafficAnimation(kmc_dn, search_results, writer, file_name):
+    '''
+        Used in the dopant placement annealing search animation.
+        Input arguments
+        ---------------
+            kmc_dn: kmc_dn
+                Dopant network object that is used for animation. This provides the dopant placement and physical
+                parameters.
+            search_results: array
+                This is an array of entries, where each entry is in the format (electrodes, currents, traffic, time, ideal_current).
+                This is precalculated and used to perform the animation, as each entry represents one frame.
+            writer: FFMPegWriter
+                Writer object used to write frames to. This is initialized in the getWriter function.
+            file_name: string
+                Name of the file we write the animation video to.
+
+        Returns
+            None
+                The output is the file, so nothing is returned.
+        -------
+
+        '''
     fig = plt.figure(figsize=(20, 10))
     gs = gridspec.GridSpec(1, 2, width_ratios=[3, 1])
     
@@ -120,11 +178,4 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name, wait_steps, wait
             plotax.plot(x_data[:i], y_data[:i])
             plotax.plot(x_data[:i], y_data_expected[:i], color='k')
             writer.grab_frame()
-            
-            if i % wait_steps == 0:
-                for _ in range(wait_time):
-                    writer.grab_frame()
             i+=1
-        for _ in range(wait_time):
-            writer.grab_frame()
-
