@@ -31,7 +31,7 @@ electrodes[7] = [3*xdim/4, ydim, 0, 0]
  
 #%% Initialize simulation object
 times = {"python":[], "go":[], "goRecord":[]}
-hopSteps = [5000, 25000, 100000, 250000, 500000]
+hopSteps = [5000, 25000, 100000, 250000, 500000, 2000000]
 for i in range(0, 10):
     kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes)
     timeRow = {"python":[], "go":[], "goRecord":[]}
@@ -40,15 +40,15 @@ for i in range(0, 10):
     for j in range(len(hopSteps)):
         print ("j:%d\n"%(j))
         start = time.time()
-        kmc.python_simulation(hops=hopSteps[j])
+        #kmc.python_simulation(hops=hopSteps[j])
         end = time.time()
         timeRow["python"].append(end-start)
         start = time.time()
-        kmc.go_simulation(hops=hopSteps[j],goSpecificFunction="wrapperSimulate")
+        #kmc.go_simulation(hops=hopSteps[j],goSpecificFunction="wrapperSimulate")
         end = time.time()
         timeRow["go"].append(end-start)
         start = time.time()
-        kmc.go_simulation(hops=hopSteps[j],goSpecificFunction="wrapperSimulateJumbled")
+        kmc.go_simulation(hops=hopSteps[j],goSpecificFunction="wrapperSimulateRecord")
         end = time.time()
         timeRow["goRecord"].append(end-start)
     for key in timeRow:

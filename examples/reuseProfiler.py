@@ -22,13 +22,14 @@ def profile(N = 30, M=3, hops= 1100000, tests = 100):
     for i in range(0, tests):
         # Define electrodes
         electrodes = np.zeros((8, 4))
-        electrodes[0] = [0, ydim/4, 0, (random.random()-0.5)*160]
-        electrodes[1] = [0, 3*ydim/4, 0, (random.random()-0.5)*160]
-        electrodes[2] = [xdim, ydim/4, 0, (random.random()-0.5)*160]
-        electrodes[3] = [xdim, 3*ydim/4, 0, (random.random()-0.5)*160]
-        electrodes[4] = [xdim/4, 0, 0, (random.random()-0.5)*160]
-        electrodes[5] = [3*xdim/4, 0, 0, (random.random()-0.5)*160]
-        electrodes[6] = [xdim/4, ydim, 0, (random.random()-0.5)*160]
+        voltage_range = 600
+        electrodes[0] = [0, ydim/4, 0, (random.random()-0.5)*voltage_range]
+        electrodes[1] = [0, 3*ydim/4, 0, (random.random()-0.5)*voltage_range]
+        electrodes[2] = [xdim, ydim/4, 0, (random.random()-0.5)*voltage_range]
+        electrodes[3] = [xdim, 3*ydim/4, 0, (random.random()-0.5)*voltage_range]
+        electrodes[4] = [xdim/4, 0, 0, (random.random()-0.5)*voltage_range]
+        electrodes[5] = [3*xdim/4, 0, 0, (random.random()-0.5)*voltage_range]
+        electrodes[6] = [xdim/4, ydim, 0, (random.random()-0.5)*voltage_range]
         electrodes[7] = [3*xdim/4, ydim, 0, 0]
         kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, zdim, electrodes = electrodes)
         print ("i:%d\n"%(i))
@@ -80,7 +81,12 @@ def compile(splits, hops):
 
 hops = 8500000
 tests = 100
-profile(10, 1, hops, tests)
-profile(20, 2, hops, tests)
-profile(30, 3, hops, tests)
-compile([(tests, "10D "), (tests, "20D"), (tests, "30D")], hops)
+#profile(10, 1, hops, tests)
+#profile(20, 2, hops, tests)
+l = [60, 120, 240]
+l2 = [3, 6, 12]
+profile(l[0], l2[0], hops, tests)
+profile(l[1], l2[1], hops, tests)
+profile(l[2], l2[2], hops, tests)
+
+compile([(tests, "%dD "%(l[0])), (tests, "%dD "%(l[1])), (tests, "%dD "%(l[2]))], hops)

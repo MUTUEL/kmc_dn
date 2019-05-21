@@ -25,6 +25,7 @@ suggested workflow (based on conda) is given afterwards.
 + numpy
 + matplotlib
 + numba
++ ffmpeg (for animations)
 + fenics, installation notes are [here](https://fenics.readthedocs.io/en/latest/installation.html)
 + logging
 + go
