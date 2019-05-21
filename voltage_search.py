@@ -1,13 +1,17 @@
 from dn_search import dn_search
 import kmc_dopant_networks as kmc_dn
+import kmc_dopant_networks_utils as kmc_utils
+from goSimulation.parrallelSimulationBind import parrallelSimulation
 
 import numpy as np
 
+
 import random
 import math
+import time
 
 class voltage_search(dn_search):
-    def __init__(self, initial_dn, voltage_range, voltage_resolution, tests):
+    def __init__(self, initial_dn, voltage_range, voltage_resolution, tests, corr_pow=1, parallelism=0):
         '''
         =======================
         dn_search dopant network placement search class
@@ -33,16 +37,22 @@ class voltage_search(dn_search):
 
         self.dn = initial_dn
         self.tests = tests
-        
+        self.perfect_correlation = []
+        for test in tests:
+            if test[1]:
+                self.perfect_correlation.append(10)
+            else:
+                self.perfect_correlation.append(0)
+        self.perfect_correlation = np.array(self.perfect_correlation)
         self.simulation_strategy = [
             {'func':"go_simulation",
              'args':{'hops':1000000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.000002,
-             'threshold_error':-1},
+             'threshold_error':-0.00001},
             {'func':"go_simulation",
              'args':{'hops':5000000, 'goSpecificFunction':"wrapperSimulateRecord"},
              'expected_error':0.000002,
-             'threshold_error':-1},
+             'threshold_error':-0.00001},
         ]
         """    {'func':"go_simulation",
              'args':{'hops':5000, 'goSpecificFunction':"wrapperSimulateRecord"},
@@ -58,23 +68,25 @@ class voltage_search(dn_search):
              'threshold_error':0},
         ]"""
         self.setStrategy(0)
-        self.error_func = self.fittness
         self.output_electrode = len(self.dn.electrodes)-1
         self.N = self.output_electrode - 2
         self.N_tests = 1
         self.dn.xCoords = []
         self.dn.yCoords = []
         self.init_random_voltages(self.dn)
-        #for _ in range(10):
-        #    print (self.evaluate_error(self.dn))
         self.genetic_allowed_overlap = -1
+        if parallelism > 0:
+            self.evaluate_error = self.evaluate_error_corr_parallel
+        else:
+            self.evaluate_error = self.evaluate_error_corr
+        self.corr_pow = corr_pow
 
     def init_random_voltages(self, dn):
         dn.true_voltage = random.random()*self.voltage_range*2 - self.voltage_range
         for i in range(self.N):
             dn.electrodes[i+2][3] = random.random()*self.voltage_range*2 - self.voltage_range
 
-    def evaluate_error(self, dn):
+    def evaluate_error_diff(self, dn):
         lowest_true = 1
         highest_false = -1
         for test in self.tests:
@@ -93,52 +105,92 @@ class voltage_search(dn_search):
                     highest_false = dn.current[self.output_electrode]
         return highest_false - lowest_true
 
+    def evaluate_error_corr(self, dn):
+        lowest_true = 1
+        highest_false = -1
+        values = []
+        for test in self.tests:
+            for i in range(len(test[0])):
+                dn.electrodes[i][3] = test[0][i]
+            dn.update_V()
+            getattr(dn, self.simulation_func)(**self.simulation_args)
+            values.append(dn.current[self.output_electrode])
+            if test[1]:#expected result is True, so we adjust lowest_true value.
+                if lowest_true > dn.current[self.output_electrode]:
+                    lowest_true = dn.current[self.output_electrode]
+            else:
+                if highest_false < dn.current[self.output_electrode]:
+                    highest_false = dn.current[self.output_electrode]
+        values = np.array(values)
+        corr = np.corrcoef(self.perfect_correlation, values)[0][1]
+        separation = highest_false - lowest_true
+        if corr < 0:
+            corr = 0
+        if separation > 0:
+            return separation
+        else:
+            return (corr**self.corr_pow) * separation
+
+    def evaluate_error_corr_parallel(self, dn):
+        lowest_true = 1
+        highest_false = -1
+        values = []
+        parr = parrallelSimulation()
+        for test in self.tests:
+            for i in range(len(test[0])):
+                dn.electrodes[i][3] = test[0][i]
+            dn.update_V()
+            parr.addSimulation(dn, self.simulation_args['hops'])
+        parr.runSimulation()
+        for i in range(len(self.tests)):
+            current = dn.parrallel_results[i][2][self.output_electrode]
+            values.append(current)
+            if self.tests[i][1]:#expected result is True, so we adjust lowest_true value.
+                if lowest_true > current:
+                    lowest_true = current
+            else:
+                if highest_false < current:
+                    highest_false = current
+        values = np.array(values)
+        corr = np.corrcoef(self.perfect_correlation, values)[0][1]
+        separation = highest_false - lowest_true
+        dn.current = dn.parrallel_results[0][2]
+        if corr < 0:
+            corr = 0
+        if separation > 0:
+            return separation
+        else:
+            return (corr**self.corr_pow) * separation
+
     def yieldNeighbours(self):
         shifts = [self.x_resolution, -self.x_resolution]
-        options = [(i+2, shifts[j]) for i in range(self.N+1) for j in range(len(shifts))]
+        options = [(i+2, shifts[j]) for i in range(self.N) for j in range(len(shifts))]
         indexes = [x for x in range(len(options))]
         random.shuffle(indexes)
         for index in indexes:
             option = options[index]
-            if option[0] == 0:
-                electrode_voltage = self.dn.true_voltage + option[1]
+            electrode_voltage = self.dn.electrodes[option[0]][3] + option[1]
 
-                if electrode_voltage < self.voltage_range and electrode_voltage > self.voltage_range/10:
-                    newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, 
-                        self.dn.ydim, 0, electrodes = self.dn.electrodes, 
-                        acceptors=self.dn.acceptors, donors=self.dn.donors, copy_from=self.dn)
-                    newDn.true_voltage = electrode_voltage
-                    yield newDn, option[0], (0, 0)
-            else:
-                electrode_voltage = self.dn.electrodes[option[0]][3] + option[1]
+            if math.fabs(electrode_voltage) < self.voltage_range:
+                newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, 
+                    self.dn.ydim, 0, electrodes = self.dn.electrodes, 
+                    acceptors=self.dn.acceptors, donors=self.dn.donors, copy_from=self.dn)
+                newDn.electrodes[option[0]][3] = electrode_voltage
+                yield newDn, option[0], (0, 0)
 
-                if math.fabs(electrode_voltage) < self.voltage_range:
-                    newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, 
-                        self.dn.ydim, 0, electrodes = self.dn.electrodes, 
-                        acceptors=self.dn.acceptors, donors=self.dn.donors, copy_from=self.dn)
-                    newDn.electrodes[option[0]][3] = self.dn.electrodes[option[0]][3] + option[1]
-                    yield newDn, option[0], (0, 0)
-
-    #There is no special way to validate this solution as tests have 
-    # full coverage of what we are searching.
     def validate_error(self, dn):
         return self.evaluate_error(dn)
-        
-    def fittness(self):
-        fittness = 0
-        return fittness
 
     def getRandomDn(self):
         newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
                 self.dn.zdim, electrodes=self.dn.electrodes, acceptors=self.dn.acceptors, 
                 donors=self.dn.donors, copy_from = self.dn)
+        newDn.tests = self.tests
         self.init_random_voltages(newDn)
         return newDn
             
     def getGenes(self, dn):
         genes = []
-        x = np.uint16(dn.true_voltage / self.voltage_range * 65535)
-        genes.append(x)
         for i in range(self.N):
             value = dn.electrodes[i+2][3]
             x = np.uint16((value + self.voltage_range)/self.voltage_range/2 * 65535)
@@ -147,17 +199,14 @@ class voltage_search(dn_search):
 
     def getDnFromGenes(self, genes, dn, order_center=None):
         setattr(dn, "genes", genes)
-        value = genes[0]/65535 * self.voltage_range
-        setattr(dn, "true_voltage", value)
-        assert len(genes) == 6
-        for i in range(1, len(genes)):
+        assert len(genes) == 5
+        for i in range(0, len(genes)):
             value = genes[i]/65535 * 2 * self.voltage_range - self.voltage_range
-            dn.electrodes[i+1][3] = value
+            dn.electrodes[i+2][3] = value
 
     def copyDnFromBtoA(self, dna, dnb):
         setattr(dna, "genes", getattr(dnb, "genes", []).copy())
         dna.electrodes = dnb.electrodes.copy()
-        dna.true_voltage = dnb.true_voltage
         dna.update_V()
 
     def isAllowed(self, prev_genes, gene, uniqueness, resolution):
@@ -168,3 +217,61 @@ class voltage_search(dn_search):
             if total_diff < uniqueness:
                 return False, -1
         return True, -1
+
+    def checkRange(self, dn):
+        if dn.true_voltage < self.voltage_range/4:
+            dn.true_voltage = self.voltage_range/4
+        if dn.true_voltage > self.voltage_range:
+            dn.true_voltage = self.voltage_range
+        for i in range(self.N):
+            if math.fabs(dn.electrodes[i+2][3]) > self.voltage_range:
+                dn.electrodes[i+2][3] = dn.electrodes[i+2][3] / math.fabs(dn.electrodes[i+2][3]) * self.voltage_range
+
+    def getAdjustedDn(self, dn, adjustment):
+        newDn = kmc_dn.kmc_dn(dn.N, dn.M, dn.xdim, dn.ydim, 
+                self.dn.zdim, electrodes=dn.electrodes, acceptors=dn.acceptors, 
+                donors=dn.donors, copy_from = dn)
+        newDn.true_voltage = dn.true_voltage + adjustment[0]
+        for i in range(self.N):
+            newDn.electrodes[i+2][3] = newDn.electrodes[i+2][3] + adjustment[i+1]
+        self.checkRange(newDn)
+        return newDn
+
+    def SPSA_search(self, time_budget, a, c, A, alfa, gamma, file_prefix):
+        k = 1
+        self.dn = self.getRandomDn()
+        self.init_search()
+        L_largest = 0.0000001
+        start_time = time.time()
+        time_difference = time.time() - start_time
+        validation_step = time_budget / 10
+        next_validation = validation_step
+        while time_difference < time_budget:
+            time_difference = time.time() - start_time
+            delta = [2*round(random.random())-1 for _ in range(self.N + 1)]
+            ak= a/((A+k)**alfa)
+            ck=c/(k**gamma)
+            deltaplus = [d*ck for d in delta]
+            deltaminus = [-d*ck for d in delta]
+            Lplus = self.evaluate_error(self.getAdjustedDn(self.dn, deltaplus))
+            Lminus = self.evaluate_error(self.getAdjustedDn(self.dn, deltaminus))
+            for L in [Lplus, Lminus]:
+                if math.fabs(L) > L_largest:
+                    L_largest = math.fabs(L)
+            Lplus /=L_largest
+            Lminus /= L_largest
+            gradDelta = [-(Lplus - Lminus)/2/ck * d * ak for d in delta]
+            self.dn = self.getAdjustedDn(self.dn, gradDelta)
+            k+=1
+            print ("%.3g, %.3g, %.3g"%(Lplus, Lminus, -(Lplus - Lminus)/2/ck * ak))
+            volts = [e[3] for e in self.dn.electrodes]
+            print (volts)
+            if time_difference > next_validation:
+                next_validation += validation_step
+                tmp_error = self.evaluate_error(self.dn)
+                self.appendValidationData(tmp_error, time_difference)
+        self.dn.saveSelf("resultDump%s.kmc"%(file_prefix))
+        tmp_error = self.evaluate_error(self.dn)
+        self.appendValidationData(tmp_error, time_difference)
+        return tmp_error, self.current_strategy, self.validations
+

@@ -233,6 +233,17 @@ def visualize_dwelltime(kmc_dn, show_V = True):
     return fig
 
 def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
+    '''
+        Visualizes traffic between dopant sites.
+        It places dots on the dopant positions and they scale from black to white,
+        which represents the probability of it being occupied, white being high probability occupied.
+
+    :param kmc_dn:
+    :param pos:
+    :param title:
+    :param figure:
+    :return:
+    '''
     if figure:
         fig = figure
     else:
@@ -302,13 +313,13 @@ def visualize_traffic(kmc_dn, pos=111, title="", figure=None):
 
 def getDiscreteCMap(cmap_name, steps):
     cmap = plt.get_cmap(cmap_name)
-    colorList = [
-        (111/255.0, 229/255.0, 69/255.0),
-        (1.0, 187/255.0, 142/255.0),
-        (1.0, 244/255.0, 170/255.0),
-        (211/255.0, 165/255.0, 222/255.0),
-        (1.0, 0, 72/255.0)
-    ]
+    # colorList = [
+    #     (111/255.0, 229/255.0, 69/255.0),
+    #     (1.0, 187/255.0, 142/255.0),
+    #     (1.0, 244/255.0, 170/255.0),
+    #     (211/255.0, 165/255.0, 222/255.0),
+    #     (1.0, 0, 72/255.0)
+    # ]
     colorList = []
     for i in range(steps):
         colorList.append(cmap.colors[i*int(len(cmap.colors)/steps)])
@@ -316,13 +327,16 @@ def getDiscreteCMap(cmap_name, steps):
         "discrete_%s"%(cmap_name), colorList, N=steps)
     return newCm
 
-def visualize_V_and_traffic(kmc_dn, pos=111, title="", figure=None, max_traffic=0, v_min=None, v_max=None):
+def visualize_V_and_traffic(kmc_dn, ax_given=None, title="", figure=None, max_traffic=0, v_min=None, v_max=None, text=None, text_positions=None):
     if figure:
         fig = figure
     else:
         fig = plt.figure()
 
-    ax = fig.add_subplot(pos)
+    if ax_given is None:
+        ax = fig.add_subplot(111)
+    else:
+        ax = ax_given
     ax.set_aspect(1)
     ax.set_xlim(right=max(1, kmc_dn.xdim))
     ax.set_ylim(top=max(1, kmc_dn.ydim))
@@ -357,7 +371,7 @@ def visualize_V_and_traffic(kmc_dn, pos=111, title="", figure=None, max_traffic=
                             vmin=v_min, vmax=v_max,
                             cmap=cmap#plt.get_cmap("tab20")
                             )
-    cbar = fig.colorbar(V_profile)
+    #cbar = fig.colorbar(V_profile)
 
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = 'k', marker='o', s=64)
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = acceptorColors, marker='o', s=48)
@@ -381,8 +395,11 @@ def visualize_V_and_traffic(kmc_dn, pos=111, title="", figure=None, max_traffic=
                 continue
             
             intensity = traffic / 1.0 / largest
-            if intensity < 0.01:
+            if intensity < 0.002:
                 continue
+            intensity = intensity + (1-intensity)*0.01
+            if intensity > 1:
+                intensity = 1
             #print ("i: %d, j: %d, intensity: %.3f, largest: %d"%(i, j, intensity, largest))
             startPos = getPosition(kmc_dn, i)
             endPos = getPosition(kmc_dn, j)
@@ -395,12 +412,21 @@ def visualize_V_and_traffic(kmc_dn, pos=111, title="", figure=None, max_traffic=
                 y = startPos[1]+a*arrowVector[1]*1.5+arrowVector[1]*0.25
                 width = 0.004
                 ax.arrow(x, y, arrowVector[0], arrowVector[1], length_includes_head=True, width=width, head_width=3*width, head_length=arrowLength/4, alpha=math.sqrt(intensity), color=(111/255.0, 229/255.0, 69/255.0))
-    center = (kmc_dn.xdim/2, kmc_dn.ydim)
-    for i in range(NElectrodes):
-        ele = kmc_dn.electrodes[i]
-        x = (ele[0] - center[0])*0.3 + ele[0]
-        y = (ele[1] - center[1])*0.1 + ele[1]
-        ax.text(x, y, "V:%.1f\nC: %.3g"%(ele[3], kmc_dn.current[i]))
+    if text:
+        font = {
+            'weight': 'bold',
+            'size': 20,
+            }
+        center = (kmc_dn.xdim/2, kmc_dn.ydim)
+        for i in range(NElectrodes):
+            ele = kmc_dn.electrodes[i]
+            if text_positions:
+                x = text_positions[i][0]
+                y = text_positions[i][1]
+            else:
+                x = (ele[0] - center[0])*0.3 + ele[0]
+                y = (ele[1] - center[1])*0.1 + ele[1]
+            ax.text(x, y, text[i], fontdict = font)
     return fig
 
 

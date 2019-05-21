@@ -2,7 +2,7 @@ import os
 import sys
 #sys.path.insert(0,'../')
 import kmc_dopant_networks as kmc_dn
-import voltage_search
+from voltage_search import voltage_search
 import numpy as np
 import random
 import math
@@ -55,33 +55,68 @@ def get_schedule2(multiplier, time_multiplier):
     ]
 
 def searchAnnealing(dn, schedule_function, tests, hours = 10, error_threshold_multiplier = 1):
-    search = voltage_search.voltage_search(dn, 160, 10, tests)
+    search = voltage_search(dn, 160, 10, tests)
     schedule = schedule_function(error_threshold_multiplier, hours)
     return search.simulatedAnnealingSearch(0.002*error_threshold_multiplier, schedule, "Voltage10DOP", animate=False)
 
 def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 1000, disparity=2, 
         mut_pow=1, order_center = None, gen_size = 50, index = 0):
-    search = voltage_search.voltage_search(dn, 300, 10, tests)
+    search = voltage_search(dn, 300, 10, tests, corr_pow=2, parallelism=1)
     cross_over_function = search.singlePointCrossover
-    return search.genetic_search(gen_size, 3600*hours, 2, uniqueness, "VoltageGenetic%d"%(index), 
-        cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center)
+    results = search.genetic_search(gen_size, 3600*hours, 2, uniqueness, cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center)
+    search.saveResults(True, False, "resultDump", index)
+    return results
 
-for i in range(66, 69):
-    dn = getRandomDn(30, 3)
-    
-    results = {}
+def searchSPSA(dn, tests, hours = 1, index = 0):
+    search = voltage_search(dn, 300, 10, tests)
+    return search.SPSA_search(hours*3600, a=500, c=10, A=100, alfa=0.5, gamma=0.2, file_prefix="VoltageSPSA%d"%(index))
 
-    #results['annealing'] = searchAnnealing(dn, get_schedule1, [((0, 0), False), ((0, 100), True), ((100, 0), True), 
-    #    ((100, 100), False)], 5, error_threshold_multiplier=20)
+def testVC(dn, dim, points, starting_index, prefix=""):
+    for case in range(1, (2**dim)-1):
+        tests = []
+        results = {}
+        for i in range(dim):
+            tests.append((points[i], case&(2**i)))
+        print (tests)
+        results['genetic'] = searchGeneticBasedOnTest(dn, tests, hours = 1, gen_size=100, 
+        index=case+starting_index)
+        data = {}
+        for key in results:
+            data[key] = results[key][2]
+        plt.clf()
+        dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
+        plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
 
-    results['genetic'] = searchGeneticBasedOnTest(dn, [((False, False), False), ((False, True), True), ((True, False), True), 
-            ((True, True), False)], hours = 3, gen_size=100, index=i)
+def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
+    for case in cases:
+        tests = []
+        results = {}
+        for i in range(dim):
+            tests.append((points[i], case&(2**i)))
+        print (tests)
+        results['genetic'] = searchGeneticBasedOnTest(dn, tests, hours = 1, gen_size=100, 
+        index=case+starting_index)
+        data = {}
+        for key in results:
+            data[key] = results[key][2]
+        plt.clf()
+        dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
+        plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
 
-    data = {}
-    for key in results:
-        data[key] = results[key][2]
-    print (results)
-    print (data)
-    plt.clf()
-    dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
-    plt.savefig("VoltageSearchSummery%d.png"%(i))
+dn = getRandomDn(30, 1)
+rel_path = "../GeneticResultDumpVoltageGenetic1.kmc"
+# script_dir = os.path.dirname(__file__)
+# abs_file_path = os.path.join(script_dir, rel_path)
+# dn.loadSelf(abs_file_path)
+points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]
+
+# reV4 = [2, 10]
+# reV5 = [8, 23]
+# reV6 = [2, 8, 14, 19, 26, 27, 34, 38, 49]
+
+testVC(dn, 4, points, 7000, prefix="30DOPTRY2CP2")
+#testVC(dn, 5, points, 6016, prefix="10DOPTRY5CP2")
+#testVC(dn, 6, points, 1048, prefix="10DOP")
+# reTestVC(dn, 4, points, reV4, 0)
+# reTestVC(dn, 5, points, reV5, 16)
+# reTestVC(dn, 6, points, reV6, 48)
