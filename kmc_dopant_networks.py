@@ -559,6 +559,9 @@ class kmc_dn():
         # Reset current and time
         self.reset()     
 
+        # Reset current and time
+        self.reset()          
+
         # Initialize simulation arguments
         args = {"N_acceptors":self.N, "N_electrodes":self.P, 
                 "nu":self.nu, "kT":self.kT, "I_0":self.I_0, 
@@ -570,7 +573,6 @@ class kmc_dn():
                 "transitions":self.transitions, "problist":self.problist, 
                 "electrode_occupation":self.electrode_occupation, 
                 "record":False,}
-
 
 
         # Simulate prehops
