@@ -38,9 +38,13 @@ electrodes[5] = [3*xdim/4, 0, 0, 0]
 electrodes[6] = [xdim/4, ydim, 0, 10]
 electrodes[7] = [3*xdim/4, ydim, 0, 0]
 
-kmc = kmc_dn.kmc_dn(1, 0, xdim, ydim, 0, electrodes=electrodes)
-kmc.load_acceptors(acceptor_layouts[layout])
-kmc.load_donors(donor_layouts[layout])
+if(cf.use_random_layout):
+    kmc = kmc_dn.kmc_dn(cf.layoutsize, 
+        cf.layoutsize//10, xdim, ydim, 0, electrodes=electrodes)
+else:
+    kmc = kmc_dn.kmc_dn(1, 0, xdim, ydim, 0, electrodes=electrodes)
+    kmc.load_acceptors(acceptor_layouts[layout])
+    kmc.load_donors(donor_layouts[layout])
 
 # Parameters
 kT = cf.kT
@@ -92,12 +96,25 @@ for i in range(cf.generations):
         # Obtain device response
         output = np.zeros(4*cf.avg)
         for k in range(4):
-            kmc.electrodes[cf.P, 3] = P[k]*cf.inputrange
-            kmc.electrodes[cf.Q, 3] = Q[k]*cf.inputrange
+            if(cf.evolve_input):
+                kmc.electrodes[cf.P, 3] = P[k]*(cf.inputrange[0]*(1 - genePool.pool[j, -1]) + genePool.pool[j, -1]*cf.inputrange[1])
+                kmc.electrodes[cf.Q, 3] = Q[k]*(cf.inputrange[0]*(1 - genePool.pool[j, -1]) + genePool.pool[j, -1]*cf.inputrange[1])
+            else:
+                kmc.electrodes[cf.P, 3] = P[k]*cf.inputrange
+                kmc.electrodes[cf.Q, 3] = Q[k]*cf.inputrange
+
             kmc.update_V()
-            kmc.python_simulation(prehops = prehops)
+            if(cf.use_go):
+                kmc.go_simulation(hops=0, prehops = cf.prehops,
+                                  goSpecificFunction='wrapperSimulateRecord')
+            else:
+                kmc.python_simulation(prehops = prehops)
             for l in range(cf.avg):
-                kmc.python_simulation(hops = hops)
+                if(cf.use_go):
+                    kmc.go_simulation(hops=cf.hops,
+                                      goSpecificFunction='wrapperSimulateRecord')
+                else:
+                    kmc.python_simulation(hops = hops)
                 output[k*cf.avg + l] = kmc.current[cf.output]
         outputArray[i, j] = output
         fitness_list.append(cf.Fitness(output, cf.target))

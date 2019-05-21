@@ -102,9 +102,17 @@ for i in range(cf.generations):
                 kmc.static_electrodes[1, 3] = Q[k]*cf.inputrange
 
             kmc.update_V()
-            kmc.python_simulation(prehops = prehops)
+            if(cf.use_go):
+                kmc.go_simulation(hops=0, prehops = cf.prehops,
+                                  goSpecificFunction='wrapperSimulateRecord')
+            else:
+                kmc.python_simulation(prehops = prehops)
             for l in range(cf.avg):
-                kmc.python_simulation(hops = hops)
+                if(cf.use_go):
+                    kmc.go_simulation(hops=cf.hops,
+                                      goSpecificFunction='wrapperSimulateRecord')
+                else:
+                    kmc.python_simulation(hops = hops)
                 output[k*cf.avg + l] = kmc.current[0]
         outputArray[i, j] = output
         fitness_list.append(cf.Fitness(output, cf.target))
