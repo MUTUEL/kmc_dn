@@ -895,11 +895,12 @@ class kmc_dn():
     #%% Load methods
     def load_acceptors(self, acceptors):
         '''
+        NOTE: This function is not recommended, use loadSelf instead.
+
         This function loads an acceptor layout.
         It also recalculates R, as the number of acceptors might have 
         changed and it sets ab/R to 1. This is important, because you
         might have to re set it afterwards.
-        #TODO: this should detect previous ab/R and keep it equal.
         '''
         # Overwrite acceptors array
         self.acceptors = acceptors
@@ -921,6 +922,8 @@ class kmc_dn():
 
     def load_donors(self, donors):
         '''
+        NOTE: This function is not recommended, use loadSelf instead.
+
         This function loads a donor layout.
         '''
         # Overwrite donors array
