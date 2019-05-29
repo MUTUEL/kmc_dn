@@ -36,6 +36,9 @@ def _simulate_discrete_record(N_acceptors, N_electrodes, nu, kT, I_0, R,
                               transitions, problist, electrode_occupation,
                               hops, record=False):
     '''
+    NOTE: It is recommended to use the go library to perform simulations
+    instead of this python function. This is left here as reference.
+
     This function performs hops hopping events, meaning:
     - Calculate site energies; this is done by adding the acceptor-
         acceptor interaction to the constant energy per site E_constant.
@@ -43,13 +46,6 @@ def _simulate_discrete_record(N_acceptors, N_electrodes, nu, kT, I_0, R,
         transitions_constant and implements the MA rate.
     - Pick and perform event; uses the transition matrix
         and repeat this hops times.
-
-    Input arguments
-    ---------------
-
-    Returns
-    -------
-
     '''
     # Initialize current and traffic array
     N_sites = N_acceptors+N_electrodes
@@ -404,7 +400,8 @@ class kmc_dn():
             self.calc_E_constant = self.calc_E_constant_V_comp
             
         # Initialize sim object
-        self.initialize(dopant_placement=(not hasattr(self, 'acceptors')), charge_placement=(not hasattr(self, 'donors')))
+        self.initialize(dopant_placement=(not hasattr(self, 'acceptors')), 
+                charge_placement=(not hasattr(self, 'donors')))
 
 
     def initialize(self, dopant_placement = True, charge_placement = True, 
@@ -473,7 +470,7 @@ class kmc_dn():
         self.electrode_occupation = np.zeros(self.P, dtype=int)
 
     def go_simulation(self, hops = 1E5, prehops = 0, 
-                      goSpecificFunction="wrapperSimulate", 
+                      goSpecificFunction="wrapperSimulateRecord", 
                       record=False, prune_threshold=0):
         '''
         Perform a simulation with the go implementation.
@@ -488,6 +485,10 @@ class kmc_dn():
             The amount of hops performed to simulate.
         goSpecificFunction; string
             Specify the specific go function that is used to simulate.
+            The default 'wrapperSimulateRecord' keeps track of previous
+            states and skips calculation of rates when possible.
+            This is usually faster, if you do not want this, set
+            this parameter to 'wrapperSimulate'.
         record; bool
             If True, the simulation will also keep track of traffic
             and the time each site is occupied.
@@ -573,7 +574,6 @@ class kmc_dn():
                 "transitions":self.transitions, "problist":self.problist, 
                 "electrode_occupation":self.electrode_occupation, 
                 "record":False,}
-
 
         # Simulate prehops
         if(prehops != 0):
@@ -895,6 +895,8 @@ class kmc_dn():
     #%% Load methods
     def load_acceptors(self, acceptors):
         '''
+        NOTE: This function is not recommended, use loadSelf instead.
+
         This function loads an acceptor layout.
         It also recalculates R, as the number of acceptors might have 
         changed and it sets ab/R to 1. This is important, because you
@@ -920,6 +922,8 @@ class kmc_dn():
 
     def load_donors(self, donors):
         '''
+        NOTE: This function is not recommended, use loadSelf instead.
+
         This function loads a donor layout.
         '''
         # Overwrite donors array
@@ -947,7 +951,7 @@ class kmc_dn():
     
     def loadSelf(self, fileName):
         '''
-        Load a .kmc object save with self.saveSelf()
+        Load a .kmc object saved with self.saveSelf()
         '''
         with open(fileName, "rb") as f:
             d = pickle.load(f)
