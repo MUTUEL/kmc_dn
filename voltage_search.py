@@ -134,10 +134,10 @@ class voltage_search(dn_search):
 
     def parallel_simulation(self, dns):
         count = 0
-        parr = None
+        parr = parrallelSimulation()
         for dn in dns:
             count+=1
-            parr = parrallelSimulation()
+            
             for test in self.tests:
                 for i in range(len(test[0])):
                     dn.electrodes[i][3] = test[0][i]
@@ -146,6 +146,7 @@ class voltage_search(dn_search):
             
             if count == self.parallel:
                 parr.runSimulation()
+                parr = parrallelSimulation()
                 count=0
         if count > 0:
             parr.runSimulation()
@@ -155,7 +156,6 @@ class voltage_search(dn_search):
         lowest_true = 1
         highest_false = -1
         values = []
-        
         for i in range(len(self.tests)):
             current = dn.parrallel_results[i][2][self.output_electrode]
             values.append(current)
