@@ -319,7 +319,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             NSites, from, to)
     }
 
-    logReuseToJson(reuses, states, "reusing.log")
+    //logReuseToJson(reuses, states, "reusing.log")
 
     return time
 }
@@ -346,17 +346,11 @@ func simulateRecordPlus(NSites int, NElectrodes int, nu float32, kT float32, I_0
             }
         }
     }
-    if transition_cut_constant > 0 {
-        //fmt.Printf("Transition list size: %d", len(transitions))
-    }
 
 
-    //occupation_time := make([]float64, NSites)
     allProbs := make(map[uint64]*probabilities)
     countProbs := make(map[uint64]uint16)
-
-    //fmt.Printf("Site energies at start: %v\n", site_energies)
-
+    allowedSaves := uint64(150000000 / len(transitions))
 
     for i := 0; i < NElectrodes; i++ {
         electrode_occupation[i] = 0.0
@@ -365,8 +359,6 @@ func simulateRecordPlus(NSites int, NElectrodes int, nu float32, kT float32, I_0
 
     countReuses := uint64(0)
     countStorage := uint64(0)
-    reuseThreshold := uint16(1)
-    reuseThresholdIncrease := uint64(100000)
     for hop := 0; hop < hops; hop++ {
 
         var probList []float32
@@ -406,18 +398,13 @@ func simulateRecordPlus(NSites int, NElectrodes int, nu float32, kT float32, I_0
             }
 
             if record_problist {
-                val, ok := countProbs[key64]
+                _, ok := countProbs[key64]
                 if ok {
-                    //countResighting++
                     countProbs[key64]++
-                    if val >= reuseThreshold {
+                    if countStorage < allowedSaves {
                         newProbability := probabilities{probList}
                         allProbs[key64] = &newProbability
                         countStorage++
-                        if countStorage > reuseThresholdIncrease {
-                            reuseThreshold++
-                            reuseThresholdIncrease+=100000
-                        }
                     }
                 } else {
                     countProbs[key64] = 1

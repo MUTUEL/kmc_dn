@@ -77,6 +77,7 @@ class voltage_search(dn_search):
         self.genetic_allowed_overlap = -1
         if parallelism > 0:
             self.evaluate_error = self.evaluate_error_corr_parallel
+            self.parallel = parallelism
         else:
             self.evaluate_error = self.evaluate_error_corr
         self.corr_pow = corr_pow
@@ -131,17 +132,30 @@ class voltage_search(dn_search):
         else:
             return (corr**self.corr_pow) * separation
 
+    def parallel_simulation(self, dns):
+        count = 0
+        parr = None
+        for dn in dns:
+            count+=1
+            parr = parrallelSimulation()
+            for test in self.tests:
+                for i in range(len(test[0])):
+                    dn.electrodes[i][3] = test[0][i]
+                dn.update_V()
+                parr.addSimulation(dn, self.simulation_args['hops'])
+            
+            if count == self.parallel:
+                parr.runSimulation()
+                count=0
+        if count > 0:
+            parr.runSimulation()
+
+
     def evaluate_error_corr_parallel(self, dn):
         lowest_true = 1
         highest_false = -1
         values = []
-        parr = parrallelSimulation()
-        for test in self.tests:
-            for i in range(len(test[0])):
-                dn.electrodes[i][3] = test[0][i]
-            dn.update_V()
-            parr.addSimulation(dn, self.simulation_args['hops'])
-        parr.runSimulation()
+        
         for i in range(len(self.tests)):
             current = dn.parrallel_results[i][2][self.output_electrode]
             values.append(current)

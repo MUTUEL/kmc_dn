@@ -68,6 +68,8 @@ class dn_search():
         self.initRandomPlacement()
         self.genetic_allowed_overlap = 65
         self.order_distance_function = dn_search.degreeDistance
+        self.parallel = 0
+
 
     def init_search(self):
         self.validations = []
@@ -89,8 +91,6 @@ class dn_search():
         self.threshold_error =  self.simulation_strategy[index]['threshold_error']
 
     def evaluate_error(self, dn):
-        #channel_indexes = []
-        #go_slices = []
         diffs = []
         for j in range(self.use_tests):
             test = self.tests[j]
@@ -99,23 +99,11 @@ class dn_search():
             for i in range(len(electrodes)):
                 dn.electrodes[i][3] = electrodes[i]
             dn.update_V()
-            #channel_index, go_slice = dn.start_simulation_parallel()
-            #dn.read_simulation_result(channel_index, go_slice)
-            #channel_indexes.append(channel_index)
-            #go_slices.append(go_slice)
             execpted_currents = test[1]
             getattr(dn, self.simulation_func)(**self.simulation_args)
             for index, current in execpted_currents:
                 diff = math.fabs(dn.current[index]-current)
                 diffs.append(diff)
-        #i = 0
-        #for test in self.tests:
-        #    channel_index = channel_indexes[i]
-        #    go_slice = go_slices[i]
-        #    i+=1
-        #    dn.read_simulation_result(channel_index, go_slice)
-        #    execpted_currents = test[1]
-
         return self.error_func(diffs)
 
     def validate_error(self, dn):
@@ -388,6 +376,9 @@ class dn_search():
         self.best_dn = self.dn
         return best, self.current_strategy, self.validations
 
+    def parallel_simulation(self, dns):
+        return #Must be implemented in inheriting class
+
 
 #Genetic search
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
@@ -424,6 +415,8 @@ class dn_search():
             results = []
             total_error = 0
             i = 0
+            if self.parallel > 0:
+                self.parallel_simulation(dns)
             for dn in dns:
                 error = self.evaluate_error(dn)
                 if best_error > error:
@@ -431,7 +424,7 @@ class dn_search():
                     best_dn = dn
                 total_error+=error
                 results.append((error, dn))
-                if i % 10 == 0:
+                if i % 1 == 0:
                     print (i)
                 i+=1
             time_difference = time.time() - start_time

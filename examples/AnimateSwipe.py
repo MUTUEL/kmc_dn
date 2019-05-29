@@ -126,7 +126,7 @@ def animateExample(index, useCalcs=False, animation_index=None):
   
 
 def main():
-    for index in range(7000, 7048):
+    for index in range(100, 115):
         animateExample(index, False)
 
 if __name__== "__main__":
