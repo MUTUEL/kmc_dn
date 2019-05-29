@@ -6,6 +6,7 @@ from voltage_search import voltage_search
 import numpy as np
 import random
 import math
+import time
 import matplotlib.pyplot as plt
 import kmc_dopant_networks_utils as kmc_utils
 import dn_search_util
@@ -63,7 +64,7 @@ def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 1000, disparity
         mut_pow=1, order_center = None, gen_size = 50, index = 0):
     search = voltage_search(dn, 150, 10, tests, corr_pow=2, parallelism=25)
     cross_over_function = search.singlePointCrossover
-    results = search.genetic_search(gen_size, 3600*hours, 2, uniqueness, cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center)
+    results = search.genetic_search(gen_size, 3600*hours, 2, uniqueness, cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center, max_generations=20)
     search.best_dn.genetic_search_results = search.validations
     search.saveResults(True, False, "resultDump", index)
     return results
@@ -120,12 +121,18 @@ points = [(0, 0), (0, 75), (75, 0), (75, 75)]#, (-50, 0), (50, 0)]
 dops = [5, 8, 10, 20, 30, 45, 60]
 startIndex = 0
 times = 100
+timeProfile = {}
 for dop in dops:
+    timeProfile[dop] = []
     for index in range(times):
+        start = time.time()
         dn = getRandomDn(dop, round(dop/10))
         reTestVC(dn, 4, points, [6], startIndex+index, prefix="%dDOPTRY%dCP2"%(dop, index))
+        end = time.time()
+        diff = end - start
+        timeProfile[dop].append(diff)
     startIndex+=times
-
+print (timeProfile)
 
 #testVC(dn, 5, points, 6016, prefix="10DOPTRY5CP2")
 #testVC(dn, 6, points, 1048, prefix="10DOP")

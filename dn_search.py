@@ -383,7 +383,7 @@ class dn_search():
 #Genetic search
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
             cross_over_function, mut_pow=1, order_center=None, 
-            u_schedule = None):
+            u_schedule = None, max_generations = 0):
         dns = []
         validation_timestep = time_available / 10
         self.current_strategy = 0
@@ -443,7 +443,7 @@ class dn_search():
                 self.appendValidationData(tmp_error, time_difference, best_dn)
                 self.setStrategy(cur_str)
                 next_validation+=validation_timestep
-            if time_difference > time_available:
+            if time_difference > time_available or (max_generations and gen > max_generations):
                 break
             results = sorted(results, key=lambda x:x[0])
             intermediate_dns = []
