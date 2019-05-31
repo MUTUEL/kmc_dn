@@ -232,6 +232,21 @@ func wrapperSimulateProbability(NSites int64, NElectrodes int64, nu float64, kT 
 	return time
 }
 
+func getCopy2D(arr [][]float32) [][]float32 {
+	ret := make([][]float32, len(arr))
+		for i := 0; i < len(arr); i++ {
+			ret[i] = make([]float32, len(arr[i]))
+			copy(ret[i], arr[i])
+		}
+		return ret
+}
+
+func getCopy1D(arr []float32) []float32{
+	ret := make([]float32, len(arr))
+	copy(ret, arr)
+	return ret
+}
+
 func channelSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float64, I_0 float64, R float64, 
 	occupation []float64, distances [][]float32, E_constant []float64, transitions_constant [][]float32,
 	site_energies []float64, electrode_occupation []float64, hops int, c chan float64) {
@@ -243,9 +258,16 @@ func channelSimulateRecord(NSites int64, NElectrodes int64, nu float64, kT float
 				bool_occupation[i] = false
 			}
 		}
+		cTransitions_constant := getCopy2D(transitions_constant)
+		cDistances := getCopy2D(distances)
+		cElectrode_occupation := make([]float64, len(electrode_occupation))
+		copy(cElectrode_occupation, electrode_occupation)
+
+
 		time := simulateRecordPlus(int(NSites), int(NElectrodes), float32(nu), float32(kT), float32(I_0), float32(R), bool_occupation, 
-		distances , toFloat32(E_constant), transitions_constant, electrode_occupation, toFloat32(site_energies), hops, true, false, nil, nil,
+		cDistances , toFloat32(E_constant), cTransitions_constant, cElectrode_occupation, toFloat32(site_energies), hops, true, false, nil, nil,
 		0)
+		copy(electrode_occupation, cElectrode_occupation)
 		c <- time
 }
 
@@ -285,18 +307,10 @@ func parallelSimulations(NSites []float64, NElectrodes []float64, nu []float64,
 		totalElectrodes+=newElectrodes
 		totalCombos+=N*N
 	}
-	totalElectrodes = 0
 	for i := 0; i < len(NSites); i++ {
 		time_result := <- channelsMap[i]
 		time[i] = time_result
-		for j := 0; j < int(NElectrodes[i]); j++ {
-			if electrode_occupation[totalElectrodes+j] != electrode_occupations[i][j] {
-				fmt.Println("NECESSARY 1")
-			}
-			electrode_occupation[totalElectrodes+j] = electrode_occupations[i][j]
-		}
 
-		totalElectrodes += int(NElectrodes[i])
 	}
 	return int64(0)
 }

@@ -67,7 +67,7 @@ class parrallelSimulation():
         totalElectrodes = 0
         electrode_occupations = getSliceValues(self.go_electrode_occupation)
         times = getSliceValues(self.go_time)
-        i = 0       
+        i = 0
         for dn in self.dns:
             eo = electrode_occupations[totalElectrodes:(totalElectrodes+len(dn.electrodes))]
             current = []
@@ -77,25 +77,3 @@ class parrallelSimulation():
             dn.parrallel_results.append(result)
             i+=1
             totalElectrodes+=len(dn.electrodes)
-
-
-def startGoSimulation(N_acceptors, N_electrodes, nu, kT, I_0, R, time, occupation, 
-		distances , E_constant, transitions_constant, electrode_occupation, hops):
-    print ("gonna sleep")
-    #print (electrode_occupation)
-    #printSlice(newElectrode_occupation)
-    print ("gonna start function")
-    index = getattr(lib, goSpecificFunction)(N_acceptors, N_electrodes, nu, kT, I_0, R, newOccupation, 
-		newDistances , newE_constant, newTransConstants, newElectrode_occupation, newSite_energies, hops, record)
-    print ("started go function")
-    return (index, newElectrode_occupation)
-
-def readGoSimulationResult(index, electrode_occupation_slice):
-    lib = cdll.LoadLibrary("./libSimulation.so")
-    lib.getResult.argtypes = [c_longlong]
-    lib.getResult.restype = c_double
-
-    time = lib.getResult(index)
-    rElectrode_occupation = np.array([int(i) for i in getSliceValues(electrode_occupation_slice)])
-
-    return (time, rElectrode_occupation)
