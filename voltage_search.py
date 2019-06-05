@@ -75,9 +75,10 @@ class voltage_search(dn_search):
         self.dn.yCoords = []
         self.init_random_voltages(self.dn)
         self.genetic_allowed_overlap = -1
+        self.parallel = parallelism
+
         if parallelism > 0:
             self.evaluate_error = self.evaluate_error_corr_parallel
-            self.parallel = parallelism
         else:
             self.evaluate_error = self.evaluate_error_corr
         self.corr_pow = corr_pow

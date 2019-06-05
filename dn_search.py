@@ -383,7 +383,7 @@ class dn_search():
 #Genetic search
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
             cross_over_function, mut_pow=1, order_center=None, 
-            u_schedule = None, max_generations = 0):
+            u_schedule = None, max_generations = 0, mut_rate = 0):
         dns = []
         validation_timestep = time_available / 10
         self.current_strategy = 0
@@ -468,7 +468,7 @@ class dn_search():
                 if i >= cross_over_gen_size:
                     break
             random.shuffle(intermediate_dns)
-            new_generation_genes.extend(self.getNextGenerationGenes(intermediate_dns, uniqueness, cross_over_function, mut_pow))
+            new_generation_genes.extend(self.getNextGenerationGenes(intermediate_dns, uniqueness, cross_over_function, mut_pow, mut_rate))
             tmp_sum = sum([new_generation_genes[y][x] for x in range(len(new_generation_genes[0])) for y in range(len(new_generation_genes))])
             i = 0
             for gene in new_generation_genes:
@@ -517,7 +517,7 @@ class dn_search():
         return genes
     
 
-    def getNextGenerationGenes(self, dns, uniqueness, cross_over_function, power=1):
+    def getNextGenerationGenes(self, dns, uniqueness, cross_over_function, power=1, mut_rate=0):
         newGeneration = []
         for i in range(len(dns)):
             if i % 2 == 0:
@@ -529,6 +529,10 @@ class dn_search():
             parent_1 = dns[i].genes
             parent_2 = dns[j].genes
             newGenes = cross_over_function(parent_1, parent_2)
+            if mut_rate > 0:
+                if random.random() < mut_rate:
+                    gene = math.floor(random.random()*len(newGenes))
+                    newGenes[gene] = dn_search.mutate(newGenes[gene], power)
             ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, self.genetic_allowed_overlap)
             tries = 0
             while not ok:

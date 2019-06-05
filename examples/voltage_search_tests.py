@@ -13,6 +13,7 @@ import dn_search_util
 import matplotlib.pyplot as plt
 import pickle
 from validate_tests import compareVisualizeErrorDistribution
+from utils import parseArgs
 
 
 
@@ -62,9 +63,11 @@ def searchAnnealing(dn, schedule_function, tests, hours = 10, error_threshold_mu
 
 def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 1000, disparity=2, 
         mut_pow=1, order_center = None, gen_size = 50, index = 0):
-    search = voltage_search(dn, 150, 10, tests, corr_pow=2, parallelism=25)
+    search = voltage_search(dn, 150, 10, tests, corr_pow=2, parallelism=0)
     cross_over_function = search.singlePointCrossover
-    results = search.genetic_search(gen_size, 3600*hours, 2, uniqueness, cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center, max_generations=20)
+    uniqueness = 0
+
+    results = search.genetic_search(gen_size, 3600*hours, 2, uniqueness, cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center, max_generations=10, mut_rate=0.05)
     search.best_dn.genetic_search_results = search.validations
     search.saveResults(True, False, "resultDump", index)
     return results
@@ -105,37 +108,34 @@ def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
         dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
         plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
 
-#rel_path = "../GeneticResultDumpVoltageGenetic1.kmc"
-# script_dir = os.path.dirname(__file__)
-# abs_file_path = os.path.join(script_dir, rel_path)
-# dn.loadSelf(abs_file_path)
-#points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]
-points = [(0, 0), (0, 75), (75, 0), (75, 75)]#, (-50, 0), (50, 0)]
-
-# reV4 = [2, 10]
-# reV5 = [8, 23]
-# reV6 = [2, 8, 14, 19, 26, 27, 34, 38, 49]
-
-#testVC(dn, 4, points, 8000, prefix="30DOPTRY2CP2")
-
-dops = [5, 8, 10, 20, 30, 45, 60]
-startIndex = 0
-times = 100
-timeProfile = {}
-for dop in dops:
-    timeProfile[dop] = []
+#Can pass parameters. d - number of dopants. i - starting index for file numbers. t - number of times to do the whole process.
+def main():
+    points = [(0, 0), (0, 75), (75, 0), (75, 75)]#, (-50, 0), (50, 0)]
+    args = parseArgs()
+    print (args)
+    if "d" in args:
+        dop = int(args["d"])
+    else:
+        dop = 30
+    if "i" in args:
+        startIndex = int(args["i"])
+    else:
+        startIndex = 0
+    if "t" in args:
+        times = int(args["t"])
+    else:
+        times = 20
+    timeProfile = []
     for index in range(times):
         start = time.time()
         dn = getRandomDn(dop, round(dop/10))
         reTestVC(dn, 4, points, [6], startIndex+index, prefix="%dDOPTRY%dCP2"%(dop, index))
         end = time.time()
         diff = end - start
-        timeProfile[dop].append(diff)
-    startIndex+=times
-print (timeProfile)
+        timeProfile.append(diff)
+    print (timeProfile)
 
-#testVC(dn, 5, points, 6016, prefix="10DOPTRY5CP2")
-#testVC(dn, 6, points, 1048, prefix="10DOP")
-# reTestVC(dn, 4, points, reV4, 0)
-# reTestVC(dn, 5, points, reV5, 16)
-# reTestVC(dn, 6, points, reV6, 48)
+
+
+if __name__== "__main__":
+  main()
