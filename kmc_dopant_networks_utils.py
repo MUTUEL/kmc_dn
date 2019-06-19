@@ -327,6 +327,42 @@ def getDiscreteCMap(cmap_name, steps):
         "discrete_%s"%(cmap_name), colorList, N=steps)
     return newCm
 
+def visualize_discreete_V(kmc_dn, given_fig, given_ax, show_cbar=True, v_min=None, v_max=None):
+    ax = None
+    if given_fig:
+        fig = given_fig
+        if given_ax:
+            ax = given_ax
+    else:
+        fig = plt.figure()
+    if not ax:
+        ax = fig.add_subplot(111)
+        ax.set_xlim(right=max(1, kmc_dn.xdim))
+        ax.set_ylim(top=max(1, kmc_dn.ydim))
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+
+    x = np.arange(0, kmc_dn.xdim, kmc_dn.res)
+    y = np.arange(0, kmc_dn.ydim, kmc_dn.res)
+    V_plot = np.zeros((len(x), len(y)))
+    for i in range(len(x)):
+        for j in range(len(y)):
+            V_plot[i, j] = kmc_dn.V(x[i], y[j])
+
+
+    # Plot potential profile
+    cmap = getDiscreteCMap("plasma", 10)
+    V_profile = ax.imshow(V_plot.transpose(),
+                            interpolation='bicubic',
+                            origin='lower',
+                            extent=(0, kmc_dn.xdim, 0, kmc_dn.ydim),
+                            vmin=v_min, vmax=v_max,
+                            cmap=cmap#plt.get_cmap("tab20")
+                            )
+    if show_cbar:
+        cbar = fig.colorbar(V_profile)
+    return fig
+
 def visualize_V_and_traffic(kmc_dn, ax_given=None, title="", figure=None, max_traffic=0, v_min=None, v_max=None, text=None, text_positions=None):
     if figure:
         fig = figure
@@ -354,24 +390,7 @@ def visualize_V_and_traffic(kmc_dn, ax_given=None, title="", figure=None, max_tr
         colorStr = "#%s%s%s"%(h, h, h)
         acceptorColors.append(colorStr)
 
-    x = np.arange(0, kmc_dn.xdim, kmc_dn.res)
-    y = np.arange(0, kmc_dn.ydim, kmc_dn.res)
-    V_plot = np.zeros((len(x), len(y)))
-    for i in range(len(x)):
-        for j in range(len(y)):
-            V_plot[i, j] = kmc_dn.V(x[i], y[j])
-
-
-    # Plot potential profile
-    cmap = getDiscreteCMap("plasma", 10)
-    V_profile = ax.imshow(V_plot.transpose(),
-                            interpolation='bicubic',
-                            origin='lower',
-                            extent=(0, kmc_dn.xdim, 0, kmc_dn.ydim),
-                            vmin=v_min, vmax=v_max,
-                            cmap=cmap#plt.get_cmap("tab20")
-                            )
-    #cbar = fig.colorbar(V_profile)
+    visualize_discreete_V(kmc_dn, fig, ax, False, v_min, v_max)
 
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = 'k', marker='o', s=64)
     ax.scatter(kmc_dn.acceptors[:, 0], kmc_dn.acceptors[:, 1], c = acceptorColors, marker='o', s=48)

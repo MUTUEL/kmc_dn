@@ -9,6 +9,23 @@ import time, random, json
 
 #%% Parameters
 
+def printTable(headings, data):
+    ptable = """\\begin{table}[h!]\\scalebox{0.7}{\n\\begin{center}\n\\begin{tabular}{ %s }\n\\hline\n"""%("|c|"+"c|c|"*len(headings))
+    ptable+=headings[0]
+    for i in range(1, len(headings)):
+        ptable+="& %s"%(headings[i])
+    ptable += "\\\\\n\\hline\n"
+    for row in data:
+        ptable+="%s"%(row[0])
+        j = 1
+        while j < len(row):
+            ptable+=" & %s"%(row[j])
+            j+=1
+        ptable+="\\\\\n"
+    
+    ptable+="""\\hline\\end{tabular}\n\\end{center}\n}\n\\caption{Table caption}\n\\label{table:X}\n\\end{table}"""
+    print (ptable)
+
 def profile(N = 30, M=3, hops= 1100000, tests = 100):
     xdim = 1  # Length along x dimension
     ydim = 1  # Length along y dimension
@@ -42,7 +59,7 @@ def compile(splits, hops):
 
         pdata = []
         keys = []
-        key = 2
+        key = 10
         i = 0
         while key < hops:
             ru_sum = [0]*len(splits)
@@ -61,7 +78,7 @@ def compile(splits, hops):
                 arr.append("%.1f"%(ru_sum[j]/splits[j][0]))
                 arr.append("%.1f"%(s_sum[j]/splits[j][0]))
             pdata.append(arr)
-            key*=2
+            key*=10
             i+=1
         print (pdata)
         ptable = """\n\\begin{center}\n\\begin{tabular}{ %s }\n\\hline\nhops"""%("|c|"+"c|c|"*len(splits))
@@ -79,14 +96,39 @@ def compile(splits, hops):
         ptable+="""\\hline\\end{tabular}\n\\end{center}\n"""
         print (ptable)
 
-hops = 8500000
-tests = 100
-#profile(10, 1, hops, tests)
-#profile(20, 2, hops, tests)
-l = [60, 120, 240]
-l2 = [3, 6, 12]
-profile(l[0], l2[0], hops, tests)
-profile(l[1], l2[1], hops, tests)
-profile(l[2], l2[2], hops, tests)
+def main():
+    # hops = 10000005
+    # tests = 100
+    # profile(10, 1, hops, tests)
+    # profile(20, 2, hops, tests)
+    # l = [20, 30, 60]
+    # l2 = [2, 3, 6]
+    # profile(l[0], l2[0], hops, tests)
+    # profile(l[1], l2[1], hops, tests)
+    # profile(l[2], l2[2], hops, tests)
 
-compile([(tests, "%dD "%(l[0])), (tests, "%dD "%(l[1])), (tests, "%dD "%(l[2]))], hops)
+    # compile([(tests, "%dD "%(l[0])), (tests, "%dD "%(l[1])), (tests, "%dD "%(l[2]))], hops)
+    
+    
+    headings = ["setup", "RND time", "XOR time", "RND $E_{DB}$", "RND $\sigma_{DB}$", "XOR $E_{DB}$", "XOR \sigma_{DB}"]
+    data = [
+        ["Python 1E6 hops", "11881s", "12231s", 0.14, 0.16, 670, 5400],
+        ["Go 1E6 hops", "12394s", "13343s", 0.55, 4.6, 520, 4400],
+        ["Go recording 1E6 hops", "139s", "85s", 0.19, 0.65, 490, 4100],
+        ["Go recording 5E6 hops", "494s", "377s", 0.3, 0.26, 1500, 13000],
+        ["Go pruning 1E6 hops 1E-5 threshold", "2879s", "2977s", 120, 770, 930, 9900],
+        ["Go pruning 1E6 hops 1E-7 threshold", "4291s", "4373s", 0.91, 8.5, 510, 3500],
+        ["Go pruning 1E6 hops 1E-9 threshold", "5898s", "6115s", 0.54, 3.6, 1100, 18000],
+        ]
+
+    # headings = ["setup", "successes", "failures"]
+    # data = [
+    #     ["U1000", 8, 12],
+    #     ["M5", 8, 12],
+    #     ["M30", 7, 13],
+    #     ["U5kto1k", 7, 13],
+    #     ]
+    printTable(headings, data)
+
+if __name__== "__main__":
+  main()

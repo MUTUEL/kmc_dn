@@ -72,7 +72,7 @@ func calcTransitionList(transitions []transition, distances [][]float32, occupat
             if dE > 0 {
                 transitions[i].rate = nu * float32(math.Exp(float64(-dE/kT)))
             } else {
-                transitions[i].rate = 1
+                transitions[i].rate = nu
             }
             transitions[i].rate*=transitions_constant[trans.from][trans.to]
         }
@@ -245,7 +245,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
     countResighting := uint64(0)
     reuses := make([]uint64, 30)
 	states := make([]int, 30)
-    showStep := 2
+    showStep := 10
     showIndex := 0
     for hop := 0; hop < hops; hop++ {
         var probList []float32
@@ -298,7 +298,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
         time += time_step
         event := getRandomEvent(probList)
         if hop % showStep == showStep - 1{
-            showStep*=2
+            showStep*=10
             reuses[showIndex] = countResighting
             states[showIndex] = len(countProbs)
             showIndex+=1
@@ -319,7 +319,7 @@ func simulate(NSites int, NElectrodes int, nu float32, kT float32, I_0 float32, 
             NSites, from, to)
     }
 
-    //logReuseToJson(reuses, states, "reusing.log")
+    logReuseToJson(reuses, states, "reusing.log")
 
     return time
 }

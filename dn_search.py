@@ -110,21 +110,9 @@ class dn_search():
         diffs = []
         cur_strat = self.current_strategy
         self.setStrategy(len(self.simulation_strategy)-1)
-        for j in range(self.use_tests, len(self.tests)):
-            test = self.tests[j]
-            electrodes = test[0]
-            
-            for i in range(len(electrodes)):
-                dn.electrodes[i][3] = electrodes[i]
-            dn.update_V()
-            execpted_currents = test[1]
-            
-            getattr(dn, self.simulation_func)(**self.simulation_args)
-            for index, current in execpted_currents:
-                diff = math.fabs(dn.current[index]-current)
-                diffs.append(diff)
+        error = self.evaluate_error(dn)
         self.setStrategy(cur_strat)
-        return self.error_func(diffs)
+        return error
         
     def average_cumulative_error(self, diffs):
         error = 0
@@ -383,7 +371,7 @@ class dn_search():
 #Genetic search
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
             cross_over_function, mut_pow=1, order_center=None, 
-            u_schedule = None, max_generations = 0, mut_rate = 0):
+            u_schedule = None, max_generations = 0, mut_rate = 0, initial_dns=None):
         dns = []
         validation_timestep = time_available / 10
         self.current_strategy = 0
@@ -397,6 +385,8 @@ class dn_search():
         print (disparity_offset)
         for i in range (gen_size):
             newDn = self.getRandomDn()
+            if initial_dns:
+                self.copyDnFromBtoA(newDn, initial_dns[i])
             setattr(newDn, "genes", self.getGenes(newDn))
             dns.append(newDn)
         best_dn = dns[0]
@@ -429,10 +419,10 @@ class dn_search():
                 i+=1
             time_difference = time.time() - start_time
             if u_schedule is not None:
-                if u_schedule[us_i][1] > time_difference:
+                if u_schedule[us_i][1] < time_difference:
                     us_from = u_schedule[us_i][0]
                     us_i += 1
-                uniqueness = us_from + (u_schedule[us_i]-us_from)\
+                uniqueness = us_from + (u_schedule[us_i][0]-us_from)\
                     *(time_difference-us_start_time)/(u_schedule[us_i][1])
             average_error = total_error / gen_size
             print ("average error: %.3g\nbest error: %.3g"%(average_error, best_error))
@@ -551,7 +541,7 @@ class dn_search():
 
     @staticmethod
     def mutate(a, power):
-        rnd = math.floor(random.random()**power*16)
+        rnd = math.floor(random.random()**(1/power)*16)
         b = np.uint16(2**rnd)
         return np.bitwise_xor(a, b)
 
