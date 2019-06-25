@@ -380,9 +380,7 @@ class dn_search():
         cross_over_gen_size = gen_size - preserved_top
         for i in range(cross_over_gen_size):
             disparity_sum+= math.fabs(disparity * ((1-(i+0.5)/cross_over_gen_size)**(disparity-1)))
-        print (disparity_sum)
         disparity_offset = (cross_over_gen_size - disparity_sum) / cross_over_gen_size
-        print (disparity_offset)
         for i in range (gen_size):
             newDn = self.getRandomDn()
             if initial_dns:
