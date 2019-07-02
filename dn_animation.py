@@ -132,11 +132,11 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name):
     for entry in search_results:
         kmc_dn.electrodes = entry[0]
         kmc_dn.current = entry[1]
-        y_data.append(entry[1][7])
-        if entry[1][7] < y_data_min:
-            y_data_min = entry[1][7]
-        if entry[1][7] > y_data_max:
-            y_data_max = entry[1][7]
+        y_data.append(entry[1][-1])
+        if entry[1][-1] < y_data_min:
+            y_data_min = entry[1][-1]
+        if entry[1][-1] > y_data_max:
+            y_data_max = entry[1][-1]
         kmc_dn.traffic = entry[2]
         kmc_dn.time = entry[3]
         kmc_dn.update_V()
@@ -160,6 +160,23 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name):
     
     with writer.saving(fig, file_name, 100):
         i = 0
+        text_init = ["I1: ", "I2: "]
+        for i in range(len(search_results[0][0])-3):
+            text_init.append("C%d: "%(i+1))
+        text_init.append("O: ")
+        text_positions = []
+        for elec in kmc_dn.electrodes:
+            x = elec[0]
+            y = elec[1]
+            if elec[0] < 0.01:
+                x = -0.3
+            if elec[0] > 0.99:
+                x = 1.02
+            if elec[1] < 0.01:
+                y = -0.1
+            if elec[1] > 0.99:
+                y = 1.05
+            text_positions.append((x, y))
         for entry in search_results:
             kmc_dn.electrodes = entry[0]
             kmc_dn.current = entry[1]
@@ -168,10 +185,9 @@ def trafficAnimation(kmc_dn, search_results, writer, file_name):
             kmc_dn.update_V()
             plt.clf()
             ax0 = plt.subplot(gs[0])
-            text = ["I1: ", "I2: ", "C1: ", "C2: ", "C3: ", "C4: ", "C5: ", "O: "]
-            text_positions = [(-0.2, 0.75), (0.25, -0.1), (1.05, 0.25), (1.05, 0.75), (-0.2, 0.25), (0.75, -0.1), (0.25, 1.05), (0.75, 1.05)]
-            for h in range(len(text)):
-                text[h]+="%.3g V"%(kmc_dn.electrodes[h][3]/150)
+            text = []
+            for h in range(len(text_init)):
+                text.append("%s%.2g V"%(text_init[h], kmc_dn.electrodes[h][3]/150))
             visualize_V_and_traffic(kmc_dn, ax_given=ax0, figure=fig, max_traffic=highest_current*time, v_min=vmin, v_max=vmax, text=text, text_positions=text_positions)
             plotax = plt.subplot(gs[1])
             plotax.set_xlim(0, len(search_results))

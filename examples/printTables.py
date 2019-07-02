@@ -10,7 +10,7 @@ import time, random, json
 #%% Parameters
 
 def printTable(headings, data):
-    ptable = """\\begin{table}[h!]\\scalebox{0.7}{\n\\begin{center}\n\\begin{tabular}{ %s }\n\\hline\n"""%("|c|"+"c|c|"*len(headings))
+    ptable = """\\begin{table}[h!]\\scalebox{0.7}{\n\\begin{center}\n\\begin{tabular}{ %s }\n\\hline\n"""%("|"+"c|"*len(headings))
     ptable+=headings[0]
     for i in range(1, len(headings)):
         ptable+="& %s"%(headings[i])
@@ -110,16 +110,16 @@ def main():
     # compile([(tests, "%dD "%(l[0])), (tests, "%dD "%(l[1])), (tests, "%dD "%(l[2]))], hops)
     
     
-    headings = ["setup", "RND time", "XOR time", "RND $E_{DB}$", "RND $\sigma_{DB}$", "XOR $E_{DB}$", "XOR \sigma_{DB}"]
-    data = [
-        ["Python 1E6 hops", "11881s", "12231s", 0.14, 0.16, 670, 5400],
-        ["Go 1E6 hops", "12394s", "13343s", 0.55, 4.6, 520, 4400],
-        ["Go recording 1E6 hops", "139s", "85s", 0.19, 0.65, 490, 4100],
-        ["Go recording 5E6 hops", "494s", "377s", 0.3, 0.26, 1500, 13000],
-        ["Go pruning 1E6 hops 1E-5 threshold", "2879s", "2977s", 120, 770, 930, 9900],
-        ["Go pruning 1E6 hops 1E-7 threshold", "4291s", "4373s", 0.91, 8.5, 510, 3500],
-        ["Go pruning 1E6 hops 1E-9 threshold", "5898s", "6115s", 0.54, 3.6, 1100, 18000],
-        ]
+    # headings = ["setup", "RND time", "XOR time", "RND $E_{DB}$", "RND $\sigma_{DB}$", "XOR $E_{DB}$", "XOR \sigma_{DB}"]
+    # data = [
+    #     ["Python 1E6 hops", "11881s", "12231s", 0.14, 0.16, 670, 5400],
+    #     ["Go 1E6 hops", "12394s", "13343s", 0.55, 4.6, 520, 4400],
+    #     ["Go recording 1E6 hops", "139s", "85s", 0.19, 0.65, 490, 4100],
+    #     ["Go recording 5E6 hops", "494s", "377s", 0.3, 0.26, 1500, 13000],
+    #     ["Go pruning 1E6 hops 1E-5 threshold", "2879s", "2977s", 120, 770, 930, 9900],
+    #     ["Go pruning 1E6 hops 1E-7 threshold", "4291s", "4373s", 0.91, 8.5, 510, 3500],
+    #     ["Go pruning 1E6 hops 1E-9 threshold", "5898s", "6115s", 0.54, 3.6, 1100, 18000],
+    #     ]
 
     # headings = ["setup", "successes", "failures"]
     # data = [
@@ -128,6 +128,26 @@ def main():
     #     ["M30", 7, 13],
     #     ["U5kto1k", 7, 13],
     #     ]
+
+    # headings = ["test", "VC 4", "VC 5", "VC 6"]
+    # data = [
+    #     ["30 DOP, 1", "14/14", "27/30", "59/62"],
+    #     ["20 DOP, 1", "14/14", "29/30", "-"],
+    #     ["10 DOP, 1", "14/14", "30/30", "-"],
+    #     ["10 DOP, 2", "14/14", "30/30", "-"],
+    #     ["10 DOP, 3", "14/14", "30/30", "-"],
+    #     ["10 DOP, 4", "14/14", "27/30", "-"],
+    #     ]
+
+    headings = ["test", "average model current", "average supposed physical current"]
+    data = [
+        ["30 DOP, 1", "0.000129", "129.5nA"],
+        ["20 DOP, 1", "0.000222", "222.2nA"],
+        ["10 DOP, 1", "0.000502", "502.1nA"],
+        ["10 DOP, 2", "0.00134", "1339.4nA"],
+        ["10 DOP, 3", "0.000323", "322.8nA"],
+        ["10 DOP, 4", "0.000887", "886.8nA"],
+        ]
     printTable(headings, data)
 
 if __name__== "__main__":

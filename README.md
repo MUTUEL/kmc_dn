@@ -48,6 +48,10 @@ Now activate the environment:
 ```
 conda activate kmc
 ```
+If this doesn't work
+```
+source activate kmc
+```
 
 And run the following installs:
 
@@ -56,6 +60,7 @@ conda install numpy
 conda install matplotlib
 conda install numba
 conda install -c conda-forge fenics
+conda install -c anaconda seaborn
 ```
 
 Lastly, to make sure that kmc_dopant_networks is always found when 

@@ -36,13 +36,14 @@ def drawGraph(dn, gs, fig, index):
     for i in allowed_indexes:
         if i < len(dn.swipe_results):
             tmp_swipe_results.append(dn.swipe_results[i])
-
-    print (len(tmp_swipe_results))
         
     y_data = []
     y_data_expected = []
+    acs = 0
     for entry in tmp_swipe_results:
-        curr = entry[1][7]
+        curr = entry[1][-1]
+        for c in entry[1]:
+            acs+=abs(c)
         expected = entry[4]
         y_data.append(curr)
         if expected == 1 and true_min > curr:
@@ -59,6 +60,7 @@ def drawGraph(dn, gs, fig, index):
         expected = entry[4]
         y_data_expected.append(y_data_min + (y_data_max-y_data_min)*expected)
 
+    Eac = acs / (len(tmp_swipe_results) * len (tmp_swipe_results[0][1]))
     x_data = [i for i in range(len(y_data))]
     ax.plot(x_data, y_data)
     ax.plot(x_data, y_data_expected, color='k')
@@ -66,11 +68,11 @@ def drawGraph(dn, gs, fig, index):
     y = y_data_min - 0.2*(y_data_max - y_data_min)
     sepa = true_min - false_max
     ax.text(40, y, "(%d) Separation: %.3g"%(index, sepa))
-    return sepa
+    return sepa, Eac
 
 
 
-def compileGraphs(indexes, fileOut):
+def compileGraphs(indexes, fileOut, key):
     y_size = math.ceil(len(indexes)/3.0)
     fig = plt.figure(figsize=(12, y_size*3))
     gs = gridspec.GridSpec(y_size, 3)
@@ -78,16 +80,21 @@ def compileGraphs(indexes, fileOut):
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
     i = 0
     separated = 0
+    sEc = 0
     for index in indexes:
         rel_path = "swipeResults/xor%d.kmc"%(index)
     
         abs_file_path = os.path.join(script_dir, rel_path)
         dn = openKmc(abs_file_path)
-        if drawGraph(dn, gs[i], fig, i+1) > 0:
+        separation, Ec = drawGraph(dn, gs[i], fig, i+1)
+        sEc+=Ec
+        if  separation > 0:
             separated+=1
 
         i+=1
-    print ("%d/%d"%(separated, len(indexes)))
+    Ec = sEc / len(indexes)
+    EcA = Ec / 10**(-6)
+    print ("%s| Separation found: %d/%d, average current: %.3g, average supposed physical current:%.1fnA"%(key, separated, len(indexes), Ec, EcA))
     plt.savefig(fileOut)
 
 
@@ -95,16 +102,26 @@ def main():
     index5 = [i for i in range(8, 20)]
     index5.extend([6, 126])
     indexes = {
-        #"vc4":[i for i in range(1, 15)],
-        "vc5":[i for i in range(17, 47)],
-        "vc6":[i for i in range(49, 112)],
+        "30Dvc4": [i for i in range(1, 15)],
+        "30Dvc5":[i for i in range(17, 47)],
+        "30Dvc6":[i for i in range(49, 112)],
+        "20Dvc4": [i for i in range(1001, 1015)],
+        "20Dvc5":[i for i in range(1017, 1047)],
+        "10D.1vc4": [i for i in range(2001, 2015)],
+        "10D.1vc5": [i for i in range(2017, 2047)],
+        "10D.2vc4": [i for i in range(3001, 3015)],
+        "10D.2vc5": [i for i in range(3017, 3047)],
+        "10D.3vc4": [i for i in range(4001, 4015)],
+        "10D.3vc5": [i for i in range(4017, 4047)],
+        "10D.4vc4": [i for i in range(5001, 5015)],
+        "10D.4vc5": [i for i in range(5017, 5047)],
     }
     # indexes = {
     #     "D20vc4":[i for i in range(1001, 1015)],
     #     "D20vc5":[i for i in range(1017, 1047)],
     # }
     for key in indexes:
-        compileGraphs(indexes[key], "Summery%s.png"%(key))
+        compileGraphs(indexes[key], "Summery%s.png"%(key), key)
 
 if __name__== "__main__":
   main()

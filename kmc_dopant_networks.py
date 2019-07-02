@@ -20,6 +20,7 @@ TODO list
 
 # Imports
 import sys
+import os
 sys.path.insert(0,'./goSimulation')
 from goSimulation.pythonBind import callGoSimulation
 import numpy as np
@@ -663,6 +664,7 @@ class kmc_dn():
             for j in range(self.N+self.P):
                 if(i is not j):
                     # Distance electrode -> electrode
+                    
                     if(i >= self.N and j >= self.N):
                         self.distances[i, j] = self.dist(self.electrodes[i - self.N, :3],
                                                           self.electrodes[j - self.N, :3])
@@ -695,6 +697,11 @@ class kmc_dn():
     @staticmethod
     def fn_onboundary(x, on_boundary):
         return on_boundary
+
+    def update_electrodes(self, electrodes):
+        self.electrodes = electrodes
+        self.P = self.electrodes.shape[0]
+        self.initialize(dopant_placement=False, charge_placement=False)
 
     def init_V(self):
         '''
@@ -949,11 +956,16 @@ class kmc_dn():
                     d[key] = getattr(self, key)
             pickle.dump(d, f)
     
-    def loadSelf(self, fileName):
+    def loadSelf(self, fileName, rel_path = False):
         '''
         Load a .kmc object saved with self.saveSelf()
         '''
-        with open(fileName, "rb") as f:
+        if rel_path:
+            script_dir = os.path.dirname(__file__)
+            abs_file_path = os.path.join(script_dir, fileName)
+        else:
+            abs_file_path = fileName
+        with open(abs_file_path, "rb") as f:
             d = pickle.load(f)
             for key in d:
                 setattr(self, key, d[key])

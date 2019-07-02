@@ -193,9 +193,6 @@ class voltage_search(dn_search):
                 newDn.electrodes[option[0]][3] = electrode_voltage
                 yield newDn, option[0], (0, 0)
 
-    def validate_error(self, dn):
-        return self.evaluate_error(dn)
-
     def getRandomDn(self):
         newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
                 self.dn.zdim, electrodes=self.dn.electrodes, acceptors=self.dn.acceptors, 
@@ -214,7 +211,6 @@ class voltage_search(dn_search):
 
     def getDnFromGenes(self, genes, dn, order_center=None):
         setattr(dn, "genes", genes)
-        assert len(genes) == 5
         for i in range(0, len(genes)):
             value = genes[i]/65535 * 2 * self.voltage_range - self.voltage_range
             dn.electrodes[i+2][3] = value
