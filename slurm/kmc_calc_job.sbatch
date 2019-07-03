@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J kmc_calc_results_job
+#SBATCH -J kmc_calc_job
 #SBATCH -c 20
 #SBATCH -N 1
 #SBATCH -p 50_procent_max_7_days
