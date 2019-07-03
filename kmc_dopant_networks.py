@@ -947,7 +947,8 @@ class kmc_dn():
         This function can be used to generate test cases, or simply
         to save a simulation object for future reference.
         '''
-        setattr(self, "expected_current", self.current)
+        if hasattr(self, "current"):
+            setattr(self, "expected_current", self.current)
         if rel_path:
             script_dir = os.path.dirname(__file__)
             abs_file_path = os.path.join(script_dir, fileName)
