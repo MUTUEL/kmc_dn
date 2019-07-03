@@ -31,7 +31,7 @@ def appendToSwipeResults(dn, expected_result):
     dn.swipe_results.append((dn.electrodes.copy(), dn.current.copy(), dn.traffic.copy(), dn.time, expected_result))
 
 
-def getSwipeResults(dn, bool_func, steps, hops, waits):
+def getSwipeResults(dn, steps, hops, waits):
     '''
     This is used to generate the data that will be used by each of the frames in the animation.
     :param dn: kmc_dn
@@ -49,10 +49,15 @@ def getSwipeResults(dn, bool_func, steps, hops, waits):
     :return:
     '''
     dn.swipe_results = []
+
+    tests = dn.tests
+    print (tests)
+    bool_func = []
+    for test in tests:
+        bool_func.append(test[0])
     dn.electrodes[0][3] = bool_func[0][0]
     dn.electrodes[1][3] = bool_func[0][1]
     dn.update_V()
-    tests = dn.tests
     current_expected = 1 if tests[0][1] else 0
     
     for i in range(1, len(bool_func)):
@@ -71,7 +76,7 @@ def getSwipeResults(dn, bool_func, steps, hops, waits):
             dn.update_V()
             dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
             appendToSwipeResults(dn, current_expected + (next_expected-current_expected)*(j*1.0/steps))
-
+            print (current_expected + (next_expected-current_expected)*(j*1.0/steps))
         dn.electrodes[0][3] = to_voltage[0]
         dn.electrodes[1][3] = to_voltage[1]
         dn.update_V()
@@ -80,7 +85,7 @@ def getSwipeResults(dn, bool_func, steps, hops, waits):
         dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
         appendToSwipeResults(dn, current_expected)
 
-def animateExample(index, useCalcs=False, animation_index=None):
+def animateExample(index, useCalcs=False, animation_index=None, dmp_name="resultDump"):
     '''
         This function, given the index of the kmc dump file, uses it to generate data
         for each frame and then create an animation.
@@ -97,7 +102,7 @@ def animateExample(index, useCalcs=False, animation_index=None):
     '''
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
     if not useCalcs:
-        rel_path = "../resultDump%d.kmc"%(index)
+        rel_path = "../%s%d.kmc"%(dmp_name, index)
     else:
         rel_path = "swipeResults/xor%d.kmc"%(index)
     
@@ -105,15 +110,12 @@ def animateExample(index, useCalcs=False, animation_index=None):
     try:
         dn = openKmc(abs_file_path)
     except:
+        print (abs_file_path)
         return
-    tests = dn.tests
-    print (tests)
-    values = []
-    for test in tests:
-        values.append(test[0])
+    
     #dn.electrodes[2][3] = 0
     if not hasattr(dn, "swipe_results"):
-        getSwipeResults(dn, values, 40, 5000000, 40)
+        getSwipeResults(dn, 40, 5000000, 40)
         rel_write_path = "swipeResults/xor%d.kmc"%(index)
         abs_file_path = os.path.join(script_dir, rel_write_path)
         dn.saveSelf(abs_file_path)
@@ -126,8 +128,10 @@ def animateExample(index, useCalcs=False, animation_index=None):
   
 
 def main():
-    for index in range(100, 115):
-        animateExample(index, False)
+    #for index in range(4000, 4070):
+    #    animateExample(index, False, dmp_name="resultDump")
+    for index in [1]:
+        animateExample(index, False, dmp_name="GeneticResultDumpVoltageGenetic")
 
 if __name__== "__main__":
-  main()
+    main()

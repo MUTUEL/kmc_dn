@@ -940,7 +940,7 @@ class kmc_dn():
         # Re-initialize everything but placement and V
         self.initialize(V=False, dopant_placement=False)
 
-    def saveSelf(self, fileName):
+    def saveSelf(self, fileName, rel_path = False):
         '''
         Save the entire class object as a .kmc file. Also saves
         the current value as the attribute expected_current.
@@ -948,7 +948,12 @@ class kmc_dn():
         to save a simulation object for future reference.
         '''
         setattr(self, "expected_current", self.current)
-        with open(fileName, "wb") as f:
+        if rel_path:
+            script_dir = os.path.dirname(__file__)
+            abs_file_path = os.path.join(script_dir, fileName)
+        else:
+            abs_file_path = fileName
+        with open(abs_file_path, "wb") as f:
             d = {}
             for key in dir(self):
                 attr = getattr(self, key)
