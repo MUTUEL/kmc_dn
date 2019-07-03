@@ -1,13 +1,24 @@
 from AnimateSwipe import getSwipeResults
 from voltage_search_tests import getRandomDn
+from utils import parseArgs
 
 def main():
-    #for index in range(4000, 4070):
-    #    animateExample(index, False, dmp_name="resultDump")
-    for index in [1]:
+    args = parseArgs()
+    if "i" in args:
+        startIndex = int(args["i"])
+    else:
+        startIndex = 0
+    if "t" in args:
+        times = int(args["t"])
+    else:
+        times = 20
+    for index in range(startIndex, times):
         rel_path = "resultDump%d.kmc"%(index)
         dn = getRandomDn(30, 3)
-        dn.loadSelf(rel_path, True)
+        try:
+            dn.loadSelf(rel_path, True)
+        except:
+            continue        
         getSwipeResults(dn, 40, 5000000, 40)
         dn.saveSelf(rel_path, True)
         
