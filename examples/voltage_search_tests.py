@@ -53,8 +53,6 @@ def openKmc(rel_path):
 def getRandomDn(N_acceptors, N_donors):
     electrodes = get8Electrodes(1, 1)
     dn = kmc_dn.kmc_dn(N_acceptors, N_donors, 1, 1, 0, electrodes = electrodes)
-    newElectrodes = get4Electrodes(1, 1)
-    dn.update_electrodes(newElectrodes)
     return dn
 
 
