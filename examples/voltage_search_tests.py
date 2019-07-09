@@ -30,9 +30,31 @@ def get8Electrodes(xdim, ydim):
 
     return electrodes
 
+def get4Electrodes(xdim, ydim):
+    electrodes = np.zeros((4, 4))
+    electrodes[0] = [0, 3*ydim/4, 0, 0]
+    electrodes[1] = [xdim/4, 0, 0, 10]
+    electrodes[2] = [xdim, ydim/4, 0, 10]
+    electrodes[3] = [xdim, 3*ydim/4, 0, 0]
+
+
+    return electrodes
+
+def openKmc(rel_path):
+    '''
+    This returns a kmc_dn object that is in the given absolute file path.
+    :param abs_file_path:
+    :return:
+    '''
+    kmc = kmc_dn.kmc_dn(10, 3, 1, 1, 0)
+    kmc.loadSelf(rel_path, True)
+    return kmc
+
 def getRandomDn(N_acceptors, N_donors):
     electrodes = get8Electrodes(1, 1)
     dn = kmc_dn.kmc_dn(N_acceptors, N_donors, 1, 1, 0, electrodes = electrodes)
+    newElectrodes = get4Electrodes(1, 1)
+    dn.update_electrodes(newElectrodes)
     return dn
 
 
@@ -67,7 +89,7 @@ def searchGeneticBasedOnTest(dn, tests, hours = 10, uniqueness = 1000, disparity
     cross_over_function = search.singlePointCrossover
     uniqueness = 0
 
-    results = search.genetic_search(gen_size, 3600*hours, 2, uniqueness, cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center, max_generations=10, mut_rate=0.05)
+    results = search.genetic_search(gen_size, 3600*hours, 1.5, uniqueness, cross_over_function = cross_over_function, mut_pow=mut_pow, order_center=order_center, max_generations=10, mut_rate=0.3)
     search.best_dn.genetic_search_results = search.validations
     search.saveResults(True, False, "resultDump", index)
     return results
@@ -111,6 +133,7 @@ def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
 #Can pass parameters. d - number of dopants. i - starting index for file numbers. t - number of times to do the whole process.
 def main():
     points = [(0, 0), (0, 75), (75, 0), (75, 75)]#, (-50, 0), (50, 0)]
+    points = [(-150, -150), (-150, 150), (150, -150), (150, 150), (-50, 0), (50, 0)]    
     args = parseArgs()
     print (args)
     if "d" in args:
@@ -125,14 +148,36 @@ def main():
         times = int(args["t"])
     else:
         times = 20
-    timeProfile = []
-    for index in range(times):
-        start = time.time()
-        dn = getRandomDn(dop, round(dop/10))
-        reTestVC(dn, 4, points, [6], startIndex+index, prefix="%dDOPTRY%dCP2"%(dop, index))
-        end = time.time()
-        diff = end - start
-        timeProfile.append(diff)
+    if "m" in args:
+        mode = args["m"]
+    else:
+        mode = "xor_only"
+
+    if mode=="vc":
+        if "p" in args:
+            prefix = args["p"]
+        else:
+            prefix = "%dDOPTRY1CP2"%(dop)
+        if "f" in args:
+            fileName = args["f"]
+            dn = openKmc(fileName)
+        else:
+            dn = getRandomDn(dop, round(dop/10))
+        if "v" in args:
+            vc = int(args["v"])
+        else:
+            vc = 4
+        testVC(dn, vc, points, startIndex, prefix=prefix)
+    if mode == "xor_only":
+        timeProfile = []
+        for index in range(times):
+            start = time.time()
+            dn = getRandomDn(dop, round(dop/10))
+            reTestVC(dn, 4, points, [6], startIndex+index, prefix="%dDOPTRY%dCP2"%(dop, index))
+            end = time.time()
+            diff = end - start
+            timeProfile.append(diff)
+
     print (timeProfile)
 
 
