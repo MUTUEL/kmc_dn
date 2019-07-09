@@ -12,8 +12,12 @@ def main():
         times = int(args["t"])
     else:
         times = 20
-    for index in range(startIndex, times):
-        rel_path = "resultDump%d.kmc"%(index)
+    if "f" in args:
+        folder = args["f"] + "/"
+    else:
+        folder = ""
+    for index in range(startIndex, startIndex+times):
+        rel_path = "%sresultDump%d.kmc"%(folder, index)
         dn = getRandomDn(30, 3)
         try:
             dn.loadSelf(rel_path, True)
