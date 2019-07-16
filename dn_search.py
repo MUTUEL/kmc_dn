@@ -417,11 +417,11 @@ class dn_search():
                 i+=1
             time_difference = time.time() - start_time
             if u_schedule is not None:
-                if u_schedule[us_i][1] < time_difference:
+                if u_schedule[us_i][1] < gen:
                     us_from = u_schedule[us_i][0]
                     us_i += 1
                 uniqueness = us_from + (u_schedule[us_i][0]-us_from)\
-                    *(time_difference-us_start_time)/(u_schedule[us_i][1])
+                    *gen/(u_schedule[us_i][1])
             average_error = total_error / gen_size
             print ("average error: %.3g\nbest error: %.3g"%(average_error, best_error))
             if time_difference > next_validation:
