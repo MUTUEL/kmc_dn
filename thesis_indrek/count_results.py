@@ -21,6 +21,8 @@ def main():
         arr = allArrs[int(args["i"])]
     else:
         arr = allArrs[0]
+    if "s" in args and "t" in args:
+        arr = [i for i in range(int(args["s"], int(args["s"])+int(args["t"])))]
     if "r" in args:
         requires_results = True
     else:

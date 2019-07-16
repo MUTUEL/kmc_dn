@@ -164,7 +164,7 @@ def main():
         for index in range(times):
             start = time.time()
             dn = getRandomDn(dop, round(dop/10))
-            reTestVC(dn, 4, points, [6], startIndex+index, prefix="%dDOPTRY%dCP2"%(dop, index))
+            reTestVC(dn, 4, points, [6], startIndex+index-5, prefix="%dDOPTRY%dCP2"%(dop, index))
             end = time.time()
             diff = end - start
             timeProfile.append(diff)
