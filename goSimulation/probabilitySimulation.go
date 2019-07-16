@@ -95,12 +95,18 @@ func probSimulate(NSites int, NElectrodes int, nu float64, kT float64, I_0 float
 		tot_rates = calcProbTransitions(transitions, distances, occupation, site_energies, R, I_0, kT, nu, NSites, N, transitions_constant, difference)
 		var max_change float64 = 1.0
 		for i := 0; i < NSites; i++ {
-			newVal := occupation[i] + max_change*difference[i]/tot_rates
+			newVal := occupation[i] + difference[i]/tot_rates
 			if newVal < 0 {
-				max_change = occupation[i]/-(difference[i]*max_change)
+				req_change := occupation[i]/-(difference[i]/tot_rates)
+				if req_change < max_change {
+					max_change = req_change
+				}
 			}
 			if newVal > 1 {
-				max_change = (1-occupation[i])/(difference[i]*max_change)
+				req_change := (1-occupation[i])/(difference[i]/tot_rates)
+				if req_change < max_change {
+					max_change = req_change
+				}
 			}
 		}
 		time_step := 0.98 * (max_change) / tot_rates
