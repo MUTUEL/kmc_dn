@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J kmc_vc_job
+#SBATCH -J kmc_uniq_job
 #SBATCH -c 20
 #SBATCH -N 2
 #SBATCH -p 50_procent_max_7_days
