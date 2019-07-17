@@ -10,7 +10,7 @@ import time, random, json
 #%% Parameters
 
 def printTable(headings, data):
-    ptable = """\\begin{table}[h!]\\scalebox{0.7}{\n\\begin{center}\n\\begin{tabular}{ %s }\n\\hline\n"""%("|"+"c|"*len(headings))
+    ptable = """\\begin{table}[h!]\n\\caption{Table caption}\n\\scalebox{0.7}{\n\\begin{center}\n\\begin{tabular}{ %s }\n\\hline\n"""%("|"+"c|"*len(headings))
     ptable+=headings[0]
     for i in range(1, len(headings)):
         ptable+="& %s"%(headings[i])
@@ -23,7 +23,7 @@ def printTable(headings, data):
             j+=1
         ptable+="\\\\\n"
     
-    ptable+="""\\hline\\end{tabular}\n\\end{center}\n}\n\\caption{Table caption}\n\\label{table:X}\n\\end{table}"""
+    ptable+="""\\hline\\end{tabular}\n\\end{center}\n}\\label{table:X}\n\\end{table}"""
     print (ptable)
 
 def profile(N = 30, M=3, hops= 1100000, tests = 100):
