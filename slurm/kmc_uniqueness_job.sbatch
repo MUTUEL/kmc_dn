@@ -24,4 +24,4 @@ python thesis_indrek/UniquenessValidation.py -i 70 -t 100 -s 10 -f uniquness_dum
 python thesis_indrek/UniquenessValidation.py -i 80 -t 100 -s 10 -f uniquness_dumps &
 python thesis_indrek/UniquenessValidation.py -i 90 -t 100 -s 10 -f uniquness_dumps &
 
-python thesis_indrek/count_results.py -i 0 -t 400 -f uniquness_dumps
+python thesis_indrek/count_results.py -s 0 -t 400 -f uniquness_dumps
