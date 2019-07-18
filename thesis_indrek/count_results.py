@@ -32,7 +32,8 @@ def main():
         folder = args["f"] + "/"
     else:
         folder = ""
-    for i in range(len(arr)):
+    i = 0
+    while i < len(arr):
         rel_path = "%sresultDump%d.kmc"%(folder, arr[i])
         dn = getRandomDn(30, 3)
         try:

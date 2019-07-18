@@ -9,9 +9,14 @@ import sys
 import math
 from utils import openKmc
 
+from matplotlib.ticker import FormatStrFormatter
+
 
 def drawGraph(dn, gs, fig, index):
     ax = plt.subplot(gs)
+    ax.yaxis.set_major_formatter(FormatStrFormatter('%.2g'))
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     y_data_max = -1
     y_data_min = 1
     false_max = -1
@@ -59,22 +64,23 @@ def drawGraph(dn, gs, fig, index):
     ax.set_xticklabels([])
     y = y_data_min - 0.2*(y_data_max - y_data_min)
     sepa = true_min - false_max
-    ax.text(40, y, "(%d) Separation: %.3g"%(index, sepa))
+    ax.text(40, y, "(%d) Separation: %.3g"%(index, sepa), fontdict={"fontsize": 16,})
     return sepa, Eac
 
 
 
-def compileGraphs(indexes, fileOut, key):
+def compileGraphs(indexes, fileOut, key, prefix="swipeResults/xor"):
     y_size = math.ceil(len(indexes)/3.0)
-    fig = plt.figure(figsize=(12, y_size*3))
-    gs = gridspec.GridSpec(y_size, 3)
+    fig = plt.figure(figsize=(16, y_size*3))
+    gs = gridspec.GridSpec(y_size, 3)   
+    plt.subplots_adjust(wspace=0.3)
     
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
     i = 0
     separated = 0
     sEc = 0
     for index in indexes:
-        rel_path = "swipeResults/xor%d.kmc"%(index)
+        rel_path = "%s%d.kmc"%(prefix, index)
     
         abs_file_path = os.path.join(script_dir, rel_path)
         dn = openKmc(abs_file_path)
@@ -95,18 +101,18 @@ def main():
     index5.extend([6, 126])
     indexes = {
         "30Dvc4": [i for i in range(1, 15)],
-        "30Dvc5":[i for i in range(17, 47)],
-        "30Dvc6":[i for i in range(49, 112)],
-        "20Dvc4": [i for i in range(1001, 1015)],
-        "20Dvc5":[i for i in range(1017, 1047)],
-        "10D.1vc4": [i for i in range(2001, 2015)],
-        "10D.1vc5": [i for i in range(2017, 2047)],
-        "10D.2vc4": [i for i in range(3001, 3015)],
-        "10D.2vc5": [i for i in range(3017, 3047)],
-        "10D.3vc4": [i for i in range(4001, 4015)],
-        "10D.3vc5": [i for i in range(4017, 4047)],
-        "10D.4vc4": [i for i in range(5001, 5015)],
-        "10D.4vc5": [i for i in range(5017, 5047)],
+        # "30Dvc5":[i for i in range(17, 47)],
+        # "30Dvc6":[i for i in range(49, 112)],
+        # "20Dvc4": [i for i in range(1001, 1015)],
+        # "20Dvc5":[i for i in range(1017, 1047)],
+        # "10D.1vc4": [i for i in range(2001, 2015)],
+        # "10D.1vc5": [i for i in range(2017, 2047)],
+        # "10D.2vc4": [i for i in range(3001, 3015)],
+        # "10D.2vc5": [i for i in range(3017, 3047)],
+        # "10D.3vc4": [i for i in range(4001, 4015)],
+        # "10D.3vc5": [i for i in range(4017, 4047)],
+        "10D4vc4": [i for i in range(5001, 5015)],
+        # "10D.4vc5": [i for i in range(5017, 5047)],
     }
     # indexes = {
     #     "D20vc4":[i for i in range(1001, 1015)],
