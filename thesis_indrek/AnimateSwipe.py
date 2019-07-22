@@ -23,6 +23,9 @@ def animateExample(index, useCalcs=False, animation_index=None, dmp_name="result
     :param animation_index:
         Want to use multiple animations for the same index, for whatever
         reason? No problem, set this to true.
+    :param dmp_name:
+        Your kmc object is saved with a different name than resultDump[number].kmc, specify,
+        what is instead of resultDump
     :return:
     '''
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in

@@ -230,6 +230,8 @@ def compareVisualizeErrors(diffs, fileName, x_limit = 0):
 def compareVisualizeErrorDistribution(diffs, fileName, x_limit=0):
     prefixes = [11, 21, 22, 22, 32, 32, 33, 33, 33, 43, 43, 43, 53, 53, 53]
     plt.clf()
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     prefix = prefixes[len(diffs)-1]
     index = 1
     fig = plt.figure(figsize=((prefix%10)*10, math.floor(prefix/10)*10))
@@ -252,9 +254,9 @@ def compareVisualizeErrorDistribution(diffs, fileName, x_limit=0):
         ax = fig.add_subplot(sub_plot_number)
 
         ax.set_xlim(right=x_dim)
-        ax.set_title(title)
+        ax.set_title(title, fontsize=20)
         
-        ax.text(0.5, -0.1, "Average: %.3g, Std. deviation: %.3g"%(avg, dev), horizontalalignment='center', transform=ax.transAxes)
+        ax.text(0.5, -0.1, "Average: %.3g, Std. deviation: %.3g"%(avg, dev), horizontalalignment='center', transform=ax.transAxes, fontdict={"fontsize": 16,})
         bins = 50
         sns.distplot(diff_list, kde=True, ax=ax, bins=bins,
              color = 'darkblue',
@@ -315,12 +317,16 @@ def testSet(prefix, amount, start = 0):
         # getKMCFunctionRecordPlus(500000),
         getKMCFunctionRecordPlus(1000000),
         getKMCFunctionRecordPlus(5000000),
-        # getPruneFunction(1000000, 0.00001),
-        # getPruneFunction(1000000, 0.0000001),
-        # getPruneFunction(1000000, 0.000000001),
+        getPruneFunction(1000000, 0.00001),
+        getPruneFunction(1000000, 0.0000001),
+        getPruneFunction(1000000, 0.000000001),
         getPythonFunction(1000000),
         getKMCFunctionNoRecord(1000000),
-
+        # getKMCFunctionRecordPlus(100000),
+        # getKMCFunctionRecordPlus(200000),
+        # getKMCFunctionRecordPlus(300000),
+        # getKMCFunctionRecordPlus(400000),
+        # getKMCFunctionRecordPlus(500000),
         # getKMCFunctionNoRecord(1000000),
         # getPythonFunction(1000000),
         # getProbFunction(500),
@@ -373,8 +379,8 @@ def main():
     #testSet("rnd2", 200)
     testSet("rnd_min_max5M", 100)
     testSet("XOR_wide5M", 100)
-    #testSet("rnd_min_max", 100)
-    #testSet("XOR_wide", 100)
+    testSet("rnd_min_max", 100)
+    testSet("XOR_wide", 100)
     #findWierdnessInTestSet("rnd2", 5)
     """measureSwipe("xor", 100, 1, 2, [
             getKMCFunction(5000),

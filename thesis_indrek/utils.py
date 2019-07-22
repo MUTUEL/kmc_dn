@@ -53,7 +53,6 @@ def getSwipeResults(dn, steps, hops, waits):
     dn.swipe_results = []
 
     tests = dn.tests
-    print (tests)
     bool_func = []
     for test in tests:
         bool_func.append(test[0])
@@ -64,7 +63,6 @@ def getSwipeResults(dn, steps, hops, waits):
     
     for i in range(1, len(bool_func)):
         next_expected = 1 if tests[i][1] else 0
-        print ("i is %d"%(i))
         from_voltage = [dn.electrodes[0][3], dn.electrodes[1][3]]
         to_voltage = [bool_func[i][0], bool_func[i][1]]
         for j in range(waits):
@@ -78,7 +76,6 @@ def getSwipeResults(dn, steps, hops, waits):
             dn.update_V()
             dn.go_simulation(hops = hops, record=True,  goSpecificFunction="wrapperSimulateRecord")
             appendToSwipeResults(dn, current_expected + (next_expected-current_expected)*(j*1.0/steps))
-            print (current_expected + (next_expected-current_expected)*(j*1.0/steps))
         dn.electrodes[0][3] = to_voltage[0]
         dn.electrodes[1][3] = to_voltage[1]
         dn.update_V()

@@ -69,11 +69,11 @@ def drawGraph(dn, gs, fig, index):
 
 
 
-def compileGraphs(indexes, fileOut, key, prefix="swipeResults/xor"):
-    y_size = math.ceil(len(indexes)/3.0)
-    fig = plt.figure(figsize=(16, y_size*3))
-    gs = gridspec.GridSpec(y_size, 3)   
-    plt.subplots_adjust(wspace=0.3)
+def compileGraphs(indexes, fileOut, key, prefix="swipeResults/xor", columns=3):
+    y_size = math.ceil(len(indexes)/columns)
+    fig = plt.figure(figsize=(columns*5, y_size*3))
+    gs = gridspec.GridSpec(y_size, columns)   
+    plt.subplots_adjust(left=0.1, right=0.97, wspace=0.3, top=0.97, bottom=0.05)
     
     script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
     i = 0
@@ -118,8 +118,16 @@ def main():
     #     "D20vc4":[i for i in range(1001, 1015)],
     #     "D20vc5":[i for i in range(1017, 1047)],
     # }
+    indexes = {
+        "5DOP": index5,
+        "10DOP": [i for i in range(46, 60)],
+        "20DOP": [i for i in range(60, 74)],
+        "30DOP": [i for i in range(74, 88)],
+        "45DOP": [i for i in range(88, 102)],
+        "60DOP": [i for i in range(102, 116)],
+    }
     for key in indexes:
-        compileGraphs(indexes[key], "Summery%s.png"%(key), key)
+        compileGraphs(indexes[key], "CompiledXOR%s.png"%(key), key, "../resultDump", columns=3)
 
 if __name__== "__main__":
   main()

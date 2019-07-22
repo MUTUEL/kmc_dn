@@ -67,7 +67,7 @@ def main():
     for index in range(startIndex, startIndex+skips):
         print (index)
         dn = getRandomDn(dop, round(dop/10))
-        testSample(dn, tests, hours=1, gen_size=100, times=times, index=index+startIndex, folder=folder)
+        testSample(dn, tests, hours=1, gen_size=100, times=times, index=index, folder=folder)
 
 
 if __name__== "__main__":

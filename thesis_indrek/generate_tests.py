@@ -1,5 +1,5 @@
 '''
-@author: Bram de Wilde (b.dewilde-1@student.utwente.nl), Indrek Klanberg (i.klanberg@student.utwente.nl)
+@author: Indrek Klanberg (i.klanberg@student.utwente.nl)
 '''
 import os
 import sys
@@ -21,7 +21,6 @@ M = 3  # Number of donors
 xdim = 1  # Length along x dimension
 ydim = 1  # Length along y dimension
 zdim = 0  # Length along z dimension
-hops = int(1E6)
 #res = 1  # Resolution of laplace grid
 
 def getRandomKMC(voltage_range, N, M, xdim=1, ydim=1, zdim=0):
@@ -39,7 +38,7 @@ def getRandomKMC(voltage_range, N, M, xdim=1, ydim=1, zdim=0):
     kmc = kmc_dn.kmc_dn(N, M, xdim, ydim, 0, electrodes = electrodes)
     return kmc
 
-def testKmc(kmc, use_python=False):
+def testKmc(kmc, hops, use_python=False):
     currents = []
     for i in range(5):
         if use_python:
@@ -62,26 +61,26 @@ def testKmc(kmc, use_python=False):
     print (means_c)
     print (std_deviation_c)
 
-def generateTests(n, prefix, N, M):
+def generateTests(n, hops, prefix, N, M):
     for i in range(n):
         print (i)
         kmc = getRandomKMC(300, N, M)
         rel_path = "tests/%s/test%d.kmc"%(prefix, i)
-        testKmc(kmc)
+        testKmc(kmc, hops)
         kmc.saveSelf(rel_path, True)
 
-def generateTestsFromTests(n, prefix, from_prefix, use_python=False):
+def generateTestsFromTests(n, hops, prefix, from_prefix, use_python=False):
     for i in range(n):
         print (i)
         kmc = getRandomKMC(300, 30, 3)
         rel_path = "examples/tests/%s/test%d.kmc"%(from_prefix, i)
         kmc.loadSelf(rel_path, True)
         rel_path = "examples/tests/%s/test%d.kmc"%(prefix, i)
-        testKmc(kmc, use_python=use_python)
+        testKmc(kmc, hops, use_python=use_python)
         kmc.saveSelf(rel_path, True)
 
 
-def generateXORTests(indexRange, folder):
+def generateXORTests(indexRange, hops, folder):
     points = [(0, 0), (0, 75), (75, 0), (75, 75)]
     testCase = 1
     for i in indexRange:
@@ -94,7 +93,7 @@ def generateXORTests(indexRange, folder):
         for p in points:
             kmc.electrodes[0][3] = p[0]
             kmc.electrodes[1][3] = p[1]
-            testKmc(kmc, use_python=True)
+            testKmc(kmc, hops, use_python=True)
             rel_path = "examples/tests/%s/test%d.kmc"%(folder, testCase)
             abs_file_path = os.path.join(script_dir, rel_path)
             kmc.saveSelf(abs_file_path)
@@ -160,6 +159,6 @@ def testOverlap():
 #testRandFunctions()
 #testOverlap()
 
-#generateXORTests([i for i in range(500, 525)], "XOR_wide")
-#generateTests(100, rnd_min_max", 30, 3)
-generateTestsFromTests(100, "XOR_wide", "XOR_wide5M", True)
+#generateXORTests([i for i in range(500, 525)], 1000000"XOR_wide")
+#generateTests(100, 1000000, rnd_min_max", 30, 3)
+generateTestsFromTests(100, 5000000, "XOR_wide", "XOR_wide5M", True)
