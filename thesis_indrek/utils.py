@@ -2,20 +2,29 @@ import sys
 import kmc_dopant_networks as kmc_dn
 
 def parseArgs():
-      i = 1
-      paras = {}
-      while len(sys.argv) > i+1:
-            if sys.argv[i][0]=='-':
-                  paras[sys.argv[i][1:]] = sys.argv[i+1]
-                  i+=1
-            i+=1
-      return paras
+    '''
+    This parses command line arguments which are in the form of "-key value" and returns
+        a corresponding dictionary.
+        Example of a correct command line would be "python script.py -key1 val1 -key2 val2"
+    :return:
+        dictionary, where keys are parameter names and values parameter values.
+    '''
+    i = 1
+    paras = {}
+    while len(sys.argv) > i+1:
+        if sys.argv[i][0]=='-':
+                paras[sys.argv[i][1:]] = sys.argv[i+1]
+                i+=1
+        i+=1
+    return paras
 
 def openKmc(abs_file_path):
     '''
     This returns a kmc_dn object that is in the given absolute file path.
     :param abs_file_path:
+        path to the kmc_dn object
     :return:
+        kmc_dn object
     '''
     kmc = kmc_dn.kmc_dn(10, 3, 1, 1, 0)
     kmc.loadSelf(abs_file_path)

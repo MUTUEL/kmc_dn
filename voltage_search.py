@@ -89,6 +89,7 @@ class voltage_search(dn_search):
             dn.electrodes[i+2][3] = random.random()*self.voltage_range*2 - self.voltage_range
 
     def evaluate_error_diff(self, dn):
+        # Error function that takes into account only separation.
         lowest_true = 1
         highest_false = -1
         for test in self.tests:
@@ -108,6 +109,7 @@ class voltage_search(dn_search):
         return highest_false - lowest_true
 
     def evaluate_error_corr(self, dn):
+        # Error function that takes into account both separation and correlation.
         lowest_true = 1
         highest_false = -1
         values = []
@@ -134,6 +136,8 @@ class voltage_search(dn_search):
             return (corr**self.corr_pow) * separation
 
     def parallel_simulation(self, dns):
+        # Helper function to perform parallel simulations necessary 
+        # for evaluate_error_corr_parallel.
         count = 0
         parr = parrallelSimulation()
         for dn in dns:
@@ -154,6 +158,9 @@ class voltage_search(dn_search):
 
 
     def evaluate_error_corr_parallel(self, dn):
+        # Error function that takes into account separation and correlation.
+        # The simulations necessary to evaluate the error are done in parallel 
+        # before calling this.
         lowest_true = 1
         highest_false = -1
         values = []
@@ -177,6 +184,7 @@ class voltage_search(dn_search):
         else:
             return (corr**self.corr_pow) * separation
 
+    # Override function for simulated annealing
     def yieldNeighbours(self):
         shifts = [self.x_resolution, -self.x_resolution]
         options = [(i+2, shifts[j]) for i in range(self.N) for j in range(len(shifts))]
@@ -193,6 +201,7 @@ class voltage_search(dn_search):
                 newDn.electrodes[option[0]][3] = electrode_voltage
                 yield newDn, option[0], (0, 0)
 
+    # Override function for both searches
     def getRandomDn(self):
         newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
                 self.dn.zdim, electrodes=self.dn.electrodes, acceptors=self.dn.acceptors, 
@@ -200,7 +209,8 @@ class voltage_search(dn_search):
         newDn.tests = self.tests
         self.init_random_voltages(newDn)
         return newDn
-            
+    
+    # Override function for genetic search
     def getGenes(self, dn):
         genes = []
         for i in range(self.N):
@@ -209,17 +219,20 @@ class voltage_search(dn_search):
             genes.append(x)
         return genes
 
+    # Override function for genetic search
     def getDnFromGenes(self, genes, dn, order_center=None):
         setattr(dn, "genes", genes)
         for i in range(0, len(genes)):
             value = genes[i]/65535 * 2 * self.voltage_range - self.voltage_range
             dn.electrodes[i+2][3] = value
 
+    # Override function for genetic search
     def copyDnFromBtoA(self, dna, dnb):
         setattr(dna, "genes", getattr(dnb, "genes", []).copy())
         dna.electrodes = dnb.electrodes.copy()
         dna.update_V()
 
+    # Override function for genetic search
     def isAllowed(self, prev_genes, gene, uniqueness, resolution):
         for prev_gene in prev_genes:
             total_diff = 0
@@ -238,6 +251,7 @@ class voltage_search(dn_search):
             if math.fabs(dn.electrodes[i+2][3]) > self.voltage_range:
                 dn.electrodes[i+2][3] = dn.electrodes[i+2][3] / math.fabs(dn.electrodes[i+2][3]) * self.voltage_range
 
+
     def getAdjustedDn(self, dn, adjustment):
         newDn = kmc_dn.kmc_dn(dn.N, dn.M, dn.xdim, dn.ydim, 
                 self.dn.zdim, electrodes=dn.electrodes, acceptors=dn.acceptors, 
@@ -248,6 +262,7 @@ class voltage_search(dn_search):
         self.checkRange(newDn)
         return newDn
 
+    # Trial to implement SPSA, so far not validated to work.
     def SPSA_search(self, time_budget, a, c, A, alfa, gamma, file_prefix):
         k = 1
         self.dn = self.getRandomDn()

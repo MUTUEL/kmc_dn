@@ -84,6 +84,11 @@ class dn_search():
         
 
     def setStrategy(self, index):
+        '''
+        This changes the search strategy.
+        :param index:
+            index of the new search strategy. Strategy is taken form self.simulation_strategy array.
+        '''
         self.current_strategy = index
         self.simulation_func = self.simulation_strategy[index]['func']
         self.simulation_args = self.simulation_strategy[index]['args']
@@ -91,6 +96,13 @@ class dn_search():
         self.threshold_error =  self.simulation_strategy[index]['threshold_error']
 
     def evaluate_error(self, dn):
+        '''
+        Evaluates the error of som kmc_dn object, relative to the test set given in self.
+        :param dn:
+            Dopant network to be evaluated.
+        :returns:
+            score for the evaluation.
+        '''
         diffs = []
         for j in range(self.use_tests):
             test = self.tests[j]
@@ -107,6 +119,13 @@ class dn_search():
         return self.error_func(diffs)
 
     def validate_error(self, dn):
+        '''
+        Validate the error of some dopant network object. In validation we use the last strategy, which is reserved for most accuracy.
+        :param dn:
+            Dopant network to be validated.
+        :returns:
+            score for the validation.
+        '''
         diffs = []
         cur_strat = self.current_strategy
         self.setStrategy(len(self.simulation_strategy)-1)
@@ -115,6 +134,13 @@ class dn_search():
         return error
         
     def average_cumulative_error(self, diffs):
+        '''
+        Legacy error function that was used in dopant placement search.
+        :param diffs:
+            list of differences from evaluated dopant network compared to expected values.
+        :returns:
+            result of the error function
+        '''
         error = 0
         for diff in diffs:
             if diff > self.expected_error:
@@ -122,7 +148,9 @@ class dn_search():
         return error / len(diffs)
 
     def initRandomPlacement(self):
-        #Inits random placement but within the given resolution.
+        '''
+        Inits random placement but within the given resolution.
+        '''
         xInt = self.xdim / self.x_resolution
         yInt = self.ydim / self.y_resolution
         self.dn.xCoords = []
@@ -160,6 +188,10 @@ class dn_search():
         self.dn.initialize(dopant_placement=False, charge_placement=False)
 
     def yieldNeighbours(self):
+        '''
+            Yields neighbours of current state. Used by greedy and simulated annealing algorithms.
+            This is the implementation for dopant placement search.
+        '''
         N = self.dn.N + self.dn.M
         shifts = [(self.x_resolution, 0), (-self.x_resolution, 0), (0, self.y_resolution), (0, -self.y_resolution), (self.x_resolution, self.y_resolution), (-self.x_resolution, self.y_resolution), (-self.x_resolution, -self.y_resolution), (self.x_resolution, -self.y_resolution)]
         options = [(i, shifts[j][0], shifts[j][1]) for i in range(N) for j in range(len(shifts))]
@@ -194,6 +226,7 @@ class dn_search():
 
 
     def doesPositionFit(self, x, y):
+        #Legacy helper function
         if x < 0 or x > self.xdim or y < 0 or y > self.ydim:
             return False
         for i in range(len(self.dn.xCoords)):
@@ -202,6 +235,7 @@ class dn_search():
         return True
 
     def float_equals(self, a, b):
+        #helper function
         if a < (b+0.001) and a > (b-0.001):
             return True
         else:
@@ -209,6 +243,7 @@ class dn_search():
 
 
     def randomSearch(self, time_budget):
+        #Random search just to see if other searches have some intelligence in them.
         self.setStrategy(len(self.simulation_strategy)-1)
         errors = []
         vals = []
@@ -233,6 +268,7 @@ class dn_search():
         return bestDn, errors, vals, diffs
 
     def saveResults(self, kmc=True, plot=False, prefix="resultDump", index=0):
+        #Save search results. Can save both a kmc object but also a traffic visualization.
         if kmc:
             self.best_dn.saveSelf("%s%d.kmc"%(prefix, index))
         if plot:
@@ -242,6 +278,7 @@ class dn_search():
             plt.savefig("%s%d.png"%(prefix, index))
 
     def greedySearch(self):
+        #Greedy search.
         best = self.evaluate_error(self.dn)
         print ("Best is %.3f"%(best))
         found = True
@@ -272,6 +309,7 @@ class dn_search():
 
 
     def appendValidationData(self, error, time_difference, dn=None):
+        #Helper function to manage validation information
         if dn is None:
             target = self.dn
         else:
@@ -280,6 +318,7 @@ class dn_search():
         self.validations.append((validation_error, error, time_difference))
 
     def simulatedAnnealingSearch(self, T, annealing_schedule, file_prefix, validation_timestep=3600, animate=True):
+        #Simulated annealing search
         real_start_time = time.time()
         annealing_index = 0
         next_validation = validation_timestep
@@ -370,8 +409,36 @@ class dn_search():
 
 #Genetic search
     def genetic_search(self, gen_size, time_available, disparity, uniqueness, 
-            cross_over_function, mut_pow=1, order_center=None, 
-            u_schedule = None, max_generations = 0, mut_rate = 0, initial_dns=None):
+            cross_over_function, mut_pow=1, u_schedule = None, max_generations = 0, 
+            mut_rate = 0, initial_dns=None):
+        '''
+        Genetic search. This implementation has the uniqueness and disparity features.
+        Note that the best dn is not returned but saved in self.
+        :param gen_size:
+            Number of individuals in each generation.
+        :param time_available:
+            time available in seconds
+        :param disparity:
+            The higher the disparity the more higher ranking individuals are preferred.
+        :param uniqueness:
+            The higher the uniqueness value the more different individuals 
+                have to be from each other. Mutations are used to force uniquness.
+        :param cross_over_function:
+            What cross over function is going to be used.
+        :param mut_pow:
+            Mutation power, the higher this value is, the more likely it is for mutations 
+            to change values drastically.
+        :param u_schedule:
+            Uniqueness schedule. You can define how uniquness value changes throughout generations.
+        :param max_generations:
+            End the search after processing max_generations-th generation.
+        :param mut_rate:
+            What is the probability to cause a mutation after cross over.
+        :param initial_dns:
+            You can provide your own initial dns instead of having them randomly generated.
+        :returns:
+            A tuple of the evaluation of the best error, the final strategy used and validation scores. In that order.
+        '''
         dns = []
         validation_timestep = time_available / 10
         self.current_strategy = 0
@@ -395,7 +462,6 @@ class dn_search():
         if u_schedule is not None:
             us_i = 0
             us_from = uniqueness
-            us_start_time = 0
         while True:
             gen += 1
             best_error = 1000
@@ -460,7 +526,7 @@ class dn_search():
             tmp_sum = sum([new_generation_genes[y][x] for x in range(len(new_generation_genes[0])) for y in range(len(new_generation_genes))])
             i = 0
             for gene in new_generation_genes:
-                self.getDnFromGenes(gene, dns[i], order_center)
+                self.getDnFromGenes(gene, dns[i])
                 i+=1
             tmp_sum2 = sum([new_generation_genes[y][x] for x in range(len(new_generation_genes[0])) for y in range(len(new_generation_genes))])
             assert tmp_sum == tmp_sum2            
@@ -485,12 +551,16 @@ class dn_search():
 
 
     def getRandomDn(self):
+        #Return random dn. Used in initialization of searches.
         newDn = kmc_dn.kmc_dn(self.dn.N, self.dn.M, self.dn.xdim, self.dn.ydim, 
                 self.dn.zdim, electrodes=self.dn.electrodes, copy_from = self.dn)
         return newDn
 
 
     def getGenes(self, dn):
+        # Gen gene encoding of a dopant network object. 
+        # Default implementation encodes positions.
+        # Gene encoding is a list of uint16 numbers.
         genes = []
         for acceptor in dn.acceptors:
             x = np.uint16(acceptor[0]/dn.xdim * 65535)
@@ -505,7 +575,26 @@ class dn_search():
         return genes
     
 
-    def getNextGenerationGenes(self, dns, uniqueness, cross_over_function, power=1, mut_rate=0):
+    def getNextGenerationGenes(self, dns, uniqueness, cross_over_function, mut_power=1, mut_rate=0):
+        '''
+        Used by genetic search to generate the genes of the next generation
+        :param dns:
+            Disparity, elitism and ranking have already been taken into account 
+            when generating this list. This list may include multiple references 
+            to the same individual.
+        :param uniqueness:
+            uniqueness value. The distance of all genes have to be higher or equal 
+            to any other genes than this value.
+        :param cross_over_function:
+            Cross over function to be used to perform corssover.
+        :param mut_power:
+            Mutation power, the higher this value is, the more likely it is for 
+            mutations to change values drastically.
+        :param mut_rate:
+            What is the probability to cause a mutation after cross over.
+        :returns:
+            List of genes to be used by 
+        '''
         newGeneration = []
         for i in range(len(dns)):
             if i % 2 == 0:
@@ -520,14 +609,14 @@ class dn_search():
             if mut_rate > 0:
                 if random.random() < mut_rate:
                     gene = math.floor(random.random()*len(newGenes))
-                    newGenes[gene] = dn_search.mutate(newGenes[gene], power)
+                    newGenes[gene] = dn_search.mutate(newGenes[gene], mut_power)
             ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, self.genetic_allowed_overlap)
             tries = 0
             while not ok:
                 if problem == -1:
                     problem = math.floor(random.random()*len(newGenes))
 
-                newGenes[problem] = dn_search.mutate(newGenes[problem], power)
+                newGenes[problem] = dn_search.mutate(newGenes[problem], mut_power)
                 ok, problem = self.isAllowed(newGeneration, newGenes, uniqueness, 65)
                 tries+=1
                 if tries == 100:
@@ -538,13 +627,17 @@ class dn_search():
 
 
     @staticmethod
-    def mutate(a, power):
-        rnd = math.floor(random.random()**(1/power)*16)
+    def mutate(a, mut_power):
+        # Given initial uint16 a, and mutatuion power, returns a new 
+        # uint16 b, with a random bit switched - mutated.
+        rnd = math.floor(random.random()**(1/mut_power)*16)
         b = np.uint16(2**rnd)
         return np.bitwise_xor(a, b)
 
 
     def isAllowed(self, prev_genes, gene, uniqueness, resolution):
+        # Is a gene allowed based on previous genes. 
+        # Takes into account uniqueness and resolution.
         for coord in range(0, len(gene), 2):
             for coord2 in range(0, len(gene), 2):
                 if coord == coord2:
@@ -590,8 +683,9 @@ class dn_search():
         return genes
 
 
-    def getDnFromGenes(self, genes, dn, order_center=None):
-
+    def getDnFromGenes(self, genes, dn):
+        # Given genes, a list of uint16 and dopant network object dn,
+        # Updates dn to correspond to the gene encoding in genes.
         setattr(dn, "genes", genes)
 
         for i in range(self.dn.N):
@@ -602,8 +696,6 @@ class dn_search():
             x = genes[self.dn.N*2+i*2]/65535*self.dn.xdim
             y = genes[self.dn.N*2+i*2+1]/65535*self.dn.ydim
             dn.donors[i] = (x, y, 0)
-        if order_center is not None:
-            self.orderPlacement(dn, center = order_center)
         dn.initialize( dopant_placement=False, charge_placement=False)
     
 
@@ -654,12 +746,15 @@ class dn_search():
 
     
     def copyDnFromBtoA(self, dna, dnb):
+        # Assuming that dna and dnb are based on the same setup and are only different 
+        # related to the search at hand, copies the search related values from dnb to dna.
         setattr(dna, "genes", getattr(dnb, "genes", []).copy())
         dna.acceptors = dnb.acceptors.copy()
         dna.donors = dnb.donors.copy()
         dna.initialize( dopant_placement=False, charge_placement=False)
     
     def P(self, e, e0, T):
+        # Probabilty function used in simulated annealing.
         if e < e0:
             return True
         elif T < 0.001:
