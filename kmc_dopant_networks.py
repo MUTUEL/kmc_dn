@@ -163,7 +163,7 @@ def _transition_possible(i, j, N, occupation):
             return True
 
 class kmc_dn():
-    def __init__(self, N, M, xdim, ydim, zdim, mu = 0, **kwargs):
+    def __init__(self, N, M, xdim, ydim, zdim, mu = 0, I_0=100, a=0.25, **kwargs):
         '''
         =======================
         kmc_dn simulation class
@@ -335,7 +335,7 @@ class kmc_dn():
         else: 
             self.nu = 1  # Hop attempt frequency (1/s)
             self.kT = 1  # Temperature energy
-            self.I_0 = 100*self.kT  # Interaction energy
+            self.I_0 = I_0*self.kT  # Interaction energy
         self.time = 0  # s
         self.mu = mu  # Equilibrium chemical potential
 
@@ -358,7 +358,7 @@ class kmc_dn():
             self.R = (self.N/(self.xdim*self.ydim*self.zdim))**(-1/3)
 
         # Set dimensonless variables to 1
-        self.ab = 0.25*self.R
+        self.ab = a*self.R
 
         # Initialize parameter kwargs
         if('electrodes' in kwargs):

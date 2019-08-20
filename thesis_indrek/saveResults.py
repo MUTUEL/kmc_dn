@@ -1,6 +1,12 @@
 from voltage_search_tests import getRandomDn
 from utils import parseArgs, getSwipeResults
 
+# Used to generate swipe_results for .kmc files. This uses 
+# parameters so it can be used in cluster.
+# -i: start index of the first file.
+# -t: Number of files to be processed after the first.
+# -f: folder of the files. Relative to the script calling location
+
 def main():
     args = parseArgs()
     if "i" in args:
@@ -20,6 +26,7 @@ def main():
         dn = getRandomDn(30, 3)
         try:
             dn.loadSelf(rel_path, True)
+            print("%d: %d"%(index, dn.N))
         except:
             continue        
         getSwipeResults(dn, 40, 5000000, 40)

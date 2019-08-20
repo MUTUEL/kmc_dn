@@ -2,6 +2,10 @@ from voltage_search_tests import getRandomDn
 from voltage_search import voltage_search
 from utils import parseArgs
 
+# This script was used to compare uniquness feature to mutation rate.
+# testSample is able to have the same placement and initial population
+# for all the tests.
+
 def testSample(dn, tests, hours = 10, disparity=2, 
         mut_pow=1, gen_size = 50, index = 0, times = 20, folder=""):
     search = voltage_search(dn, 150, 10, tests, corr_pow=2, parallelism=0)

@@ -13,6 +13,8 @@ import time
 import kmc_dopant_networks_utils as kmc_utils
 import seaborn as sns
 
+# This script is used to validate various simulation methods.
+
 def getMeanAndStandardDeviation(arr):
     sum = 0
     arr.sort()

@@ -9,13 +9,12 @@ import math
 import time
 import matplotlib.pyplot as plt
 import kmc_dopant_networks_utils as kmc_utils
-import dn_search_util
 import matplotlib.pyplot as plt
 import pickle
 from validate_tests import compareVisualizeErrorDistribution
 from utils import parseArgs, openKmc
 
-
+# This script is used 
 
 def get8Electrodes(xdim, ydim):
     electrodes = np.zeros((8, 4))
@@ -100,7 +99,6 @@ def testVC(dn, dim, points, starting_index, prefix=""):
         for key in results:
             data[key] = results[key][2]
         plt.clf()
-        dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
         plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
 
 def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
@@ -116,7 +114,6 @@ def reTestVC(dn, dim, points, cases, starting_index, prefix=""):
         for key in results:
             data[key] = results[key][2]
         plt.clf()
-        dn_search_util.plotPerformance(data, [(2, 0, " validation"), (2, 1, " error")])
         plt.savefig("%sVCdim%dCase%d.png"%(prefix, dim, case))
 
 #Can pass parameters. d - number of dopants. i - starting index for file numbers. t - number of times to do the whole process.

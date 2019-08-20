@@ -4,6 +4,19 @@ from utils import parseArgs
 from voltage_search_tests import getRandomDn
 
 
+# This file is used in the cluster to count finished scripts. 
+# By giving it the right parameters you can be sure that this 
+# doesn't finish before everything else.
+# You can use parameters.
+# Use either -s int -t int, or -i int. But not both
+# -s: start index of the file required.
+# -t: number of files required after start index
+# -i: index of one of the premade lists. For complex lists you can define one here, 
+#   and append to arr.
+# -r: Weather swipe_results are required. If it is false, we only check for file existance.
+#       However, if it is true, then we don't require file existance and only require
+#       swipe_results existance for files that do exist.
+#
 
 def main():
     arr = [i for i in range(1, 15)]

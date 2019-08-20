@@ -13,6 +13,8 @@ import json
 import math
 from validate_tests import getMeanAndStandardDeviation, compareVisualizeErrors
 
+# This file was used to generate test sets. You can generate random test set, or test set
+# from .kmc files (I used it for XOR test set).
 
 #%% Parameters
 
@@ -22,6 +24,8 @@ xdim = 1  # Length along x dimension
 ydim = 1  # Length along y dimension
 zdim = 0  # Length along z dimension
 #res = 1  # Resolution of laplace grid
+
+
 
 def getRandomKMC(voltage_range, N, M, xdim=1, ydim=1, zdim=0):
     # Define electrodes
@@ -80,7 +84,10 @@ def generateTestsFromTests(n, hops, prefix, from_prefix, use_python=False):
         kmc.saveSelf(rel_path, True)
 
 
-def generateXORTests(indexRange, hops, folder):
+def generateTestsFromFiles(indexRange, hops, folder):
+    # This generates 4 tests from each file in the given folder. 
+    # If you would like different input voltage values you have 
+    # to specify them manually by changing points values.
     points = [(0, 0), (0, 75), (75, 0), (75, 75)]
     testCase = 1
     for i in indexRange:
@@ -159,6 +166,6 @@ def testOverlap():
 #testRandFunctions()
 #testOverlap()
 
-#generateXORTests([i for i in range(500, 525)], 1000000"XOR_wide")
+#generateTestsFromFiles([i for i in range(500, 525)], 1000000, "XOR_wide")
 #generateTests(100, 1000000, rnd_min_max", 30, 3)
 generateTestsFromTests(100, 5000000, "XOR_wide", "XOR_wide5M", True)
